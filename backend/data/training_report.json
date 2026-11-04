@@ -1,0 +1,265 @@
+{
+  "training_date": "2026-11-02T11:54:48.772008",
+  "total_scenarios": 5000,
+  "total_wins": 2665,
+  "total_losses": 2335,
+  "overall_win_rate": 53.300000000000004,
+  "difficulty_stats": {
+    "easy": {
+      "total": 1000,
+      "wins": 500,
+      "losses": 500,
+      "win_rate": 50.0
+    },
+    "medium": {
+      "total": 2000,
+      "wins": 1231,
+      "losses": 769,
+      "win_rate": 61.550000000000004
+    },
+    "hard": {
+      "total": 1500,
+      "wins": 720,
+      "losses": 780,
+      "win_rate": 48.0
+    },
+    "extreme": {
+      "total": 500,
+      "wins": 214,
+      "losses": 286,
+      "win_rate": 42.8
+    }
+  },
+  "patterns_discovered": 40,
+  "rules_created": 9,
+  "rules": [
+    {
+      "name": "volume_sol_threshold",
+      "condition": "volume_sol >= 3",
+      "action": "prefer",
+      "threshold": 30,
+      "confidence": 1.0,
+      "times_tested": 869,
+      "times_correct": 714,
+      "created_at": "2026-11-02T11:54:48.756475",
+      "last_updated": "2026-11-02T11:54:48.756489"
+    },
+    {
+      "name": "holder_count_threshold",
+      "condition": "holder_count >= 20",
+      "action": "prefer",
+      "threshold": 200,
+      "confidence": 1.0,
+      "times_tested": 542,
+      "times_correct": 529,
+      "created_at": "2026-11-02T11:54:48.756502",
+      "last_updated": "2026-11-02T11:54:48.756503"
+    },
+    {
+      "name": "dev_holding_pct_threshold",
+      "condition": "dev_holding_pct <= 5",
+      "action": "prefer",
+      "threshold": 30,
+      "confidence": 1.0,
+      "times_tested": 4487,
+      "times_correct": 2665,
+      "created_at": "2026-11-02T11:54:48.756507",
+      "last_updated": "2026-11-02T11:54:48.756508"
+    },
+    {
+      "name": "top10_holding_pct_threshold",
+      "condition": "top10_holding_pct <= 30",
+      "action": "prefer",
+      "threshold": 70,
+      "confidence": 1.0,
+      "times_tested": 0,
+      "times_correct": 0,
+      "created_at": "2026-11-02T11:54:48.756512",
+      "last_updated": "2026-11-02T11:54:48.756512"
+    },
+    {
+      "name": "max_wallet_pct_threshold",
+      "condition": "max_wallet_pct <= 10",
+      "action": "prefer",
+      "threshold": 30,
+      "confidence": 1.0,
+      "times_tested": 0,
+      "times_correct": 0,
+      "created_at": "2026-11-02T11:54:48.756515",
+      "last_updated": "2026-11-02T11:54:48.756516"
+    },
+    {
+      "name": "entry_progress_threshold",
+      "condition": "30 <= entry_progress <= 60",
+      "action": "prefer",
+      "threshold": 30,
+      "confidence": 1.0,
+      "times_tested": 3095,
+      "times_correct": 2005,
+      "created_at": "2026-11-02T11:54:48.756519",
+      "last_updated": "2026-11-02T11:54:48.756520"
+    },
+    {
+      "name": "momentum_threshold",
+      "condition": "momentum >= 30",
+      "action": "prefer",
+      "threshold": 70,
+      "confidence": 1.0,
+      "times_tested": 742,
+      "times_correct": 644,
+      "created_at": "2026-11-02T11:54:48.756522",
+      "last_updated": "2026-11-02T11:54:48.756523"
+    },
+    {
+      "name": "buy_sell_ratio_threshold",
+      "condition": "buy_sell_ratio >= 0.7",
+      "action": "prefer",
+      "threshold": 2.0,
+      "confidence": 1.0,
+      "times_tested": 0,
+      "times_correct": 0,
+      "created_at": "2026-11-02T11:54:48.756526",
+      "last_updated": "2026-11-02T11:54:48.756527"
+    },
+    {
+      "name": "bonding_curve_age_min_threshold",
+      "condition": "bonding_curve_age_min <= 5",
+      "action": "reject",
+      "threshold": 60,
+      "confidence": 1.0,
+      "times_tested": 0,
+      "times_correct": 0,
+      "created_at": "2026-11-02T11:54:48.756530",
+      "last_updated": "2026-11-02T11:54:48.756530"
+    }
+  ],
+  "insights": [
+    {
+      "insight": "Tokens with volume > 20 SOL have 66% win rate",
+      "rule": "Prefer tokens with volume > 20 SOL",
+      "confidence": 1.0
+    },
+    {
+      "insight": "Tokens with dev < 10% have 71% win rate",
+      "rule": "Prefer tokens where dev holds < 10%",
+      "confidence": 1.0
+    },
+    {
+      "insight": "Entries at 30-60% progress have 65% win rate",
+      "rule": "Enter when bonding curve is at 30-60%",
+      "confidence": 1.0
+    },
+    {
+      "insight": "Tokens with momentum > 60 have 68% win rate",
+      "rule": "Prefer tokens with momentum > 60",
+      "confidence": 1.0
+    }
+  ],
+  "top_patterns": [
+    {
+      "condition": "volume_sol >= 3",
+      "wr_true": 0.605406633348478,
+      "wr_false": 0.0,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "volume_sol >= 5",
+      "wr_true": 0.605406633348478,
+      "wr_false": 0.0,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "volume_sol >= 10",
+      "wr_true": 0.6169941311559071,
+      "wr_false": 0.22849213691026826,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "volume_sol >= 15",
+      "wr_true": 0.6530477759472817,
+      "wr_false": 0.3475826972010178,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "volume_sol >= 20",
+      "wr_true": 0.6629370629370629,
+      "wr_false": 0.43537653239929947,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "volume_sol >= 30",
+      "wr_true": 0.8216340621403913,
+      "wr_false": 0.47228274025659644,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "holder_count >= 20",
+      "wr_true": 0.6013086642599278,
+      "wr_false": 0.0,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "holder_count >= 30",
+      "wr_true": 0.605406633348478,
+      "wr_false": 0.0,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "holder_count >= 50",
+      "wr_true": 0.6292785676671933,
+      "wr_false": 0.22878535773710482,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "holder_count >= 100",
+      "wr_true": 0.7030953885028427,
+      "wr_false": 0.45419959028387474,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "holder_count >= 200",
+      "wr_true": 0.9760147601476015,
+      "wr_false": 0.4791386271870794,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "dev_holding_pct <= 5",
+      "wr_true": 0.834841628959276,
+      "wr_false": 0.4681729834791059,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "dev_holding_pct <= 10",
+      "wr_true": 0.7055267702936097,
+      "wr_false": 0.38412816691505214,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "dev_holding_pct <= 15",
+      "wr_true": 0.6279891304347827,
+      "wr_false": 0.2681818181818182,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    },
+    {
+      "condition": "dev_holding_pct <= 20",
+      "wr_true": 0.6141968195436737,
+      "wr_false": 0.0,
+      "confidence": 1.0,
+      "recommendation": "prefer"
+    }
+  ]
+}

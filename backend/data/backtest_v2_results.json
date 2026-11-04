@@ -1,0 +1,128 @@
+{
+  "in_sample": {
+    "n": 393,
+    "win_rate": 0.4758269720101781,
+    "avg_r": -0.05183582751206873,
+    "expectancy_r": -0.05183582751206873,
+    "expectancy_ci95": [
+      -0.1062333651749337,
+      0.006141212480393202
+    ],
+    "profit_factor": 0.5666248582020257,
+    "return_pct": -9.885484397151245,
+    "max_drawdown_pct": 9.886702736430221,
+    "months": 6,
+    "positive_months_pct": 16.666666666666664,
+    "avg_win_r": 0.4553605669281236,
+    "avg_loss_r": -0.512251971979622,
+    "exit_reasons": {
+      "time_stop": {
+        "n": 191,
+        "wins": 29,
+        "avg_r": -0.316
+      },
+      "stop": {
+        "n": 42,
+        "wins": 0,
+        "avg_r": -1.0
+      },
+      "trail_stop": {
+        "n": 160,
+        "wins": 158,
+        "avg_r": 0.512
+      }
+    },
+    "skipped": {
+      "max_positions": 55,
+      "daily_limit": 0,
+      "weekly_limit": 0,
+      "cooldown": 213,
+      "min_notional": 0,
+      "drawdown_halt": 0
+    }
+  },
+  "walk_forward": {
+    "windows": [
+      {
+        "train": [
+          "2026-05-06",
+          "2026-08-04"
+        ],
+        "test": [
+          "2026-08-04",
+          "2026-09-03"
+        ],
+        "chosen": {
+          "sl_atr": 2.0,
+          "tp1_atr": 1.5,
+          "trail_atr": 2.0,
+          "min_atr_pct": 0.008
+        },
+        "train_exp_r": 0.069,
+        "test_n": 44,
+        "test_exp_r": 0.17
+      },
+      {
+        "train": [
+          "2026-06-05",
+          "2026-09-03"
+        ],
+        "test": [
+          "2026-09-03",
+          "2026-10-03"
+        ],
+        "chosen": {
+          "sl_atr": 2.0,
+          "tp1_atr": 1.0,
+          "trail_atr": 3.0,
+          "min_atr_pct": 0.008
+        },
+        "train_exp_r": 0.167,
+        "test_n": 99,
+        "test_exp_r": 0.142
+      }
+    ],
+    "oos_stats": {
+      "n": 104,
+      "win_rate": 0.5,
+      "avg_r": 0.13269328481284937,
+      "expectancy_r": 0.13269328481284937,
+      "expectancy_ci95": [
+        -0.011953025137602904,
+        0.2812751978161367
+      ],
+      "profit_factor": 0.9282013345373522,
+      "return_pct": -0.6059870368528619,
+      "max_drawdown_pct": 2.8660019574948112,
+      "months": 3,
+      "positive_months_pct": 33.33333333333333,
+      "avg_win_r": 0.7354119577532455,
+      "avg_loss_r": -0.4700253881275469,
+      "exit_reasons": {
+        "time_stop": {
+          "n": 52,
+          "wins": 13,
+          "avg_r": -0.218
+        },
+        "trail_stop": {
+          "n": 41,
+          "wins": 39,
+          "avg_r": 0.882
+        },
+        "stop": {
+          "n": 11,
+          "wins": 0,
+          "avg_r": -1.0
+        }
+      },
+      "skipped": {
+        "max_positions": 9,
+        "daily_limit": 0,
+        "weekly_limit": 0,
+        "cooldown": 30,
+        "min_notional": 0,
+        "drawdown_halt": 0
+      }
+    }
+  }
+}

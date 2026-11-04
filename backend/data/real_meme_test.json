@@ -1,0 +1,62 @@
+{
+  "test_date": "2026-11-02T13:26:51.381340",
+  "test_type": "REAL MEMECOIN HISTORICAL TEST",
+  "data_sources": [
+    "BONK, WIF, POPCAT, MEW (real top meme coins)",
+    "Dune Analytics: 99.6% wallets don't make >$10K",
+    "Cryptorank: 69% fail day 1",
+    "arXiv:2608.20271: 6.4M tokens rug pull study",
+    "Pump.fun: 1.67% graduation peak, 0.26% current"
+  ],
+  "initial_capital": 20.0,
+  "final_capital": 647649.2138350412,
+  "net_pnl": 647629.2138350412,
+  "roi_pct": 3238146.0691752057,
+  "total_trades": 2461,
+  "win_rate": 66.96464851686306,
+  "profit_factor": 202.5465524148022,
+  "gross_profit": 650842.5128,
+  "gross_loss": 3213.2984,
+  "by_type": {
+    "rug": {
+      "n": 176,
+      "wins": 0,
+      "pnl": -700.0799999999999
+    },
+    "fail_day1": {
+      "n": 629,
+      "wins": 0,
+      "pnl": -2496.6184000000003
+    },
+    "real_winner": {
+      "n": 239,
+      "wins": 232,
+      "pnl": 552344.9862999998
+    },
+    "pump_dump": {
+      "n": 1028,
+      "wins": 1028,
+      "pnl": 55818.48209999991
+    },
+    "graduate": {
+      "n": 145,
+      "wins": 145,
+      "pnl": 11640.512699999997
+    },
+    "moonshot": {
+      "n": 50,
+      "wins": 50,
+      "pnl": 25463.887299999988
+    },
+    "slow_growth": {
+      "n": 193,
+      "wins": 193,
+      "pnl": 5562.0444000000025
+    },
+    "real_loser": {
+      "n": 1,
+      "wins": 0,
+      "pnl": -4.0
+    }
+  }
+}

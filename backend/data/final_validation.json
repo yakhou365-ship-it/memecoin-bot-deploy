@@ -1,0 +1,180 @@
+{
+  "validation_date": "2026-11-01T17:11:57.671009",
+  "strategy_params": {
+    "tech_threshold": 55,
+    "rsi_low": 30,
+    "rsi_high": 55,
+    "macd_min": 0.0,
+    "adx_min": 18,
+    "liq_min": 50,
+    "step": 8,
+    "max_hold": 16,
+    "adaptive_sl_tp": true,
+    "require_uptrend": true,
+    "sl_pct": 0.8,
+    "tp_pct": 0.5,
+    "trail_after": 0.3,
+    "trail_dist": 0.2,
+    "sl_pct_high_vol": 1.5,
+    "tp_pct_high_vol": 1.0,
+    "trail_after_high_vol": 0.6,
+    "trail_dist_high_vol": 0.4,
+    "min_signals": 3,
+    "min_confidence": 50
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "win_rate": 28.57142857142857,
+      "trades": 42,
+      "wins": 12,
+      "losses": 30,
+      "profit_factor": 0.12198087375629851,
+      "total_pnl": -36.0011126211235,
+      "exit_reasons": {
+        "trailing_stop": 26,
+        "time_exit": 12,
+        "take_profit": 4
+      }
+    },
+    {
+      "iteration": 2,
+      "win_rate": 27.500000000000004,
+      "trades": 40,
+      "wins": 11,
+      "losses": 29,
+      "profit_factor": 0.05190050284993844,
+      "total_pnl": -71.85519651763482,
+      "exit_reasons": {
+        "trailing_stop": 22,
+        "take_profit": 5,
+        "time_exit": 13
+      }
+    },
+    {
+      "iteration": 3,
+      "win_rate": 20.0,
+      "trades": 35,
+      "wins": 7,
+      "losses": 28,
+      "profit_factor": 0.0443124192692583,
+      "total_pnl": -92.9279772224002,
+      "exit_reasons": {
+        "trailing_stop": 12,
+        "time_exit": 18,
+        "take_profit": 5
+      }
+    },
+    {
+      "iteration": 4,
+      "win_rate": 34.285714285714285,
+      "trades": 35,
+      "wins": 12,
+      "losses": 23,
+      "profit_factor": 0.18032460467302067,
+      "total_pnl": -31.59772141225905,
+      "exit_reasons": {
+        "trailing_stop": 21,
+        "time_exit": 11,
+        "take_profit": 3
+      }
+    },
+    {
+      "iteration": 5,
+      "win_rate": 18.91891891891892,
+      "trades": 37,
+      "wins": 7,
+      "losses": 30,
+      "profit_factor": 0.03974768949378414,
+      "total_pnl": -91.75000414514439,
+      "exit_reasons": {
+        "trailing_stop": 18,
+        "time_exit": 15,
+        "take_profit": 4
+      }
+    },
+    {
+      "iteration": 6,
+      "win_rate": 33.33333333333333,
+      "trades": 39,
+      "wins": 13,
+      "losses": 26,
+      "profit_factor": 0.07994943668926958,
+      "total_pnl": -71.13198588921557,
+      "exit_reasons": {
+        "trailing_stop": 19,
+        "take_profit": 6,
+        "time_exit": 14
+      }
+    },
+    {
+      "iteration": 7,
+      "win_rate": 21.62162162162162,
+      "trades": 37,
+      "wins": 8,
+      "losses": 29,
+      "profit_factor": 0.046062706322516446,
+      "total_pnl": -90.94239500245838,
+      "exit_reasons": {
+        "trailing_stop": 16,
+        "time_exit": 16,
+        "take_profit": 5
+      }
+    },
+    {
+      "iteration": 8,
+      "win_rate": 30.555555555555557,
+      "trades": 36,
+      "wins": 11,
+      "losses": 25,
+      "profit_factor": 0.12366064666742341,
+      "total_pnl": -32.609484834661785,
+      "exit_reasons": {
+        "trailing_stop": 23,
+        "time_exit": 10,
+        "take_profit": 3
+      }
+    },
+    {
+      "iteration": 9,
+      "win_rate": 21.052631578947366,
+      "trades": 38,
+      "wins": 8,
+      "losses": 30,
+      "profit_factor": 0.04058971262303201,
+      "total_pnl": -90.25666603994749,
+      "exit_reasons": {
+        "trailing_stop": 19,
+        "time_exit": 15,
+        "take_profit": 4
+      }
+    },
+    {
+      "iteration": 10,
+      "win_rate": 30.555555555555557,
+      "trades": 36,
+      "wins": 11,
+      "losses": 25,
+      "profit_factor": 0.11979742154980903,
+      "total_pnl": -33.80946527884128,
+      "exit_reasons": {
+        "trailing_stop": 22,
+        "time_exit": 11,
+        "take_profit": 3
+      }
+    }
+  ],
+  "summary": {
+    "total_trades": 375,
+    "total_wins": 100,
+    "overall_win_rate": 26.666666666666668,
+    "mean_win_rate": 26.63947594210752,
+    "std_win_rate": 5.463500002096772,
+    "min_win_rate": 18.91891891891892,
+    "max_win_rate": 34.285714285714285,
+    "iterations_above_90": 0,
+    "iterations_above_80": 0,
+    "iterations_above_70": 0,
+    "verdict": "STABLE_26_MEAN"
+  }
+}

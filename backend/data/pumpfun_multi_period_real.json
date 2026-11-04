@@ -1,0 +1,2901 @@
+{
+  "test_date": "2026-11-02T11:18:01.033470",
+  "data_source": "REAL Pump.fun statistics (BloFin, Cryptopolitan, Dune)",
+  "initial_capital": 20.0,
+  "periods": {
+    "bull_market_nov_2024": {
+      "name": "Bull Market - November 2024 (Peak Activity)",
+      "description": "Peak memecoin season. BTC at $98K, 7 tokens/min launched.",
+      "tokens_per_day": 10000,
+      "graduation_rate_pct": 2.5,
+      "rug_rate_pct": 18.0,
+      "fail_day1_rate_pct": 60.0,
+      "moonshot_rate_pct": 1.2,
+      "avg_volume_sol": 25.0,
+      "avg_holders": 120,
+      "sol_price_usd": 280.0
+    },
+    "bear_market_feb_2025": {
+      "name": "Bear Market - February 2025 (Graduation Plunge)",
+      "description": "Graduation rate dropped. Only 68 tokens graduated in a day vs 215 prior.",
+      "tokens_per_day": 4000,
+      "graduation_rate_pct": 0.8,
+      "rug_rate_pct": 22.0,
+      "fail_day1_rate_pct": 75.0,
+      "moonshot_rate_pct": 0.3,
+      "avg_volume_sol": 8.0,
+      "avg_holders": 40,
+      "sol_price_usd": 150.0
+    },
+    "recovery_mid_2025": {
+      "name": "Recovery - Mid 2025 (1.15% Graduation Rate)",
+      "description": "Highest graduation rate since summer 2025. 1.15% of tokens graduate.",
+      "tokens_per_day": 6000,
+      "graduation_rate_pct": 1.15,
+      "rug_rate_pct": 16.0,
+      "fail_day1_rate_pct": 68.0,
+      "moonshot_rate_pct": 0.6,
+      "avg_volume_sol": 15.0,
+      "avg_holders": 70,
+      "sol_price_usd": 180.0
+    },
+    "current_2026": {
+      "name": "Current Market - 2026 (Mature)",
+      "description": "Mature market. 69% of tokens stop trading on launch day.",
+      "tokens_per_day": 3000,
+      "graduation_rate_pct": 1.0,
+      "rug_rate_pct": 15.0,
+      "fail_day1_rate_pct": 69.0,
+      "moonshot_rate_pct": 0.5,
+      "avg_volume_sol": 12.0,
+      "avg_holders": 55,
+      "sol_price_usd": 200.0
+    }
+  },
+  "results": {
+    "bull_market_nov_2024": {
+      "period": "bull_market_nov_2024",
+      "period_name": "Bull Market - November 2024 (Peak Activity)",
+      "initial": 20.0,
+      "final": 32.31039775099679,
+      "net_pnl": 12.310397750996792,
+      "roi_pct": 61.55198875498395,
+      "total_trades": 57,
+      "wins": 21,
+      "losses": 36,
+      "win_rate": 36.84210526315789,
+      "profit_factor": 1.4281739227218817,
+      "tokens_scanned": 283,
+      "trades": [
+        {
+          "day": 1,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.79,
+          "exit_mult": 0.71,
+          "entry_usd": 1.15,
+          "pnl_usd": -0.372,
+          "capital_after": 19.628,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 1,
+          "type": "rug",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.1286,
+          "pnl_usd": -0.6546,
+          "capital_after": 18.9734,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 3,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.48,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5455,
+          "pnl_usd": -0.2891,
+          "capital_after": 18.6843,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 3,
+          "type": "pump_dump",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 3.8,
+          "exit_mult": 2.28,
+          "entry_usd": 0.3737,
+          "pnl_usd": 0.467,
+          "capital_after": 19.1513,
+          "description": "Pumped 3.8x then dumped"
+        },
+        {
+          "day": 3,
+          "type": "rug",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.2113,
+          "pnl_usd": -0.7026,
+          "capital_after": 18.4488,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 3,
+          "type": "moonshot",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 64.9,
+          "exit_mult": 15.1,
+          "entry_usd": 1.0608,
+          "pnl_usd": 14.9275,
+          "capital_after": 33.3763,
+          "description": "Moonshot 65x!"
+        },
+        {
+          "day": 3,
+          "type": "fail_day1",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 1.9191,
+          "pnl_usd": -1.0171,
+          "capital_after": 32.3592,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 4,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.37,
+          "exit_mult": 0.5,
+          "entry_usd": 1.8607,
+          "pnl_usd": -0.9861,
+          "capital_after": 31.373,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 6,
+          "type": "fail_day1",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 0.902,
+          "pnl_usd": -0.478,
+          "capital_after": 30.895,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 6,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.47,
+          "exit_mult": 0.5,
+          "entry_usd": 0.6179,
+          "pnl_usd": -0.3275,
+          "capital_after": 30.5675,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "type": "pump_dump",
+          "score": 90,
+          "grade": "A+",
+          "peak_mult": 2.63,
+          "exit_mult": 1.52,
+          "entry_usd": 0.6114,
+          "pnl_usd": 0.3007,
+          "capital_after": 30.8682,
+          "description": "Pumped 2.6x then dumped"
+        },
+        {
+          "day": 8,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.53,
+          "exit_mult": 0.48,
+          "entry_usd": 1.9524,
+          "pnl_usd": -1.0772,
+          "capital_after": 29.791,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "type": "pump_dump",
+          "score": 88,
+          "grade": "A",
+          "peak_mult": 4.96,
+          "exit_mult": 2.79,
+          "entry_usd": 1.713,
+          "pnl_usd": 3.0167,
+          "capital_after": 32.8077,
+          "description": "Pumped 5.0x then dumped"
+        },
+        {
+          "day": 8,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.32,
+          "exit_mult": 0.5,
+          "entry_usd": 2.0751,
+          "pnl_usd": -1.0998,
+          "capital_after": 31.7079,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "type": "graduate",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 1.74,
+          "exit_mult": 1.56,
+          "entry_usd": 1.8232,
+          "pnl_usd": 0.9749,
+          "capital_after": 32.6828,
+          "description": "Graduated (peak 1.7x)"
+        },
+        {
+          "day": 9,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.48,
+          "exit_mult": 0.5,
+          "entry_usd": 2.6146,
+          "pnl_usd": -1.3858,
+          "capital_after": 31.2971,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 9,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.28,
+          "exit_mult": 0.5,
+          "entry_usd": 2.5038,
+          "pnl_usd": -1.327,
+          "capital_after": 29.9701,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 11,
+          "type": "rug",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.116,
+          "pnl_usd": -0.6473,
+          "capital_after": 29.3228,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 11,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.29,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5865,
+          "pnl_usd": -0.3108,
+          "capital_after": 29.0119,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 13,
+          "type": "rug",
+          "score": 87,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.5802,
+          "pnl_usd": -0.3365,
+          "capital_after": 28.6754,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 13,
+          "type": "graduate",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 2.26,
+          "exit_mult": 1.39,
+          "entry_usd": 0.5735,
+          "pnl_usd": 0.2077,
+          "capital_after": 28.8831,
+          "description": "Graduated (peak 2.3x)"
+        },
+        {
+          "day": 13,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.38,
+          "exit_mult": 0.5,
+          "entry_usd": 1.8424,
+          "pnl_usd": -0.9765,
+          "capital_after": 27.9067,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 13,
+          "type": "rug",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.6046,
+          "pnl_usd": -0.9307,
+          "capital_after": 26.976,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 15,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.27,
+          "exit_mult": 0.5,
+          "entry_usd": 0.7756,
+          "pnl_usd": -0.411,
+          "capital_after": 26.5649,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "type": "fail_day1",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5313,
+          "pnl_usd": -0.2816,
+          "capital_after": 26.2833,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 17,
+          "type": "pump_dump",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 3.5,
+          "exit_mult": 1.82,
+          "entry_usd": 0.5257,
+          "pnl_usd": 0.4175,
+          "capital_after": 26.7008,
+          "description": "Pumped 3.5x then dumped"
+        },
+        {
+          "day": 17,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.25,
+          "exit_mult": 0.5,
+          "entry_usd": 1.6888,
+          "pnl_usd": -0.8951,
+          "capital_after": 25.8057,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 17,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.76,
+          "exit_mult": 0.69,
+          "entry_usd": 1.4838,
+          "pnl_usd": -0.5107,
+          "capital_after": 25.2951,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.56,
+          "exit_mult": 0.5,
+          "entry_usd": 0.7272,
+          "pnl_usd": -0.3858,
+          "capital_after": 24.9093,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "type": "pump_dump",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 4.02,
+          "exit_mult": 2.6,
+          "entry_usd": 0.4982,
+          "pnl_usd": 0.7837,
+          "capital_after": 25.693,
+          "description": "Pumped 4.0x then dumped"
+        },
+        {
+          "day": 19,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.22,
+          "exit_mult": 0.5,
+          "entry_usd": 1.6251,
+          "pnl_usd": -0.8613,
+          "capital_after": 24.8317,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.28,
+          "exit_mult": 0.5,
+          "entry_usd": 1.4278,
+          "pnl_usd": -0.7567,
+          "capital_after": 24.075,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 21,
+          "type": "graduate",
+          "score": 90,
+          "grade": "A+",
+          "peak_mult": 3.98,
+          "exit_mult": 1.99,
+          "entry_usd": 0.7824,
+          "pnl_usd": 0.7535,
+          "capital_after": 24.8284,
+          "description": "Graduated (peak 4.0x)"
+        },
+        {
+          "day": 21,
+          "type": "slow_growth",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 2.32,
+          "exit_mult": 1.41,
+          "entry_usd": 1.5704,
+          "pnl_usd": 0.5985,
+          "capital_after": 25.427,
+          "description": "Slow growth to 2.3x"
+        },
+        {
+          "day": 21,
+          "type": "pump_dump",
+          "score": 86,
+          "grade": "A",
+          "peak_mult": 4.5,
+          "exit_mult": 2.7,
+          "entry_usd": 1.7545,
+          "pnl_usd": 2.9291,
+          "capital_after": 28.3561,
+          "description": "Pumped 4.5x then dumped"
+        },
+        {
+          "day": 21,
+          "type": "graduate",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 2.59,
+          "exit_mult": 1.51,
+          "entry_usd": 2.1196,
+          "pnl_usd": 1.0115,
+          "capital_after": 29.3676,
+          "description": "Graduated (peak 2.6x)"
+        },
+        {
+          "day": 21,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.56,
+          "exit_mult": 0.5,
+          "entry_usd": 2.3641,
+          "pnl_usd": -1.247,
+          "capital_after": 28.1205,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 22,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.6169,
+          "pnl_usd": -0.9355,
+          "capital_after": 27.185,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 24,
+          "type": "pump_dump",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 3.75,
+          "exit_mult": 1.91,
+          "entry_usd": 0.7816,
+          "pnl_usd": 0.6887,
+          "capital_after": 27.8737,
+          "description": "Pumped 3.7x then dumped"
+        },
+        {
+          "day": 24,
+          "type": "rug",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.763,
+          "pnl_usd": -1.0225,
+          "capital_after": 26.8512,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 24,
+          "type": "rug",
+          "score": 85,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.5439,
+          "pnl_usd": -0.8955,
+          "capital_after": 25.9557,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 26,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.24,
+          "exit_mult": 0.5,
+          "entry_usd": 0.7462,
+          "pnl_usd": -0.3955,
+          "capital_after": 25.5602,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 26,
+          "type": "graduate",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 4.23,
+          "exit_mult": 2.65,
+          "entry_usd": 0.5112,
+          "pnl_usd": 0.8259,
+          "capital_after": 26.3861,
+          "description": "Graduated (peak 4.2x)"
+        },
+        {
+          "day": 26,
+          "type": "graduate",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 4.0,
+          "exit_mult": 2.6,
+          "entry_usd": 1.6689,
+          "pnl_usd": 2.6202,
+          "capital_after": 29.0064,
+          "description": "Graduated (peak 4.0x)"
+        },
+        {
+          "day": 26,
+          "type": "slow_growth",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 2.25,
+          "exit_mult": 1.39,
+          "entry_usd": 2.0014,
+          "pnl_usd": 0.7174,
+          "capital_after": 29.7237,
+          "description": "Slow growth to 2.3x"
+        },
+        {
+          "day": 26,
+          "type": "fail_day1",
+          "score": 93,
+          "grade": "A+",
+          "peak_mult": 0.38,
+          "exit_mult": 0.5,
+          "entry_usd": 2.5117,
+          "pnl_usd": -1.3312,
+          "capital_after": 28.3925,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 27,
+          "type": "pump_dump",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 3.81,
+          "exit_mult": 1.93,
+          "entry_usd": 1.6326,
+          "pnl_usd": 1.4769,
+          "capital_after": 29.8694,
+          "description": "Pumped 3.8x then dumped"
+        },
+        {
+          "day": 27,
+          "type": "fail_day1",
+          "score": 88,
+          "grade": "A",
+          "peak_mult": 0.3,
+          "exit_mult": 0.5,
+          "entry_usd": 1.8892,
+          "pnl_usd": -1.0013,
+          "capital_after": 28.8681,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 27,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.2,
+          "exit_mult": 0.5,
+          "entry_usd": 1.6599,
+          "pnl_usd": -0.8798,
+          "capital_after": 27.9884,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 29,
+          "type": "rug",
+          "score": 88,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.8047,
+          "pnl_usd": -0.4667,
+          "capital_after": 27.5217,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 29,
+          "type": "pump_dump",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 4.51,
+          "exit_mult": 2.7,
+          "entry_usd": 0.5504,
+          "pnl_usd": 0.9202,
+          "capital_after": 28.4419,
+          "description": "Pumped 4.5x then dumped"
+        },
+        {
+          "day": 29,
+          "type": "pump_dump",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 3.24,
+          "exit_mult": 1.73,
+          "entry_usd": 1.7989,
+          "pnl_usd": 1.2676,
+          "capital_after": 29.7095,
+          "description": "Pumped 3.2x then dumped"
+        },
+        {
+          "day": 29,
+          "type": "fail_day1",
+          "score": 85,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 2.05,
+          "pnl_usd": -1.0865,
+          "capital_after": 28.623,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 29,
+          "type": "pump_dump",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 4.05,
+          "exit_mult": 2.61,
+          "entry_usd": 1.6458,
+          "pnl_usd": 2.6003,
+          "capital_after": 31.2233,
+          "description": "Pumped 4.0x then dumped"
+        },
+        {
+          "day": 30,
+          "type": "graduate",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 5.15,
+          "exit_mult": 2.83,
+          "entry_usd": 1.9749,
+          "pnl_usd": 3.5555,
+          "capital_after": 34.7788,
+          "description": "Graduated (peak 5.2x)"
+        },
+        {
+          "day": 30,
+          "type": "rug",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 2.3897,
+          "pnl_usd": -1.386,
+          "capital_after": 33.3927,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 30,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.22,
+          "exit_mult": 0.5,
+          "entry_usd": 2.0422,
+          "pnl_usd": -1.0824,
+          "capital_after": 32.3104,
+          "description": "Token died on day 1"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "scanned": 100,
+          "trades": 2,
+          "pnl": -1.0266,
+          "capital": 18.9734,
+          "halted": true
+        },
+        {
+          "day": 2,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 18.9734,
+          "halted": true
+        },
+        {
+          "day": 3,
+          "scanned": 100,
+          "trades": 5,
+          "pnl": 13.3858,
+          "capital": 32.3592,
+          "halted": false
+        },
+        {
+          "day": 4,
+          "scanned": 100,
+          "trades": 1,
+          "pnl": -0.9861,
+          "capital": 31.373,
+          "halted": true
+        },
+        {
+          "day": 5,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 31.373,
+          "halted": true
+        },
+        {
+          "day": 6,
+          "scanned": 100,
+          "trades": 2,
+          "pnl": -0.8055,
+          "capital": 30.5675,
+          "halted": true
+        },
+        {
+          "day": 7,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 30.5675,
+          "halted": true
+        },
+        {
+          "day": 8,
+          "scanned": 100,
+          "trades": 5,
+          "pnl": 2.1153,
+          "capital": 32.6828,
+          "halted": false
+        },
+        {
+          "day": 9,
+          "scanned": 100,
+          "trades": 2,
+          "pnl": -2.7127,
+          "capital": 29.9701,
+          "halted": true
+        },
+        {
+          "day": 10,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 29.9701,
+          "halted": true
+        },
+        {
+          "day": 11,
+          "scanned": 100,
+          "trades": 2,
+          "pnl": -0.9581,
+          "capital": 29.0119,
+          "halted": true
+        },
+        {
+          "day": 12,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 29.0119,
+          "halted": true
+        },
+        {
+          "day": 13,
+          "scanned": 100,
+          "trades": 4,
+          "pnl": -2.036,
+          "capital": 26.976,
+          "halted": true
+        },
+        {
+          "day": 14,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 26.976,
+          "halted": true
+        },
+        {
+          "day": 15,
+          "scanned": 100,
+          "trades": 2,
+          "pnl": -0.6926,
+          "capital": 26.2833,
+          "halted": true
+        },
+        {
+          "day": 16,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 26.2833,
+          "halted": true
+        },
+        {
+          "day": 17,
+          "scanned": 100,
+          "trades": 3,
+          "pnl": -0.9883,
+          "capital": 25.2951,
+          "halted": true
+        },
+        {
+          "day": 18,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 25.2951,
+          "halted": true
+        },
+        {
+          "day": 19,
+          "scanned": 100,
+          "trades": 4,
+          "pnl": -1.2201,
+          "capital": 24.075,
+          "halted": true
+        },
+        {
+          "day": 20,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 24.075,
+          "halted": true
+        },
+        {
+          "day": 21,
+          "scanned": 100,
+          "trades": 5,
+          "pnl": 4.0456,
+          "capital": 28.1205,
+          "halted": false
+        },
+        {
+          "day": 22,
+          "scanned": 100,
+          "trades": 1,
+          "pnl": -0.9355,
+          "capital": 27.185,
+          "halted": true
+        },
+        {
+          "day": 23,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 27.185,
+          "halted": true
+        },
+        {
+          "day": 24,
+          "scanned": 100,
+          "trades": 3,
+          "pnl": -1.2293,
+          "capital": 25.9557,
+          "halted": true
+        },
+        {
+          "day": 25,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 25.9557,
+          "halted": true
+        },
+        {
+          "day": 26,
+          "scanned": 100,
+          "trades": 5,
+          "pnl": 2.4368,
+          "capital": 28.3925,
+          "halted": false
+        },
+        {
+          "day": 27,
+          "scanned": 100,
+          "trades": 3,
+          "pnl": -0.4042,
+          "capital": 27.9884,
+          "halted": true
+        },
+        {
+          "day": 28,
+          "scanned": 100,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 27.9884,
+          "halted": true
+        },
+        {
+          "day": 29,
+          "scanned": 100,
+          "trades": 5,
+          "pnl": 3.235,
+          "capital": 31.2233,
+          "halted": false
+        },
+        {
+          "day": 30,
+          "scanned": 100,
+          "trades": 3,
+          "pnl": 1.0871,
+          "capital": 32.3104,
+          "halted": true
+        }
+      ]
+    },
+    "bear_market_feb_2025": {
+      "period": "bear_market_feb_2025",
+      "period_name": "Bear Market - February 2025 (Graduation Plunge)",
+      "initial": 20.0,
+      "final": 19.00753466753281,
+      "net_pnl": -0.9924653324671908,
+      "roi_pct": -4.962326662335954,
+      "total_trades": 18,
+      "wins": 5,
+      "losses": 13,
+      "win_rate": 27.77777777777778,
+      "profit_factor": 0.8296890017849788,
+      "tokens_scanned": 867,
+      "trades": [
+        {
+          "day": 2,
+          "type": "pump_dump",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 3.83,
+          "exit_mult": 2.29,
+          "entry_usd": 1.15,
+          "pnl_usd": 1.4513,
+          "capital_after": 21.4513,
+          "description": "Pumped 3.8x then dumped"
+        },
+        {
+          "day": 3,
+          "type": "pump_dump",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 3.02,
+          "exit_mult": 1.66,
+          "entry_usd": 1.3568,
+          "pnl_usd": 0.8498,
+          "capital_after": 22.3011,
+          "description": "Pumped 3.0x then dumped"
+        },
+        {
+          "day": 4,
+          "type": "fail_day1",
+          "score": 82,
+          "grade": "A",
+          "peak_mult": 0.21,
+          "exit_mult": 0.5,
+          "entry_usd": 1.5388,
+          "pnl_usd": -0.8155,
+          "capital_after": 21.4855,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 4,
+          "type": "pump_dump",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 2.76,
+          "exit_mult": 1.57,
+          "entry_usd": 1.2354,
+          "pnl_usd": 0.6625,
+          "capital_after": 22.148,
+          "description": "Pumped 2.8x then dumped"
+        },
+        {
+          "day": 5,
+          "type": "pump_dump",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 3.42,
+          "exit_mult": 1.8,
+          "entry_usd": 1.4009,
+          "pnl_usd": 1.0728,
+          "capital_after": 23.2209,
+          "description": "Pumped 3.4x then dumped"
+        },
+        {
+          "day": 9,
+          "type": "rug",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.6022,
+          "pnl_usd": -0.9293,
+          "capital_after": 22.2916,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 9,
+          "type": "rug",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.2818,
+          "pnl_usd": -0.7434,
+          "capital_after": 21.5482,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 11,
+          "type": "rug",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.6195,
+          "pnl_usd": -0.3593,
+          "capital_after": 21.1888,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 12,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.28,
+          "exit_mult": 0.5,
+          "entry_usd": 0.4238,
+          "pnl_usd": -0.2246,
+          "capital_after": 20.9642,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.27,
+          "exit_mult": 0.5,
+          "entry_usd": 0.4193,
+          "pnl_usd": -0.2222,
+          "capital_after": 20.742,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 16,
+          "type": "rug",
+          "score": 84,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.4148,
+          "pnl_usd": -0.2406,
+          "capital_after": 20.5014,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 18,
+          "type": "pump_dump",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 4.88,
+          "exit_mult": 2.98,
+          "entry_usd": 0.41,
+          "pnl_usd": 0.7977,
+          "capital_after": 21.2991,
+          "description": "Pumped 4.9x then dumped"
+        },
+        {
+          "day": 18,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.22,
+          "exit_mult": 0.5,
+          "entry_usd": 1.3472,
+          "pnl_usd": -0.714,
+          "capital_after": 20.5851,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.26,
+          "exit_mult": 0.5,
+          "entry_usd": 1.1836,
+          "pnl_usd": -0.6273,
+          "capital_after": 19.9578,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 23,
+          "type": "rug",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.5738,
+          "pnl_usd": -0.3328,
+          "capital_after": 19.625,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 23,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.32,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3925,
+          "pnl_usd": -0.208,
+          "capital_after": 19.417,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 25,
+          "type": "fail_day1",
+          "score": 85,
+          "grade": "A",
+          "peak_mult": 0.32,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3883,
+          "pnl_usd": -0.2058,
+          "capital_after": 19.2112,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 29,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.45,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3842,
+          "pnl_usd": -0.2036,
+          "capital_after": 19.0075,
+          "description": "Token died on day 1"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 20.0,
+          "halted": false
+        },
+        {
+          "day": 2,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": 1.4513,
+          "capital": 21.4513,
+          "halted": false
+        },
+        {
+          "day": 3,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": 0.8498,
+          "capital": 22.3011,
+          "halted": false
+        },
+        {
+          "day": 4,
+          "scanned": 40,
+          "trades": 2,
+          "pnl": -0.153,
+          "capital": 22.148,
+          "halted": false
+        },
+        {
+          "day": 5,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": 1.0728,
+          "capital": 23.2209,
+          "halted": false
+        },
+        {
+          "day": 6,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 23.2209,
+          "halted": false
+        },
+        {
+          "day": 7,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 23.2209,
+          "halted": false
+        },
+        {
+          "day": 8,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 23.2209,
+          "halted": false
+        },
+        {
+          "day": 9,
+          "scanned": 40,
+          "trades": 2,
+          "pnl": -1.6727,
+          "capital": 21.5482,
+          "halted": true
+        },
+        {
+          "day": 10,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 21.5482,
+          "halted": true
+        },
+        {
+          "day": 11,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.3593,
+          "capital": 21.1888,
+          "halted": false
+        },
+        {
+          "day": 12,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.2246,
+          "capital": 20.9642,
+          "halted": true
+        },
+        {
+          "day": 13,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 20.9642,
+          "halted": true
+        },
+        {
+          "day": 14,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 20.9642,
+          "halted": false
+        },
+        {
+          "day": 15,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.2222,
+          "capital": 20.742,
+          "halted": false
+        },
+        {
+          "day": 16,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.2406,
+          "capital": 20.5014,
+          "halted": true
+        },
+        {
+          "day": 17,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 20.5014,
+          "halted": true
+        },
+        {
+          "day": 18,
+          "scanned": 40,
+          "trades": 2,
+          "pnl": 0.0837,
+          "capital": 20.5851,
+          "halted": false
+        },
+        {
+          "day": 19,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.6273,
+          "capital": 19.9578,
+          "halted": true
+        },
+        {
+          "day": 20,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.9578,
+          "halted": true
+        },
+        {
+          "day": 21,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.9578,
+          "halted": false
+        },
+        {
+          "day": 22,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.9578,
+          "halted": false
+        },
+        {
+          "day": 23,
+          "scanned": 40,
+          "trades": 2,
+          "pnl": -0.5408,
+          "capital": 19.417,
+          "halted": true
+        },
+        {
+          "day": 24,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.417,
+          "halted": true
+        },
+        {
+          "day": 25,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.2058,
+          "capital": 19.2112,
+          "halted": false
+        },
+        {
+          "day": 26,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.2112,
+          "halted": false
+        },
+        {
+          "day": 27,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.2112,
+          "halted": false
+        },
+        {
+          "day": 28,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.2112,
+          "halted": false
+        },
+        {
+          "day": 29,
+          "scanned": 40,
+          "trades": 1,
+          "pnl": -0.2036,
+          "capital": 19.0075,
+          "halted": true
+        },
+        {
+          "day": 30,
+          "scanned": 40,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.0075,
+          "halted": true
+        }
+      ]
+    },
+    "recovery_mid_2025": {
+      "period": "recovery_mid_2025",
+      "period_name": "Recovery - Mid 2025 (1.15% Graduation Rate)",
+      "initial": 20.0,
+      "final": 23.862294353214914,
+      "net_pnl": 3.8622943532149137,
+      "roi_pct": 19.31147176607457,
+      "total_trades": 48,
+      "wins": 15,
+      "losses": 33,
+      "win_rate": 31.25,
+      "profit_factor": 1.185680014230564,
+      "tokens_scanned": 581,
+      "trades": [
+        {
+          "day": 1,
+          "type": "pump_dump",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 3.99,
+          "exit_mult": 2.34,
+          "entry_usd": 1.15,
+          "pnl_usd": 1.5122,
+          "capital_after": 21.5122,
+          "description": "Pumped 4.0x then dumped"
+        },
+        {
+          "day": 1,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.29,
+          "exit_mult": 0.5,
+          "entry_usd": 1.3606,
+          "pnl_usd": -0.7211,
+          "capital_after": 20.791,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 1,
+          "type": "rug",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.1955,
+          "pnl_usd": -0.6934,
+          "capital_after": 20.0976,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 3,
+          "type": "rug",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.5778,
+          "pnl_usd": -0.3351,
+          "capital_after": 19.7625,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 3,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.31,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3953,
+          "pnl_usd": -0.2095,
+          "capital_after": 19.553,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "type": "pump_dump",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 3.13,
+          "exit_mult": 1.69,
+          "entry_usd": 0.3911,
+          "pnl_usd": 0.2598,
+          "capital_after": 19.8128,
+          "description": "Pumped 3.1x then dumped"
+        },
+        {
+          "day": 5,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.28,
+          "exit_mult": 0.5,
+          "entry_usd": 1.2532,
+          "pnl_usd": -0.6642,
+          "capital_after": 19.1486,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 6,
+          "type": "pump_dump",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 2.83,
+          "exit_mult": 1.59,
+          "entry_usd": 1.101,
+          "pnl_usd": 0.6163,
+          "capital_after": 19.765,
+          "description": "Pumped 2.8x then dumped"
+        },
+        {
+          "day": 6,
+          "type": "rug",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.2501,
+          "pnl_usd": -0.7251,
+          "capital_after": 19.0399,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 6,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 1.0948,
+          "pnl_usd": -0.5802,
+          "capital_after": 18.4597,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "type": "slow_growth",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 2.49,
+          "exit_mult": 1.47,
+          "entry_usd": 0.5307,
+          "pnl_usd": 0.2336,
+          "capital_after": 18.6932,
+          "description": "Slow growth to 2.5x"
+        },
+        {
+          "day": 8,
+          "type": "fail_day1",
+          "score": 82,
+          "grade": "A",
+          "peak_mult": 0.36,
+          "exit_mult": 0.5,
+          "entry_usd": 1.1823,
+          "pnl_usd": -0.6266,
+          "capital_after": 18.0666,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.39,
+          "exit_mult": 0.5,
+          "entry_usd": 1.0388,
+          "pnl_usd": -0.5506,
+          "capital_after": 17.516,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 10,
+          "type": "fail_day1",
+          "score": 93,
+          "grade": "A+",
+          "peak_mult": 0.32,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5693,
+          "pnl_usd": -0.3017,
+          "capital_after": 17.2143,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 10,
+          "type": "fail_day1",
+          "score": 86,
+          "grade": "A",
+          "peak_mult": 0.31,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3443,
+          "pnl_usd": -0.1825,
+          "capital_after": 17.0318,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "type": "pump_dump",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 4.84,
+          "exit_mult": 2.97,
+          "entry_usd": 0.3406,
+          "pnl_usd": 0.6604,
+          "capital_after": 17.6922,
+          "description": "Pumped 4.8x then dumped"
+        },
+        {
+          "day": 12,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.27,
+          "exit_mult": 0.5,
+          "entry_usd": 1.119,
+          "pnl_usd": -0.5931,
+          "capital_after": 17.0991,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.28,
+          "exit_mult": 0.5,
+          "entry_usd": 0.9832,
+          "pnl_usd": -0.5211,
+          "capital_after": 16.578,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "type": "fail_day1",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.26,
+          "exit_mult": 0.5,
+          "entry_usd": 0.4766,
+          "pnl_usd": -0.2526,
+          "capital_after": 16.3254,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "type": "pump_dump",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 2.57,
+          "exit_mult": 1.5,
+          "entry_usd": 0.3265,
+          "pnl_usd": 0.1532,
+          "capital_after": 16.4786,
+          "description": "Pumped 2.6x then dumped"
+        },
+        {
+          "day": 14,
+          "type": "moonshot",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 64.9,
+          "exit_mult": 15.1,
+          "entry_usd": 1.0423,
+          "pnl_usd": 14.6664,
+          "capital_after": 31.145,
+          "description": "Moonshot 65x!"
+        },
+        {
+          "day": 14,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.23,
+          "exit_mult": 0.5,
+          "entry_usd": 2.4916,
+          "pnl_usd": -1.3205,
+          "capital_after": 29.8245,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "type": "fail_day1",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.32,
+          "exit_mult": 0.5,
+          "entry_usd": 2.386,
+          "pnl_usd": -1.2646,
+          "capital_after": 28.5599,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 16,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.39,
+          "exit_mult": 0.5,
+          "entry_usd": 1.0276,
+          "pnl_usd": -0.5446,
+          "capital_after": 28.0153,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 16,
+          "type": "fail_day1",
+          "score": 86,
+          "grade": "A",
+          "peak_mult": 0.41,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5603,
+          "pnl_usd": -0.297,
+          "capital_after": 27.7183,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 18,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.53,
+          "exit_mult": 0.48,
+          "entry_usd": 0.5544,
+          "pnl_usd": -0.3058,
+          "capital_after": 27.4126,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 18,
+          "type": "pump_dump",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 3.69,
+          "exit_mult": 1.89,
+          "entry_usd": 0.5483,
+          "pnl_usd": 0.4725,
+          "capital_after": 27.8851,
+          "description": "Pumped 3.7x then dumped"
+        },
+        {
+          "day": 18,
+          "type": "pump_dump",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 3.98,
+          "exit_mult": 1.99,
+          "entry_usd": 1.7637,
+          "pnl_usd": 1.6979,
+          "capital_after": 29.583,
+          "description": "Pumped 4.0x then dumped"
+        },
+        {
+          "day": 18,
+          "type": "rug",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 2.2475,
+          "pnl_usd": -1.3035,
+          "capital_after": 28.2795,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 19,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.26,
+          "exit_mult": 0.5,
+          "entry_usd": 1.7922,
+          "pnl_usd": -0.9499,
+          "capital_after": 27.3296,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 21,
+          "type": "pump_dump",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 3.28,
+          "exit_mult": 1.75,
+          "entry_usd": 0.7857,
+          "pnl_usd": 0.5649,
+          "capital_after": 27.8945,
+          "description": "Pumped 3.3x then dumped"
+        },
+        {
+          "day": 21,
+          "type": "slow_growth",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 1.74,
+          "exit_mult": 1.57,
+          "entry_usd": 1.7643,
+          "pnl_usd": 0.9491,
+          "capital_after": 28.8436,
+          "description": "Slow growth to 1.7x"
+        },
+        {
+          "day": 21,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.44,
+          "exit_mult": 0.5,
+          "entry_usd": 2.0124,
+          "pnl_usd": -1.0666,
+          "capital_after": 27.777,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 21,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.45,
+          "exit_mult": 0.5,
+          "entry_usd": 1.6526,
+          "pnl_usd": -0.8759,
+          "capital_after": 26.9012,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 23,
+          "type": "fail_day1",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 0.7734,
+          "pnl_usd": -0.4099,
+          "capital_after": 26.4912,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 23,
+          "type": "fail_day1",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.31,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5298,
+          "pnl_usd": -0.2808,
+          "capital_after": 26.2104,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 25,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.24,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5242,
+          "pnl_usd": -0.2778,
+          "capital_after": 25.9326,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 25,
+          "type": "pump_dump",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 3.44,
+          "exit_mult": 1.8,
+          "entry_usd": 0.5187,
+          "pnl_usd": 0.4008,
+          "capital_after": 26.3334,
+          "description": "Pumped 3.4x then dumped"
+        },
+        {
+          "day": 25,
+          "type": "slow_growth",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 2.57,
+          "exit_mult": 1.5,
+          "entry_usd": 1.6656,
+          "pnl_usd": 0.7826,
+          "capital_after": 27.116,
+          "description": "Slow growth to 2.6x"
+        },
+        {
+          "day": 25,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.27,
+          "exit_mult": 0.5,
+          "entry_usd": 1.871,
+          "pnl_usd": -0.9916,
+          "capital_after": 26.1243,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 25,
+          "type": "slow_growth",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 1.55,
+          "exit_mult": 1.4,
+          "entry_usd": 1.5021,
+          "pnl_usd": 0.5535,
+          "capital_after": 26.6779,
+          "description": "Slow growth to 1.6x"
+        },
+        {
+          "day": 26,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.25,
+          "exit_mult": 0.5,
+          "entry_usd": 1.6874,
+          "pnl_usd": -0.8943,
+          "capital_after": 25.7835,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 26,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.24,
+          "exit_mult": 0.5,
+          "entry_usd": 1.4826,
+          "pnl_usd": -0.7858,
+          "capital_after": 24.9978,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 28,
+          "type": "pump_dump",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 4.08,
+          "exit_mult": 2.62,
+          "entry_usd": 0.7187,
+          "pnl_usd": 1.1393,
+          "capital_after": 26.1371,
+          "description": "Pumped 4.1x then dumped"
+        },
+        {
+          "day": 28,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.38,
+          "exit_mult": 0.5,
+          "entry_usd": 1.6532,
+          "pnl_usd": -0.8762,
+          "capital_after": 25.261,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 28,
+          "type": "fail_day1",
+          "score": 88,
+          "grade": "A",
+          "peak_mult": 0.29,
+          "exit_mult": 0.5,
+          "entry_usd": 1.4525,
+          "pnl_usd": -0.7698,
+          "capital_after": 24.4911,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 30,
+          "type": "fail_day1",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.34,
+          "exit_mult": 0.5,
+          "entry_usd": 0.7041,
+          "pnl_usd": -0.3732,
+          "capital_after": 24.1179,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 30,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.23,
+          "exit_mult": 0.5,
+          "entry_usd": 0.4824,
+          "pnl_usd": -0.2557,
+          "capital_after": 23.8623,
+          "description": "Token died on day 1"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "scanned": 60,
+          "trades": 3,
+          "pnl": 0.0976,
+          "capital": 20.0976,
+          "halted": true
+        },
+        {
+          "day": 2,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 20.0976,
+          "halted": true
+        },
+        {
+          "day": 3,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -0.5446,
+          "capital": 19.553,
+          "halted": true
+        },
+        {
+          "day": 4,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.553,
+          "halted": true
+        },
+        {
+          "day": 5,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -0.4044,
+          "capital": 19.1486,
+          "halted": false
+        },
+        {
+          "day": 6,
+          "scanned": 60,
+          "trades": 3,
+          "pnl": -0.689,
+          "capital": 18.4597,
+          "halted": true
+        },
+        {
+          "day": 7,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 18.4597,
+          "halted": true
+        },
+        {
+          "day": 8,
+          "scanned": 60,
+          "trades": 3,
+          "pnl": -0.9437,
+          "capital": 17.516,
+          "halted": true
+        },
+        {
+          "day": 9,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.516,
+          "halted": true
+        },
+        {
+          "day": 10,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -0.4842,
+          "capital": 17.0318,
+          "halted": true
+        },
+        {
+          "day": 11,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.0318,
+          "halted": true
+        },
+        {
+          "day": 12,
+          "scanned": 60,
+          "trades": 3,
+          "pnl": -0.4538,
+          "capital": 16.578,
+          "halted": true
+        },
+        {
+          "day": 13,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 16.578,
+          "halted": true
+        },
+        {
+          "day": 14,
+          "scanned": 60,
+          "trades": 5,
+          "pnl": 11.9819,
+          "capital": 28.5599,
+          "halted": true
+        },
+        {
+          "day": 15,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 28.5599,
+          "halted": true
+        },
+        {
+          "day": 16,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -0.8416,
+          "capital": 27.7183,
+          "halted": true
+        },
+        {
+          "day": 17,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 27.7183,
+          "halted": true
+        },
+        {
+          "day": 18,
+          "scanned": 60,
+          "trades": 4,
+          "pnl": 0.5611,
+          "capital": 28.2795,
+          "halted": false
+        },
+        {
+          "day": 19,
+          "scanned": 60,
+          "trades": 1,
+          "pnl": -0.9499,
+          "capital": 27.3296,
+          "halted": true
+        },
+        {
+          "day": 20,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 27.3296,
+          "halted": true
+        },
+        {
+          "day": 21,
+          "scanned": 60,
+          "trades": 4,
+          "pnl": -0.4285,
+          "capital": 26.9012,
+          "halted": true
+        },
+        {
+          "day": 22,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 26.9012,
+          "halted": true
+        },
+        {
+          "day": 23,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -0.6907,
+          "capital": 26.2104,
+          "halted": true
+        },
+        {
+          "day": 24,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 26.2104,
+          "halted": true
+        },
+        {
+          "day": 25,
+          "scanned": 60,
+          "trades": 5,
+          "pnl": 0.4674,
+          "capital": 26.6779,
+          "halted": false
+        },
+        {
+          "day": 26,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -1.6801,
+          "capital": 24.9978,
+          "halted": true
+        },
+        {
+          "day": 27,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 24.9978,
+          "halted": true
+        },
+        {
+          "day": 28,
+          "scanned": 60,
+          "trades": 3,
+          "pnl": -0.5067,
+          "capital": 24.4911,
+          "halted": true
+        },
+        {
+          "day": 29,
+          "scanned": 60,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 24.4911,
+          "halted": true
+        },
+        {
+          "day": 30,
+          "scanned": 60,
+          "trades": 2,
+          "pnl": -0.6288,
+          "capital": 23.8623,
+          "halted": true
+        }
+      ]
+    },
+    "current_2026": {
+      "period": "current_2026",
+      "period_name": "Current Market - 2026 (Mature)",
+      "initial": 20.0,
+      "final": 34.527467258711134,
+      "net_pnl": 14.527467258711134,
+      "roi_pct": 72.63733629355566,
+      "total_trades": 28,
+      "wins": 8,
+      "losses": 20,
+      "win_rate": 28.57142857142857,
+      "profit_factor": 2.556056597508596,
+      "tokens_scanned": 546,
+      "trades": [
+        {
+          "day": 1,
+          "type": "graduate",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 2.29,
+          "exit_mult": 1.75,
+          "entry_usd": 1.15,
+          "pnl_usd": 0.8309,
+          "capital_after": 20.8309,
+          "description": "Graduated (peak 2.3x)"
+        },
+        {
+          "day": 3,
+          "type": "rug",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.3176,
+          "pnl_usd": -0.7642,
+          "capital_after": 20.0667,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 3,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.52,
+          "exit_mult": 0.47,
+          "entry_usd": 1.1538,
+          "pnl_usd": -0.6462,
+          "capital_after": 19.4205,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "type": "fail_day1",
+          "score": 82,
+          "grade": "A",
+          "peak_mult": 0.36,
+          "exit_mult": 0.5,
+          "entry_usd": 0.5583,
+          "pnl_usd": -0.2959,
+          "capital_after": 19.1246,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.55,
+          "exit_mult": 0.49,
+          "entry_usd": 0.3825,
+          "pnl_usd": -0.2061,
+          "capital_after": 18.9184,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 7,
+          "type": "rug",
+          "score": 79,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.3784,
+          "pnl_usd": -0.2195,
+          "capital_after": 18.699,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 7,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.26,
+          "exit_mult": 0.5,
+          "entry_usd": 0.374,
+          "pnl_usd": -0.1982,
+          "capital_after": 18.5008,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 9,
+          "type": "rug",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.37,
+          "pnl_usd": -0.2146,
+          "capital_after": 18.2862,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 10,
+          "type": "fail_day1",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.39,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3657,
+          "pnl_usd": -0.1938,
+          "capital_after": 18.0923,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.25,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3618,
+          "pnl_usd": -0.1918,
+          "capital_after": 17.9006,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "type": "rug",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.358,
+          "pnl_usd": -0.2076,
+          "capital_after": 17.6929,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 17,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.32,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3539,
+          "pnl_usd": -0.1875,
+          "capital_after": 17.5054,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "type": "pump_dump",
+          "score": 89,
+          "grade": "A",
+          "peak_mult": 4.9,
+          "exit_mult": 2.98,
+          "entry_usd": 0.3501,
+          "pnl_usd": 0.683,
+          "capital_after": 18.1883,
+          "description": "Pumped 4.9x then dumped"
+        },
+        {
+          "day": 19,
+          "type": "rug",
+          "score": 81,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.1504,
+          "pnl_usd": -0.6672,
+          "capital_after": 17.5211,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 20,
+          "type": "fail_day1",
+          "score": 78,
+          "grade": "A",
+          "peak_mult": 0.28,
+          "exit_mult": 0.5,
+          "entry_usd": 1.0075,
+          "pnl_usd": -0.534,
+          "capital_after": 16.9872,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 23,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.29,
+          "exit_mult": 0.5,
+          "entry_usd": 0.4884,
+          "pnl_usd": -0.2588,
+          "capital_after": 16.7283,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 23,
+          "type": "pump_dump",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 4.25,
+          "exit_mult": 2.65,
+          "entry_usd": 0.3346,
+          "pnl_usd": 0.5421,
+          "capital_after": 17.2704,
+          "description": "Pumped 4.3x then dumped"
+        },
+        {
+          "day": 24,
+          "type": "rug",
+          "score": 83,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 1.0924,
+          "pnl_usd": -0.6336,
+          "capital_after": 16.6368,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 24,
+          "type": "fail_day1",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.41,
+          "exit_mult": 0.5,
+          "entry_usd": 0.9566,
+          "pnl_usd": -0.507,
+          "capital_after": 16.1298,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 26,
+          "type": "rug",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 0.5,
+          "exit_mult": 0.45,
+          "entry_usd": 0.4637,
+          "pnl_usd": -0.269,
+          "capital_after": 15.8609,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 26,
+          "type": "fail_day1",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 0.2,
+          "exit_mult": 0.5,
+          "entry_usd": 0.3172,
+          "pnl_usd": -0.1681,
+          "capital_after": 15.6927,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 28,
+          "type": "moonshot",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 46.24,
+          "exit_mult": 11.74,
+          "entry_usd": 0.3139,
+          "pnl_usd": 3.3622,
+          "capital_after": 19.055,
+          "description": "Moonshot 46x!"
+        },
+        {
+          "day": 29,
+          "type": "graduate",
+          "score": 75,
+          "grade": "A",
+          "peak_mult": 2.78,
+          "exit_mult": 1.57,
+          "entry_usd": 1.0957,
+          "pnl_usd": 0.5953,
+          "capital_after": 19.6503,
+          "description": "Graduated (peak 2.8x)"
+        },
+        {
+          "day": 29,
+          "type": "moonshot",
+          "score": 86,
+          "grade": "A",
+          "peak_mult": 51.14,
+          "exit_mult": 12.62,
+          "entry_usd": 1.2429,
+          "pnl_usd": 14.4107,
+          "capital_after": 34.0611,
+          "description": "Moonshot 51x!"
+        },
+        {
+          "day": 29,
+          "type": "fail_day1",
+          "score": 84,
+          "grade": "A",
+          "peak_mult": 0.33,
+          "exit_mult": 0.5,
+          "entry_usd": 2.7249,
+          "pnl_usd": -1.4442,
+          "capital_after": 32.6169,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 30,
+          "type": "pump_dump",
+          "score": 80,
+          "grade": "A",
+          "peak_mult": 3.12,
+          "exit_mult": 1.69,
+          "entry_usd": 2.4178,
+          "pnl_usd": 1.602,
+          "capital_after": 34.2189,
+          "description": "Pumped 3.1x then dumped"
+        },
+        {
+          "day": 30,
+          "type": "pump_dump",
+          "score": 76,
+          "grade": "A",
+          "peak_mult": 3.15,
+          "exit_mult": 1.7,
+          "entry_usd": 2.7375,
+          "pnl_usd": 1.8374,
+          "capital_after": 36.0563,
+          "description": "Pumped 3.1x then dumped"
+        },
+        {
+          "day": 30,
+          "type": "fail_day1",
+          "score": 77,
+          "grade": "A",
+          "peak_mult": 0.38,
+          "exit_mult": 0.5,
+          "entry_usd": 2.8845,
+          "pnl_usd": -1.5288,
+          "capital_after": 34.5275,
+          "description": "Token died on day 1"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "scanned": 30,
+          "trades": 1,
+          "pnl": 0.8309,
+          "capital": 20.8309,
+          "halted": false
+        },
+        {
+          "day": 2,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 20.8309,
+          "halted": false
+        },
+        {
+          "day": 3,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": -1.4104,
+          "capital": 19.4205,
+          "halted": true
+        },
+        {
+          "day": 4,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 19.4205,
+          "halted": true
+        },
+        {
+          "day": 5,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": -0.502,
+          "capital": 18.9184,
+          "halted": true
+        },
+        {
+          "day": 6,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 18.9184,
+          "halted": true
+        },
+        {
+          "day": 7,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": -0.4177,
+          "capital": 18.5008,
+          "halted": true
+        },
+        {
+          "day": 8,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 18.5008,
+          "halted": true
+        },
+        {
+          "day": 9,
+          "scanned": 30,
+          "trades": 1,
+          "pnl": -0.2146,
+          "capital": 18.2862,
+          "halted": false
+        },
+        {
+          "day": 10,
+          "scanned": 30,
+          "trades": 1,
+          "pnl": -0.1938,
+          "capital": 18.0923,
+          "halted": true
+        },
+        {
+          "day": 11,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 18.0923,
+          "halted": true
+        },
+        {
+          "day": 12,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": -0.3994,
+          "capital": 17.6929,
+          "halted": true
+        },
+        {
+          "day": 13,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.6929,
+          "halted": true
+        },
+        {
+          "day": 14,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.6929,
+          "halted": false
+        },
+        {
+          "day": 15,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.6929,
+          "halted": false
+        },
+        {
+          "day": 16,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.6929,
+          "halted": false
+        },
+        {
+          "day": 17,
+          "scanned": 30,
+          "trades": 1,
+          "pnl": -0.1875,
+          "capital": 17.5054,
+          "halted": false
+        },
+        {
+          "day": 18,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 17.5054,
+          "halted": false
+        },
+        {
+          "day": 19,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": 0.0157,
+          "capital": 17.5211,
+          "halted": false
+        },
+        {
+          "day": 20,
+          "scanned": 30,
+          "trades": 1,
+          "pnl": -0.534,
+          "capital": 16.9872,
+          "halted": true
+        },
+        {
+          "day": 21,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 16.9872,
+          "halted": true
+        },
+        {
+          "day": 22,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 16.9872,
+          "halted": false
+        },
+        {
+          "day": 23,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": 0.2833,
+          "capital": 17.2704,
+          "halted": false
+        },
+        {
+          "day": 24,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": -1.1406,
+          "capital": 16.1298,
+          "halted": true
+        },
+        {
+          "day": 25,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 16.1298,
+          "halted": true
+        },
+        {
+          "day": 26,
+          "scanned": 30,
+          "trades": 2,
+          "pnl": -0.4371,
+          "capital": 15.6927,
+          "halted": true
+        },
+        {
+          "day": 27,
+          "scanned": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 15.6927,
+          "halted": true
+        },
+        {
+          "day": 28,
+          "scanned": 30,
+          "trades": 1,
+          "pnl": 3.3622,
+          "capital": 19.055,
+          "halted": false
+        },
+        {
+          "day": 29,
+          "scanned": 30,
+          "trades": 3,
+          "pnl": 13.5619,
+          "capital": 32.6169,
+          "halted": false
+        },
+        {
+          "day": 30,
+          "scanned": 30,
+          "trades": 3,
+          "pnl": 1.9106,
+          "capital": 34.5275,
+          "halted": false
+        }
+      ]
+    }
+  }
+}

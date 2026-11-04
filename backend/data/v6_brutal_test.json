@@ -1,0 +1,60 @@
+{
+  "test_date": "2026-11-02T13:17:55.739952",
+  "test_type": "V6 ULTRA-FAST EXIT - same 10,000 trades as V5",
+  "initial_capital": 20.0,
+  "final_capital": 135344.59612705375,
+  "net_pnl": 135324.59612705375,
+  "roi_pct": 676622.9806352687,
+  "total_trades": 3519,
+  "win_rate": 44.870701903949985,
+  "profit_factor": 18.634153685864476,
+  "gross_profit": 142998.6016,
+  "gross_loss": 7674.0057,
+  "v5_total_loss": 49821.479999999996,
+  "v6_total_loss": 7674.005700000001,
+  "loss_reduction_pct": 84.59699370632907,
+  "by_type": {
+    "fail_day1": {
+      "n": 1514,
+      "wins": 0,
+      "pnl": -5996.6365000000005,
+      "total_entry": 74957.9596,
+      "instant": 1514
+    },
+    "slow_growth": {
+      "n": 200,
+      "wins": 200,
+      "pnl": 8204.314300000004,
+      "total_entry": 9900.603299999999,
+      "instant": 0
+    },
+    "rug": {
+      "n": 426,
+      "wins": 0,
+      "pnl": -1677.3692,
+      "total_entry": 20967.1137,
+      "instant": 426
+    },
+    "pump_dump": {
+      "n": 1179,
+      "wins": 1179,
+      "pnl": 88377.51100000001,
+      "total_entry": 57800.1619,
+      "instant": 0
+    },
+    "moonshot": {
+      "n": 50,
+      "wins": 50,
+      "pnl": 30188.216100000005,
+      "total_entry": 2452.0565,
+      "instant": 0
+    },
+    "graduate": {
+      "n": 150,
+      "wins": 150,
+      "pnl": 16228.560199999996,
+      "total_entry": 7460.9425,
+      "instant": 0
+    }
+  }
+}

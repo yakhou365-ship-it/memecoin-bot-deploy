@@ -1,0 +1,26 @@
+{
+  "recent": {
+    "period": "RECENT 30 DAYS (mixed/bearish market)",
+    "initial": 20.0,
+    "final": 20.010789496684467,
+    "pnl": 0.010789496684466826,
+    "roi": 0.05394748342233413,
+    "trades": 1,
+    "win_rate": 1.0,
+    "expectancy_r": 0.501837055091519,
+    "profit_factor": Infinity,
+    "max_dd": 0.0
+  },
+  "bull_market": {
+    "period": "BULL MARKET (Nov 4 - Dec 4, 2024)",
+    "initial": 20.0,
+    "final": 20.02200114387753,
+    "pnl": 0.022001143877531604,
+    "roi": 0.11000571938766246,
+    "trades": 32,
+    "win_rate": 0.625,
+    "expectancy_r": 0.08650333586117118,
+    "profit_factor": 1.0484773844902793,
+    "max_dd": 0.8102891692569473
+  }
+}

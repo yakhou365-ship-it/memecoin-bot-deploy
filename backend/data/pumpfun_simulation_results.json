@@ -1,0 +1,104 @@
+{
+  "simulation_date": "2026-11-01T22:46:39.316608",
+  "initial_sol": 0.1,
+  "sol_price_usd": 200.0,
+  "scenarios": [
+    {
+      "scenario": "\ud83d\udfe2 Buy at 0% \u2192 graduate to 100%",
+      "entry_sol_reserve": 0,
+      "exit_sol_reserve": 85,
+      "outcome": "success",
+      "tokens_bought": 3529253.463570237,
+      "entry_price_usd": 5.591798695246971e-06,
+      "exit_price_usd": 8.216837527182355e-05,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 289.9930230240223,
+      "pnl_usd": 265.343127678662,
+      "roi_pct": 1307.1090033431624
+    },
+    {
+      "scenario": "\ud83d\udfe2 Buy at 25% \u2192 graduate to 100%",
+      "entry_sol_reserve": 21.25,
+      "exit_sol_reserve": 85,
+      "outcome": "success",
+      "tokens_bought": 1210961.431314826,
+      "entry_price_usd": 1.6319120844982913e-05,
+      "exit_price_usd": 8.216837527182355e-05,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 99.5027333279812,
+      "pnl_usd": 77.7101923280615,
+      "roi_pct": 382.8088292022734
+    },
+    {
+      "scenario": "\ud83d\udfe1 Buy at 50% \u2192 graduate to 100%",
+      "entry_sol_reserve": 42.5,
+      "exit_sol_reserve": 85,
+      "outcome": "success",
+      "tokens_bought": 605462.8851637244,
+      "entry_price_usd": 3.265765765765766e-05,
+      "exit_price_usd": 8.216837527182355e-05,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 49.74990156129392,
+      "pnl_usd": 28.703653037874506,
+      "roi_pct": 141.39730560529313
+    },
+    {
+      "scenario": "\ud83d\udfe0 Buy at 75% \u2192 graduate to 100%",
+      "entry_sol_reserve": 63.75,
+      "exit_sol_reserve": 85,
+      "outcome": "success",
+      "tokens_bought": 362205.67081165314,
+      "entry_price_usd": 5.46074091332712e-05,
+      "exit_price_usd": 8.216837527182355e-05,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 29.7618514848345,
+      "pnl_usd": 9.015423712561983,
+      "roi_pct": 44.41095424907381
+    },
+    {
+      "scenario": "\ud83d\udd34 Buy at 0% \u2192 curve drops 50%",
+      "entry_sol_reserve": 0,
+      "exit_sol_reserve": 0,
+      "outcome": "fail_half",
+      "tokens_bought": 3529253.463570237,
+      "entry_price_usd": 5.591798695246971e-06,
+      "exit_price_usd": 5.591798695246971e-06,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 19.734874912787905,
+      "pnl_usd": -0.861148210903913,
+      "roi_pct": -4.242109413319768
+    },
+    {
+      "scenario": "\ud83d\udd34 Buy at 50% \u2192 rug pull (curve\u21920)",
+      "entry_sol_reserve": 42.5,
+      "exit_sol_reserve": 0,
+      "outcome": "rug",
+      "tokens_bought": 605462.8851637244,
+      "entry_price_usd": 3.265765765765766e-05,
+      "exit_price_usd": 0,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 0,
+      "pnl_usd": -20.3,
+      "roi_pct": -100.0
+    },
+    {
+      "scenario": "\ud83d\udfe2 Buy at 25% \u2192 2x pump before graduation",
+      "entry_sol_reserve": 21.25,
+      "exit_sol_reserve": 85,
+      "outcome": "success_2x",
+      "tokens_bought": 1210961.431314826,
+      "entry_price_usd": 1.6319120844982913e-05,
+      "exit_price_usd": 3.2638241689965826e-05,
+      "entry_value_usd": 20.0,
+      "exit_value_usd": 39.523651872480244,
+      "pnl_usd": 18.630797094393042,
+      "roi_pct": 91.77732558814307
+    }
+  ],
+  "realistic_expectations": {
+    "win_rate_pump_fun": "25-40% (not 80%)",
+    "profit_factor_target": "1.5-2.5 (big wins, frequent small losses)",
+    "max_capital_exposure_pct": 5,
+    "graduation_rate": "~20-30% of tokens reach 85 SOL"
+  }
+}
