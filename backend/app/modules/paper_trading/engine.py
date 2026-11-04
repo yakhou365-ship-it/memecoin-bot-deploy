@@ -189,12 +189,16 @@ class PaperTradingEngine:
             return None
 
         # === Simulate execution (slippage + fees) ===
-        # Slippage: based on trade size vs liquidity
+        # V31.4: square-root market-impact model (same as close_position).
+        # Previous linear model with `paper_capital * 0.5` fallback produced
+        # unrealistic slippage for small-cap memecoins.
         if liquidity_usd <= 0:
-            liquidity_usd = settings.paper_capital_usd * 0.5  # safe default
-        slippage_pct = min(50, 200 * position_size_usd / liquidity_usd)
-        # Add a small random component to simulate order book depth
-        slippage_pct += random.uniform(0, 0.3)
+            slippage_pct = 5.0  # conservative fallback when liquidity unknown
+        else:
+            participation = min(0.5, position_size_usd / liquidity_usd)
+            slippage_pct = 0.10 * (participation ** 0.5) * 100
+            slippage_pct = min(slippage_pct, 25.0)
+        slippage_pct += random.uniform(0, 0.15)
         actual_entry_price = entry_price * (1 + slippage_pct / 100)
 
         # Fees
@@ -274,12 +278,28 @@ class PaperTradingEngine:
                 logger.warning(f"Cannot close trade {trade_id}: no exit price")
                 return None
 
-            # Simulate slippage on exit (sell pushes price down)
+            # Simulate slippage on exit (sell pushes price down).
+            # V31.4: use square-root market-impact model (Almgren-Chriss
+            # approximation) which is the industry standard for equity and
+            # crypto execution. The previous linear model with a fallback
+            # of `position_value * 10` produced ~20% slippage on every
+            # exit, turning winning paper trades into losses.
+            #
+            # slippage_pct = k * sqrt(trade_usd / liquidity_usd) * 100
+            # where k ~= 0.10 for typical memecoin order books.
             position_value = trade.entry_quantity * exit_price
             if liquidity_usd <= 0:
-                liquidity_usd = position_value * 10
-            slippage_pct = min(50, 200 * position_value / liquidity_usd)
-            slippage_pct += random.uniform(0, 0.3)
+                # Last-resort fallback: assume 5% slippage if we have no
+                # liquidity data (better than the old 20% default).
+                slippage_pct = 5.0
+            else:
+                # Cap participation at 50% of liquidity (beyond that the
+                # model breaks down and the trade shouldn't have happened).
+                participation = min(0.5, position_value / liquidity_usd)
+                slippage_pct = 0.10 * (participation ** 0.5) * 100
+                slippage_pct = min(slippage_pct, 25.0)  # hard cap
+            # Tiny random component simulates order-book noise.
+            slippage_pct += random.uniform(0, 0.15)
             actual_exit_price = exit_price * (1 - slippage_pct / 100)
 
             # Exit fee
@@ -344,18 +364,40 @@ class PaperTradingEngine:
             result = await session.execute(stmt)
             open_trades = list(result.scalars().all())
 
-        closed = {"stop_loss": 0, "take_profit": 0, "time_exit": 0, "circuit_breaker": 0}
+        closed = {"stop_loss": 0, "take_profit": 0, "time_exit": 0, "circuit_breaker": 0, "trailing_stop": 0}
         for trade in open_trades:
             current_price = await self._fetch_current_price(trade.token_id)
             if not current_price:
                 continue
 
-            # Determine exit reason
+            # V57: Trailing stop — track peak price since entry and exit
+            # if price drops trail_pct below the peak. This lets winners run
+            # while locking in profits. The peak is stored in the trade's
+            # max_unrealized_profit_usd field as a side channel (it gets
+            # overwritten by get_account_state which tracks PnL, not price).
+            # So we use a separate in-memory attribute that doesn't persist.
+            if not hasattr(trade, "_peak_price") or trade._peak_price is None:
+                trade._peak_price = max(trade.entry_price, current_price)
+            if current_price > trade._peak_price:
+                trade._peak_price = current_price
+            trail_pct = 0.40  # V57: 40% trailing (wide, lets memecoin pumps run)
+            trailing_level = trade._peak_price * (1 - trail_pct)
+            # Only activate trailing stop once we've had a meaningful peak
+            # (>20% above entry) and we're no longer at the peak.
+            peak_gain_pct = (trade._peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
+            trailing_hit = (
+                peak_gain_pct >= 0.20  # peak was at least +20%
+                and current_price < trailing_level  # dropped below trail
+            )
+
+            # Determine exit reason (priority order)
             exit_reason = None
             if trade.stop_loss_price and current_price <= trade.stop_loss_price:
                 exit_reason = "stop_loss"
             elif trade.take_profit_price and current_price >= trade.take_profit_price:
                 exit_reason = "take_profit"
+            elif trailing_hit:
+                exit_reason = "trailing_stop"
             elif (
                 trade.planned_holding_period_minutes
                 and trade.entry_timestamp
@@ -370,8 +412,23 @@ class PaperTradingEngine:
                 exit_reason = "circuit_breaker"
 
             if exit_reason:
+                # V31.4: pass liquidity_usd so close_position can compute
+                # realistic slippage instead of the previous 20% default.
+                # Without this, every exit was hit with ~20% slippage,
+                # turning winning trades into losses and inflating drawdown.
+                token_liquidity = 0.0
+                try:
+                    async with get_session() as s:
+                        token = await s.get(Token, trade.token_id)
+                        if token:
+                            token_liquidity = float(token.liquidity_usd or 0)
+                except Exception:
+                    pass
                 await self.close_position(
-                    trade.id, exit_price=current_price, exit_reason=exit_reason
+                    trade.id,
+                    exit_price=current_price,
+                    exit_reason=exit_reason,
+                    liquidity_usd=token_liquidity,
                 )
                 closed[exit_reason] = closed.get(exit_reason, 0) + 1
                 logger.info(

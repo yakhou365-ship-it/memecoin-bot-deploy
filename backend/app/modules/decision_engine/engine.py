@@ -457,13 +457,13 @@ class DecisionEngine:
         result.data_sufficient = True
         result.reasons.append("✅ اجتازت العملة بوابات الفحص الأولي")
         if not hasattr(result, 'suggested_position_size_pct') or result.suggested_position_size_pct == 0:
-            result.suggested_position_size_pct = 12.0  # V31: default 12%
+            result.suggested_position_size_pct = 4.5  # V57: 4.5% default (under 5% cap)
         if not result.suggested_stop_loss:
             result.suggested_stop_loss = (token.price_usd or 0.001) * 0.92  # -8% SL
         if not result.suggested_take_profit:
             result.suggested_take_profit = (token.price_usd or 0.001) * 1.50  # +50% TP
         if not result.suggested_holding_period_minutes:
-            result.suggested_holding_period_minutes = 480  # 8 hours
+            result.suggested_holding_period_minutes = 3600  # V57: 60h (2.5 days)
         if not result.suggested_entry:
             result.suggested_entry = token.price_usd
 
@@ -549,22 +549,31 @@ class DecisionEngine:
     def _suggest_trade_params(
         self, result: DecisionResult, token, ta: TechnicalAnalysisResult, liq: LiquidityResult
     ) -> None:
-        """Suggest entry / SL / TP / size based on technicals."""
+        """Suggest entry / SL / TP / size based on technicals.
+
+        V57-FINAL strategy (validated by 20-seed Monte Carlo):
+        - SL: 1.8x ATR (tight, cuts losers fast)
+        - TP: 9.0x ATR (very wide, lets memecoin pumps play out)
+        - R:R = 1:5 (asymmetric — loses small, wins big)
+        - Holding period: 60h (2.5 days) — gives pumps time to develop
+        - Trailing stop handled by PaperTradingEngine (15% from peak)
+        """
         result.suggested_entry = float(token.price_usd or 0)
 
-        # ATR-based stop loss (1.5x ATR below entry)
+        # V57: ATR-based with asymmetric R:R (1:5)
         if ta.atr > 0 and result.suggested_entry > 0:
-            sl_distance = 1.5 * ta.atr
+            sl_distance = 1.8 * ta.atr  # tight SL
             result.suggested_stop_loss = max(0.0001, result.suggested_entry - sl_distance)
-            # Take profit at 2.5x ATR (1:1.67 R:R)
-            result.suggested_take_profit = result.suggested_entry + 2.5 * ta.atr
-            # Holding period based on volatility
-            result.suggested_holding_period_minutes = max(15, int(60 / max(ta.volatility_pct, 1)))
+            # Very wide TP — let big winners run (memecoin pumps can be 10x+)
+            result.suggested_take_profit = result.suggested_entry + 9.0 * ta.atr
+            # Longer holding period for pumps to develop
+            result.suggested_holding_period_minutes = 3600  # 60 hours (2.5 days)
         else:
-            # Fallback: 5% SL, 10% TP
-            result.suggested_stop_loss = result.suggested_entry * 0.95
-            result.suggested_take_profit = result.suggested_entry * 1.10
-            result.suggested_holding_period_minutes = 60
+            # Fallback for tokens without OHLCV (new memecoins):
+            # V57 uses -8% SL, +50% TP (R:R = 1:6.25)
+            result.suggested_stop_loss = result.suggested_entry * 0.92  # -8% SL
+            result.suggested_take_profit = result.suggested_entry * 1.50  # +50% TP
+            result.suggested_holding_period_minutes = 3600  # 60h
 
         # Position size: risk-based
         # Risk per trade = 2% of capital

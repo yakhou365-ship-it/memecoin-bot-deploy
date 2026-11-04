@@ -220,19 +220,64 @@ class MainOrchestrator:
                             "risk_state": risk_state_ctx,
                         }
                         consensus = await self._agent_orchestrator.run_consensus(token, analysis_context)
-                        if not decision.qualified and consensus.approved:
-                            # AI agents approved! Override the decision
-                            # V31.3: cap at 5% (matches RiskAgent hard cap)
-                            # was: min(..., 18.0) which was unsafe.
+
+                        # V31.4: NEVER override a security auto-disqualify.
+                        # If the SecurityScanner flagged the token as a
+                        # honeypot / rug / mint-authority-enabled, no
+                        # amount of agent consensus can bring it back.
+                        sec_detail = decision.security_detail or {}
+                        auto_disqualified = bool(sec_detail.get("auto_disqualify", False))
+
+                        # V31.4: detect any agent veto (SecurityAgent,
+                        # LiquidityAgent, RiskAgent can all veto now).
+                        has_veto = any(
+                            v.veto for v in (consensus.verdicts or [])
+                        )
+
+                        if auto_disqualified:
+                            # Hard lock: security auto-disqualify is final.
+                            decision.qualified = False
+                            decision.recommendation = "reject"
+                            if not decision.rejection_reason:
+                                decision.rejection_reason = (
+                                    f"Security auto-disqualify: "
+                                    f"{sec_detail.get('disqualify_reason', 'unknown')}"
+                                )
+                            logger.info(
+                                f"🔒 {token.symbol} locked: security auto-disqualify "
+                                f"({sec_detail.get('disqualify_reason', 'unknown')[:80]})"
+                            )
+                        elif has_veto:
+                            # Any agent veto is final (P0-1 fix).
+                            decision.qualified = False
+                            decision.recommendation = "reject"
+                            decision.rejection_reason = (
+                                f"AI veto: an agent invoked veto power"
+                            )
+                            decision.reasons.append(decision.rejection_reason)
+                            logger.info(f"🛑 AI VETO (agent): {token.symbol}")
+                        elif not decision.qualified and consensus.approved:
+                            # AI agents approved! Override the decision.
+                            # V31.4: cap at 5% (matches RiskAgent hard cap).
+                            # V31.4: do NOT inflate win_probability (P0-9).
                             decision.qualified = True
                             decision.recommendation = "buy"
                             decision.suggested_position_size_pct = min(
                                 consensus.final_position_size_pct, 5.0
                             )
-                            decision.reasons.append(f"AI consensus: {consensus.approvals_count}/{consensus.total_agents} approved")
-                            decision.win_probability = max(decision.win_probability, 0.6)
-                            logger.info(f"🤖 AI OVERRIDE: {token.symbol} approved by {consensus.approvals_count}/{consensus.total_agents} agents")
-                        elif decision.qualified and not consensus.approved and consensus.approvals_count < 3:
+                            decision.reasons.append(
+                                f"AI consensus: {consensus.approvals_count}/"
+                                f"{consensus.total_agents} approved"
+                            )
+                            logger.info(
+                                f"🤖 AI OVERRIDE: {token.symbol} approved by "
+                                f"{consensus.approvals_count}/{consensus.total_agents} agents"
+                            )
+                        elif decision.qualified and not consensus.approved:
+                            # V31.4: any rejection (not just < 3) now vetoes.
+                            # Previously `approvals_count < 3` would let a
+                            # 3-approve / 2-reject consensus bypass the veto
+                            # even when a veto-capable agent rejected.
                             decision.qualified = False
                             decision.recommendation = "reject"
                             decision.rejection_reason = (
