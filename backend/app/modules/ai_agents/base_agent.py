@@ -77,10 +77,17 @@ class BaseAgent:
 
         try:
             # PRIMARY: Rule-based analysis (works without external LLM keys)
+            # This is the AUTHORITATIVE verdict. LLM enhancement may only
+            # enrich the reasoning text - it must NEVER override the
+            # rule-based decision, score, or veto. Otherwise a failed LLM
+            # call (timeout, parse error, fallback) would silently replace
+            # a correct BUY/REJECT with a default WAIT.
             verdict = self._rule_based_analyze(token, analysis_context)
             logger.debug(f"Agent {self.name} rule-based: {verdict.decision} score={verdict.score}")
 
-            # OPTIONAL ENHANCEMENT: LLM for reasoning only (never overrides safety)
+            # OPTIONAL ENHANCEMENT: LLM may add a natural-language narrative
+            # on top of the rule-based verdict. We do NOT touch decision /
+            # score / suggested_size / veto - those are always rule-based.
             if self._use_llm:
                 try:
                     prompt = self._build_prompt(token, analysis_context)
@@ -89,15 +96,33 @@ class BaseAgent:
                         user_prompt=prompt,
                     )
                     llm_verdict = self._parse_response(response)
-                    # Blend LLM insights but keep rule-based safety bounds
-                    verdict.reasoning = llm_verdict.reasoning or verdict.reasoning
-                    verdict.key_factors = llm_verdict.key_factors or verdict.key_factors
-                    verdict.concerns = llm_verdict.concerns or verdict.concerns
-                    if verdict.veto:
-                        llm_verdict.veto = True
-                    verdict = llm_verdict
+                    # Only adopt LLM's reasoning text if it is meaningful.
+                    # The fallback returns "تم اكتشاف عملات..." - skip that.
+                    llm_reasoning = (llm_verdict.reasoning or "").strip()
+                    fallback_markers = (
+                        "تم اكتشاف",
+                        "لا توجد صفقات",
+                        "5 وكلاء AI",
+                        "مرحباً! أنا مساعد",
+                        "تحليل أساسي",
+                        "لا يوجد مزود AI",
+                    )
+                    looks_like_fallback = any(m in llm_reasoning for m in fallback_markers)
+                    if llm_reasoning and not looks_like_fallback:
+                        verdict.reasoning = llm_reasoning
+                        if llm_verdict.key_factors:
+                            verdict.key_factors = list(verdict.key_factors) + [
+                                f for f in llm_verdict.key_factors
+                                if f not in verdict.key_factors
+                            ][:3]  # max 3 LLM factors appended
+                        if llm_verdict.concerns:
+                            verdict.concerns = list(verdict.concerns) + [
+                                c for c in llm_verdict.concerns
+                                if c not in verdict.concerns
+                            ][:3]
+                    verdict.raw_response = "rule-based+llm"
                 except Exception as llm_exc:
-                    logger.debug(f"LLM enhancement skipped for {self.name}: {str(llm_exc)[:100]}")
+                    logger.debug(f"LLM enhancement skipped for {self.name}: {str(llm_exc)[:120]}")
 
             return verdict
 

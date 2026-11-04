@@ -60,7 +60,13 @@ class MainOrchestrator:
         logger.info("🧠 Decision engine initialized (Smart Rule-Based)")
 
     async def _trading_active(self) -> bool:
-        """Read the dashboard Start/Stop switch. Defaults to active."""
+        """Read the dashboard Start/Stop switch. Defaults to active.
+
+        On DB read failure we DEFAULT TO FALSE (safer) so a transient
+        DB error doesn't cause runaway live trades. Previously this
+        returned True, which meant a DB hiccup could re-enable live
+        trading even if the operator had pressed Stop.
+        """
         try:
             async with get_session() as s:
                 state = await s.get(TradingState, 1)
@@ -70,8 +76,10 @@ class MainOrchestrator:
                     await s.flush()
                 return bool(state.is_active)
         except Exception as exc:
-            logger.debug(f"TradingState read failed (assuming active): {exc}")
-            return True
+            logger.warning(
+                f"TradingState read failed - defaulting to INACTIVE for safety: {exc}"
+            )
+            return False
 
     async def run_cycle(self) -> dict:
         """Run one complete analysis cycle. Returns summary."""
@@ -214,10 +222,12 @@ class MainOrchestrator:
                         consensus = await self._agent_orchestrator.run_consensus(token, analysis_context)
                         if not decision.qualified and consensus.approved:
                             # AI agents approved! Override the decision
+                            # V31.3: cap at 5% (matches RiskAgent hard cap)
+                            # was: min(..., 18.0) which was unsafe.
                             decision.qualified = True
                             decision.recommendation = "buy"
                             decision.suggested_position_size_pct = min(
-                                consensus.final_position_size_pct, 18.0
+                                consensus.final_position_size_pct, 5.0
                             )
                             decision.reasons.append(f"AI consensus: {consensus.approvals_count}/{consensus.total_agents} approved")
                             decision.win_probability = max(decision.win_probability, 0.6)
@@ -260,9 +270,32 @@ class MainOrchestrator:
                         logger.info(f"⏸️ Trading stopped - not opening {token.symbol}")
                     elif settings.is_live_trading:
                         # === REAL MONEY PATH ===
+                        # V31.3: convert the percentage returned by the AI
+                        # consensus into an actual SOL amount, instead of
+                        # always trading the hard cap (pump_max_trade_sol).
+                        # This was a serious bug: the consensus could say
+                        # "0.5% of capital" and we'd still trade 2 SOL.
+                        # Convert: pct of paper_capital_usd → USD → SOL.
+                        sol_price_usd = await self.live.client._fetch_sol_price()
+                        position_pct = float(decision.suggested_position_size_pct or 0)
+                        # Cap the percentage at 5% (hard cap, matches RiskAgent).
+                        position_pct = min(max(position_pct, 0.0), 5.0)
+                        # Convert % of paper_capital_usd → USD → SOL.
+                        # If sol_price_usd is unavailable, fall back to
+                        # a small fixed amount rather than the max.
+                        if sol_price_usd and sol_price_usd > 0:
+                            target_usd = settings.paper_capital_usd * position_pct / 100.0
+                            target_sol = target_usd / sol_price_usd
+                        else:
+                            # Fallback: 0.05 SOL when SOL price is unknown.
+                            target_sol = 0.05
+                        # Final safety cap: never exceed pump_max_trade_sol.
+                        target_sol = min(target_sol, settings.pump_max_trade_sol)
+                        # Floor: PumpPortal requires a small min amount.
+                        target_sol = max(target_sol, 0.01)
                         result = await self.live.open_position(
                             token_id=token.id,
-                            amount_sol=settings.pump_max_trade_sol,
+                            amount_sol=target_sol,
                             entry_price=decision.suggested_entry or token.price_usd or 0,
                             stop_loss=decision.suggested_stop_loss,
                             take_profit=decision.suggested_take_profit,

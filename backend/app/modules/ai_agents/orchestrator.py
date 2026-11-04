@@ -114,11 +114,30 @@ class AgentOrchestrator:
         # Apply the rule: majority approves AND no veto → EXECUTE
         approved = (len(approvals) >= majority_threshold) and not has_veto
 
-        # If approved, compute final position size (min of all suggestions)
+        # If approved, compute final position size.
+        # We take the AVERAGE of all approving agents' suggested sizes,
+        # but cap by the risk agent's suggestion (if it approved) so we
+        # never exceed what the most cautious agent recommended.
+        # Hard cap is 5% (matches RiskAgent's own hard cap in
+        # risk_agent.py) - V31 had 18% which was unsafe.
         if approved:
-            sizes = [v.suggested_position_size_pct for v in phase2_verdicts if v.suggested_position_size_pct > 0]
-            final_size = min(sizes) if sizes else 12.0  # V31: default 12% (was 2%)
-            final_size = min(final_size, 18.0)  # V31: hard cap 18% (was 5%)
+            sizes = [
+                v.suggested_position_size_pct
+                for v in phase2_verdicts
+                if v.suggested_position_size_pct > 0
+            ]
+            if sizes:
+                # Average of approving agents, but never below the smallest
+                # suggestion (which is usually the risk agent's).
+                avg_size = sum(sizes) / len(sizes)
+                min_size = min(sizes)
+                # Weighted blend: 70% toward the cautious side (min),
+                # 30% toward the optimistic side (avg).
+                final_size = (min_size * 0.7) + (avg_size * 0.3)
+            else:
+                # Fallback when no agent proposed a positive size
+                final_size = 2.0
+            final_size = min(final_size, 5.0)  # V31.3: hard cap 5% (matches risk_agent)
             final_decision = "EXECUTE"
         else:
             final_size = 0.0
@@ -188,7 +207,8 @@ class AgentOrchestrator:
                 v["final_decision"] = result.final_decision
                 v["final_position_size_pct"] = result.final_position_size_pct
                 v["timestamp"] = result.timestamp
-                v["verdicts"] = [v.to_dict() if hasattr(v, 'to_dict') else v for v in result.verdicts]
+                v["verdicts"] = [verdict.to_dict() if hasattr(verdict, 'to_dict') else verdict
+                                 for verdict in result.verdicts]
                 v["reasoning"] = result.final_reasoning
                 sys_state.value_json = v
                 flag_modified(sys_state, "value_json")

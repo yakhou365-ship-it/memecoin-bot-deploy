@@ -5,7 +5,7 @@ buy/sell ratio, volume as hype indicator, momentum sentiment.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ...core.config import settings
 from ...core.logger import logger

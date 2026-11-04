@@ -156,10 +156,15 @@ def create_app() -> FastAPI:
     )
 
     origins = settings.cors_origins_list
+    # V31.3: allow_credentials=True is only valid with explicit origins.
+    # When origins == ["*"] we MUST disable credentials, otherwise
+    # browsers reject the response AND any site could read it with
+    # the user's cookies. This is the standard CORS security rule.
+    allow_credentials = origins != ["*"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=origins != ["*"],
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )

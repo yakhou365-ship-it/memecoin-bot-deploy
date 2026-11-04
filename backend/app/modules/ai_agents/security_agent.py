@@ -79,22 +79,28 @@ class SecurityAgent(BaseAgent):
             factors.append("Ownership status unknown (neutral)")
 
         # === Mint Authority ===
-        mint_disabled = sec.get("mint_authority_disabled", False)
-        if mint_disabled:
+        # Tri-state: True (disabled, safe) / False (active, dangerous) / None (unknown)
+        mint_disabled = sec.get("mint_authority_disabled")
+        if mint_disabled is True:
             score += 15
             factors.append("Mint authority disabled (no new tokens)")
-        else:
+        elif mint_disabled is False:
             score -= 15
             concerns.append("Mint authority ACTIVE (inflation/rug risk)")
+        else:
+            factors.append("Mint authority status unknown (neutral)")
 
         # === Freeze Authority ===
-        freeze_disabled = sec.get("freeze_authority_disabled", False)
-        if freeze_disabled:
+        # Tri-state: True (disabled, safe) / False (active, dangerous) / None (unknown)
+        freeze_disabled = sec.get("freeze_authority_disabled")
+        if freeze_disabled is True:
             score += 10
             factors.append("Freeze authority disabled")
-        else:
+        elif freeze_disabled is False:
             score -= 10
             concerns.append("Freeze authority ACTIVE (accounts can be frozen)")
+        else:
+            factors.append("Freeze authority status unknown (neutral)")
 
         # === LP Locked (tri-state: True / False / unknown) ===
         lp_locked = sec.get("lp_locked")

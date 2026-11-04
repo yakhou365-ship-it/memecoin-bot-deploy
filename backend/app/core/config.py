@@ -52,7 +52,9 @@ class Settings(BaseSettings):
     paper_slippage_pct: float = 0.5
 
     # --- Risk Management ---
-    risk_daily_loss_limit_pct: float = 10.0  # 10% (unified with strategy_v2 V31.2)
+    # V31.3: lowered from 10% to 5% — 10% was too permissive for a fresh
+    # paper account. The risk_agent.py enforces this as a hard veto.
+    risk_daily_loss_limit_pct: float = 5.0
     risk_weekly_loss_limit_pct: float = 10.0
     risk_max_drawdown_pct: float = 20.0
     risk_cooldown_after_losses: int = 3
@@ -187,7 +189,10 @@ class Settings(BaseSettings):
     # Model used on OpenRouter / NVIDIA / Zhipu (provider-specific fallbacks apply)
     llm_model: str = "openai/gpt-4o-mini"
     llm_provider: str = "auto"
-    llm_timeout_seconds: float = 8.0
+    # NVIDIA deepseek-v4.1-flash is a reasoning model that takes 25-35s.
+    # Use 45s timeout so reasoning models can complete; rule-based verdict
+    # always returns instantly as the safety net.
+    llm_timeout_seconds: float = 45.0
     llm_cache_seconds: int = 60
 
     # --- Computed ---

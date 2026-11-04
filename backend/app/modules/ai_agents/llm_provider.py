@@ -146,7 +146,18 @@ class LLMProvider:
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            # NVIDIA reasoning models (deepseek-v4.1-flash, etc.) may return
+            # content: null with reasoning_content populated. Handle both cases.
+            msg = (data.get("choices") or [{}])[0].get("message", {}) or {}
+            content = msg.get("content")
+            # If content is null/empty, try reasoning_content as fallback
+            if not content or not str(content).strip():
+                reasoning = msg.get("reasoning_content") or ""
+                if reasoning and reasoning.strip():
+                    return reasoning.strip()
+                # Both empty → raise so caller can fall back to rule-based
+                raise RuntimeError("LLM returned empty content and reasoning_content")
+            return str(content).strip()
 
     async def _call_nvidia(self, system: str, user: str) -> str:
         """NVIDIA NIM API with key rotation."""

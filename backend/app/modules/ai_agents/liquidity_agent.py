@@ -190,6 +190,19 @@ class LiquidityAgent(BaseAgent):
         else:
             decision = "WAIT"
 
+        # V31.3: VETO when liquidity is dangerously low. The agent
+        # declares has_veto=True (see class attribute) but the previous
+        # implementation never set veto=True. Now it does for the most
+        # critical liquidity scenarios, so the orchestrator's
+        # "no veto" guard actually protects us.
+        veto = False
+        if liq_usd < 2000:
+            veto = True
+            concerns.append("🚨 VETO: liquidity below $2k — unsafe to trade")
+        elif vol_24h < 2000:
+            veto = True
+            concerns.append("🚨 VETO: 24h volume below $2k — no real activity")
+
         # === Position Size ===
         if decision in ("STRONG_BUY", "BUY"):
             suggested_size = min(4.0, max(0.5, score / 22))
@@ -215,6 +228,7 @@ class LiquidityAgent(BaseAgent):
             key_factors=factors,
             concerns=concerns,
             suggested_position_size_pct=suggested_size,
+            veto=veto,
             raw_response="rule-based",
         )
 

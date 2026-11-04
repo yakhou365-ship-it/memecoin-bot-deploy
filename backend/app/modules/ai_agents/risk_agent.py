@@ -123,25 +123,34 @@ class RiskAgent(BaseAgent):
 
         # === AGENT CONSENSUS WEIGHTING ===
         agent_scores = [s for s in [tech_score, liq_score, sec_score, sent_score] if s > 0]
+        avg_score: object = "N/A"  # default for the reasoning line
         if agent_scores:
-            avg_score = sum(agent_scores) / len(agent_scores)
-            score += (avg_score - 50) * 0.35  # Weight consensus
+            avg_val = sum(agent_scores) / len(agent_scores)
+            avg_score = avg_val  # numeric value for the f-string below
+            score += (avg_val - 50) * 0.35  # Weight consensus
 
-            if avg_score >= 75:
-                factors.append(f"Strong agent consensus: avg {avg_score:.0f}/100")
-            elif avg_score >= 60:
-                factors.append(f"Good agent consensus: avg {avg_score:.0f}/100")
-            elif avg_score <= 35:
+            if avg_val >= 75:
+                factors.append(f"Strong agent consensus: avg {avg_val:.0f}/100")
+            elif avg_val >= 60:
+                factors.append(f"Good agent consensus: avg {avg_val:.0f}/100")
+            elif avg_val <= 35:
                 score -= 15
-                concerns.append(f"Weak agent consensus: avg {avg_score:.0f}/100")
+                concerns.append(f"Weak agent consensus: avg {avg_val:.0f}/100")
 
         # === POSITION SIZING ===
         base_risk_pct = settings.risk_max_risk_per_trade_pct or 2.0  # % of capital per trade
 
-        # Reduce size after losses
-        if consecutive >= 1:
+        # Reduce size after losses (graded: -40% after 1 loss, -60% after 2,
+        # -80% after 3+). V31.3: was 0.4 flat which was too punitive.
+        if consecutive >= 3:
+            size_multiplier = 0.2
+            factors.append(f"Heavily reducing size after {consecutive} losses")
+        elif consecutive == 2:
             size_multiplier = 0.4
-            factors.append(f"Reducing size after {consecutive} loss(es)")
+            factors.append(f"Reducing size after {consecutive} losses")
+        elif consecutive == 1:
+            size_multiplier = 0.6
+            factors.append("Slightly reducing size after 1 loss")
         else:
             size_multiplier = 1.0
 
@@ -226,8 +235,20 @@ class RiskAgent(BaseAgent):
         """
         FINAL CONSULTATION: Risk agent has FINAL SAY with veto power.
         Even if all other agents say BUY, risk agent can VETO.
+
+        Critical: if our own _rule_based_analyze returned veto=True
+        (circuit breaker, daily loss, etc.), we MUST honor that veto
+        regardless of what other agents say.
         """
         base = self._rule_based_analyze(token, analysis_context)
+
+        # 0. HONOR OUR OWN VETO FIRST. If the rule-based pass already
+        # vetoed (circuit breaker / loss limits / drawdown), nothing
+        # other agents say can override it. This was a bug: the previous
+        # code only checked other_vetoes, ignoring base.veto, which meant
+        # a re-run during consultation could silently drop our own veto.
+        if base.veto:
+            return base
 
         # Count other agents' decisions
         approvals = sum(1 for v in other_verdicts if v.approves)
