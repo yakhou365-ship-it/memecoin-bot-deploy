@@ -98,7 +98,7 @@ class SecurityScanner:
         rug_signals = 0
         if result.mint_authority_enabled:
             rug_signals += 2  # double weight
-        if not result.liquidity_locked:
+        if result.liquidity_locked is False:  # V407 P2-7: None (unknown) is NOT False
             rug_signals += 1
         if result.owner_concentration_risk > 0.7:
             rug_signals += 1

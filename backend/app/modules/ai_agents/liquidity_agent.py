@@ -246,6 +246,8 @@ class LiquidityAgent(BaseAgent):
             base.decision = "REJECT"
             base.reasoning += " Liquidity too low for safe trading."
             base.score = min(base.score, 15)
+            # V407 P2-2: Set veto for low liquidity (was missing)
+            base.veto = True
 
         # If technical + sentiment both strong but liquidity mediocre, reduce size
         tech_approve = any(v.agent_name == "technical_agent" and v.approves for v in other_verdicts)

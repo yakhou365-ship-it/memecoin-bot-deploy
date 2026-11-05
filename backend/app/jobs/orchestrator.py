@@ -316,6 +316,12 @@ class MainOrchestrator:
                             logger.info(f"🛑 AI VETO: {token.symbol} - {decision.rejection_reason}")
                     except Exception as exc:
                         logger.warning(f"AI orchestrator failed for {token.symbol}: {exc}")
+                        # V407 P0-4: If AI consensus fails, REJECT the trade.
+                        # Before: decision.qualified stayed True → bot traded without AI safety net.
+                        decision.qualified = False
+                        decision.recommendation = "reject"
+                        decision.rejection_reason = f"AI consensus failed: {str(exc)[:150]}"
+                        decision.reasons.append(f"⚠️ AI consensus failure: {str(exc)[:100]}")
 
                 # Persist snapshot
                 snapshot = self.decision_engine.to_snapshot(token.id, decision)
@@ -328,8 +334,9 @@ class MainOrchestrator:
                 token.latest_opportunity_score = decision.opportunity_score
                 token.latest_risk_score = decision.risk_score
                 token.latest_win_probability = decision.win_probability
+                # V407 P1-2: use merge instead of add (detached object fix)
                 async with get_session() as s:
-                    s.add(token)
+                    s.merge(token)
 
                 summary["analyzed"] += 1
 
@@ -354,14 +361,15 @@ class MainOrchestrator:
                         #   - R:R = 1:5
                         #   - 3 positions max
                         sol_price_usd = await self.live.client._fetch_sol_price()
+                        # V407 P1-5: Skip trade if SOL price fetch fails
+                        if not sol_price_usd or sol_price_usd <= 0:
+                            logger.warning(f"Skip {token.symbol}: SOL price fetch failed — cannot size position")
+                            continue
                         wallet_balance = await self.live.client.get_wallet_balance()
                         wallet_sol = float(wallet_balance.get("sol", 0.0)) if wallet_balance else 0.0
 
                         # Use real wallet balance (in USD) as the capital base
-                        if sol_price_usd and sol_price_usd > 0:
-                            real_capital_usd = wallet_sol * sol_price_usd
-                        else:
-                            real_capital_usd = 50.0  # conservative default
+                        real_capital_usd = wallet_sol * sol_price_usd
 
                         # V300: Auto-detect strategy based on wallet size
                         SMALL_CAP_THRESHOLD_USD = 50.0  # < $50 = small cap mode

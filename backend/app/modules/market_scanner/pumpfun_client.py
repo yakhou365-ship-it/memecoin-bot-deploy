@@ -727,13 +727,21 @@ class PumpPortalClient:
                     value = (data.get("result", {}) or {}).get("value", [])
                     info = value[0] if value else None
                     if info:
+                        # V407 P1-10: Check err FIRST — a tx can be "processed" but failed
+                        if info.get("err"):
+                            return {
+                                "confirmed": False,
+                                "error": str(info.get("err")),
+                                "status": info.get("confirmationStatus", "unknown"),
+                                "signature": signature,
+                            }
                         last_status = info.get("confirmationStatus", "unknown")
                         if last_status in accepted:
                             return {
                                 "confirmed": True,
                                 "status": last_status,
                                 "slot": info.get("slot"),
-                                "err": info.get("err"),
+                                "err": None,
                                 "signature": signature,
                             }
                         if info.get("err"):

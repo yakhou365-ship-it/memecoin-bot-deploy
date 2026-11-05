@@ -392,24 +392,25 @@ class LiveTradingExecutor:
                     db_trade = await session.get(Trade, trade_id)
                     if db_trade is None or db_trade.status != "open":
                         return self._reject("already_closed", "Trade was already closed")
-                    db_trade.exit_price = actual_exit_price  # V400: use slippage-adjusted price
-                    db_trade.exit_slippage_usd = exit_slippage_usd  # V400 P1-2: track it
+                    db_trade.exit_price = actual_exit_price
+                    db_trade.exit_slippage_usd = exit_slippage_usd
                     db_trade.exit_timestamp = _utcnow()
                     db_trade.exit_fee_usd = exit_fee_usd
                     db_trade.exit_reason = exit_reason
                     db_trade.gross_pnl_usd = gross_pnl
                     db_trade.net_pnl_usd = net_pnl
                     db_trade.pnl_pct = pnl_pct
-                db_trade.fees_total_usd = float(db_trade.entry_fee_usd or 0) + exit_fee_usd
-                db_trade.status = "closed"
-                db_trade.exit_reasons_json = list(db_trade.exit_reasons_json or []) + [
-                    exit_reason,
-                    f"LIVE sell 100% tx:{result.tx_signature}",
-                    "pnl_estimated_from_market_price",
-                ]
-                session.add(db_trade)
-                await session.commit()
-                db_save_success = True
+                    # V407 P0-2: ALL mutations inside the async with block
+                    db_trade.fees_total_usd = float(db_trade.entry_fee_usd or 0) + exit_fee_usd
+                    db_trade.slippage_total_usd = float(db_trade.entry_slippage_usd or 0) + exit_slippage_usd
+                    db_trade.status = "closed"
+                    db_trade.exit_reasons_json = list(db_trade.exit_reasons_json or []) + [
+                        exit_reason,
+                        f"LIVE sell 100% tx:{result.tx_signature}",
+                    ]
+                    session.add(db_trade)
+                    await session.commit()
+                    db_save_success = True
             except Exception as db_exc:
                 logger.error(f"DB save failed on close for trade {trade_id}: {db_exc}")
                 # V400 P1-11: retry once
@@ -445,6 +446,15 @@ class LiveTradingExecutor:
             )
             daily["trades_closed"] = int(daily["trades_closed"]) + 1
             await self._save_daily(daily)
+
+            # V407 P1-7: Update RiskManager with live trade result
+            # Before: only paper trades updated risk state (consecutive_losses, peak_equity)
+            try:
+                from ..risk_management.manager import RiskManager
+                rm = RiskManager()
+                await rm.record_trade_result(net_pnl > 0, net_pnl)
+            except Exception as rm_exc:
+                logger.warning(f"RiskManager record_trade_result failed: {rm_exc}")
 
             logger.info(
                 f"🔴 LIVE SELL {symbol} @ ~${exit_price:.10f} pnl=${net_pnl:.4f} "

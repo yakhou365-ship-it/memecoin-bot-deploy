@@ -87,12 +87,75 @@ class PaperTradingEngine:
         # between run_cycle (open) and fast_monitor_forever (close).
         # Without this, both can close the same trade simultaneously.
         self._lock = asyncio.Lock()
+        # V407 P1-1: sync account state from DB on init
+        self._synced = False
 
     # =====================================================================
     # Account queries
     # =====================================================================
+    async def _sync_from_db(self) -> None:
+        """V407 P1-1: Rebuild account state from DB after restart.
+
+        Before this fix, after restart the engine would think it has
+        $10,000 cash and 0 open positions even if there were 5 open
+        trades. This could cause over-trading and incorrect cash balance.
+        """
+        if self._synced:
+            return
+        try:
+            async with get_session() as session:
+                # Count open positions
+                stmt = select(Trade).where(
+                    Trade.status == "open",
+                    or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
+                )
+                result = await session.execute(stmt)
+                open_trades = list(result.scalars().all())
+
+                # Sum all closed trade PnL (all-time)
+                closed_stmt = select(Trade).where(Trade.status == "closed")
+                closed_result = await session.execute(closed_stmt)
+                closed_trades = list(closed_result.scalars().all())
+
+                total_realized_pnl = sum(t.net_pnl_usd or 0 for t in closed_trades)
+                total_fees = sum(t.fees_total_usd or 0 for t in closed_trades)
+                total_slippage = sum(t.slippage_total_usd or 0 for t in closed_trades)
+                open_value = sum(t.entry_size_usd or 0 for t in open_trades)
+
+                # Rebuild account
+                self.account.cash_balance = (
+                    settings.paper_capital_usd + total_realized_pnl - open_value
+                )
+                self.account.realized_pnl = total_realized_pnl
+                self.account.open_positions_count = len(open_trades)
+                self.account.closed_trades_count = len(closed_trades)
+                self.account.winning_trades_count = sum(
+                    1 for t in closed_trades if (t.net_pnl_usd or 0) > 0
+                )
+                self.account.losing_trades_count = sum(
+                    1 for t in closed_trades if (t.net_pnl_usd or 0) <= 0
+                )
+                self.account.total_fees_paid = total_fees
+                self.account.total_slippage_paid = total_slippage
+
+                # Compute peak equity from all-time PnL
+                current_equity = settings.paper_capital_usd + total_realized_pnl
+                if current_equity > self.account.peak_equity:
+                    self.account.peak_equity = current_equity
+
+                self._synced = True
+                logger.info(
+                    f"📊 Account synced from DB: cash=${self.account.cash_balance:.2f}, "
+                    f"open={len(open_trades)}, closed={len(closed_trades)}, "
+                    f"PnL=${total_realized_pnl:.2f}"
+                )
+        except Exception as exc:
+            logger.warning(f"Account sync from DB failed (non-fatal): {exc}")
+
     async def get_account_state(self) -> AccountState:
         """Refresh account state from DB (open positions, PnL)."""
+        # V407 P1-1: sync on first call after restart
+        await self._sync_from_db()
         # Recompute open positions value & unrealized PnL
         async with get_session() as session:
             stmt = select(Trade).where(

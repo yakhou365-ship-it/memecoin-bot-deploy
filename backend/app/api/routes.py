@@ -962,7 +962,7 @@ async def get_trading_state():
     async with get_session() as s:
         state = await s.get(TradingState, 1)
         if not state:
-            state = TradingState(id=1, is_active=settings.auto_start_trading)
+            state = TradingState(id=1, is_active=False)  # V407 P0-1: never auto-start
             s.add(state)
             await s.flush()
         return {

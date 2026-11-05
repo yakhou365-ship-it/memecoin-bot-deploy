@@ -451,6 +451,14 @@ class DecisionEngine:
         # Now: qualified = True (agents are OPTIONAL, not mandatory)
         # If AI agents are available, they can still veto. But if they're
         # unavailable (NVIDIA down, no LLM key), the bot still trades.
+        # V407 P1-6: Reject if no valid price (can't set SL/TP)
+        token_price = float(token.price_usd or 0)
+        if token_price <= 0:
+            result.qualified = False
+            result.recommendation = "reject"
+            result.rejection_reason = "No valid price — cannot set SL/TP"
+            result.reasons.append("❌ لا يوجد سعر صالح لحساب SL/TP")
+            return
         result.qualified = True  # V31.2: Auto-qualify after passing all gates
         result.recommendation = "buy"
         result.rejection_reason = ""
@@ -459,19 +467,10 @@ class DecisionEngine:
         if not hasattr(result, 'suggested_position_size_pct') or result.suggested_position_size_pct == 0:
             result.suggested_position_size_pct = 4.5  # V57: 4.5% default (under 5% cap)
         if not result.suggested_stop_loss or result.suggested_stop_loss <= 0:
-            # V400 P1-9 FIX: use token price if valid, else skip (was 0.001)
-            token_price = float(token.price_usd or 0)
-            if token_price > 0:
-                result.suggested_stop_loss = token_price * 0.92  # -8% SL
-            else:
-                # No valid price — don't set arbitrary SL/TP
-                result.suggested_stop_loss = None
+            # V400 P1-9 FIX: use token price (validated above to be > 0)
+            result.suggested_stop_loss = token_price * 0.92  # -8% SL
         if not result.suggested_take_profit or result.suggested_take_profit <= 0:
-            token_price = float(token.price_usd or 0)
-            if token_price > 0:
-                result.suggested_take_profit = token_price * 1.50  # +50% TP
-            else:
-                result.suggested_take_profit = None
+            result.suggested_take_profit = token_price * 1.50  # +50% TP
         if not result.suggested_holding_period_minutes:
             result.suggested_holding_period_minutes = 3600  # V57: 60h (2.5 days)
         if not result.suggested_entry:

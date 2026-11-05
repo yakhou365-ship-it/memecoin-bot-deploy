@@ -332,11 +332,19 @@ class MarketScanner:
         return out
 
     async def get_watch_list(self, limit: int = 50) -> List[Token]:
-        """Get the top N most promising tokens by watch_priority."""
+        """Get the top N most promising tokens by watch_priority.
+
+        V407 P1-9: Filter by configured chains only (prevents cross-chain trades).
+        """
         async with get_session() as s:
             stmt = (
                 select(Token)
-                .where(Token.active == True, Token.blacklisted == False)
+                .where(
+                    Token.active == True,
+                    Token.blacklisted == False,
+                    # V407 P1-9: only configured chains
+                    Token.chain.in_(settings.networks_list),
+                )
                 .order_by(desc(Token.watch_priority))
                 .limit(limit)
             )
