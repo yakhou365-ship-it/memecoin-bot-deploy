@@ -1892,12 +1892,15 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
     """
     import httpx
 
-    # V404: Only search terms that find Pump.fun tokens
-    search_terms = ["pumpswap", "pumpfun", "pump", "meme", "dog", "cat", "moon", "bonk"]
-    excluded_symbols = {
-        "SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL",
-        "BTC", "ETH", "WETH", "PEPE", "MEME", "PUMP",  # V404: remove generic duplicates
-    }
+    # V406: 20 search terms (was 8) for maximum coverage
+    search_terms = [
+        "pumpswap", "pumpfun", "pump",
+        "meme", "pepe", "dog", "cat", "moon", "bonk",
+        "wif", "bome", "sol", "raydium", "meteora",
+        "orca", "wojak", "chad", "giga", "degen", "slurp",
+    ]
+    # V406: Only exclude stablecoins (NOT PEPE/MEME/PUMP — they're real tokens)
+    excluded_symbols = {"SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL", "BTC", "ETH", "WETH"}
     # V404: Only allow Pump.fun DEXes
     allowed_dexes = {"pumpswap", "pumpfun", "pump", "meteora"}
     seen_addresses: set[str] = set()
@@ -2003,15 +2006,17 @@ async def _geckoterminal_trending_tokens(limit: int) -> List[Dict[str, Any]]:
     seen: set[str] = set()
     excluded = {"SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL", "BTC", "WBTC", "ETH", "WETH"}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        # Fetch trending pools from GeckoTerminal
-        for page in range(1, 4):  # 3 pages = ~60 pools
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        # V406: Use DEX-specific endpoint (pumpswap) + general pools
+        endpoints = [
+            "https://api.geckoterminal.com/api/v2/networks/solana/dexes/pumpswap/pools?page=1",
+            "https://api.geckoterminal.com/api/v2/networks/solana/pools?page=1&sort=volume_24h&order=desc",
+        ]
+        for endpoint in endpoints:
             if len(tokens) >= limit:
                 break
             try:
-                resp = await client.get(
-                    f"https://api.geckoterminal.com/api/v2/networks/solana/pools?page={page}"
-                )
+                resp = await client.get(endpoint, headers={"Accept": "application/json"})
                 data = resp.json() or {}
             except Exception:
                 continue
@@ -2095,21 +2100,30 @@ async def _geckoterminal_trending_tokens(limit: int) -> List[Dict[str, Any]]:
 
 
 async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
-    """V403: Aggressive token discovery — finds 100-200+ tokens.
+    """V406: Complete token discovery — maximum coverage, zero duplicates.
 
-    Sources (ALL used, not just fallback):
-    1. DexScreener boosted tokens (paid promotions)
-    2. DexScreener search (pumpswap + pumpfun + meme keywords) — NEW PRIMARY
+    Sources:
+    1. DexScreener search (20 terms, finds 60-100+ tokens)
+    2. DexScreener boosted (paid promotions)
     3. GeckoTerminal trending pools
-    All results merged, deduplicated, sorted by 24h gain.
+    All merged, deduplicated by BOTH address AND symbol, sorted by 24h gain.
     """
     tokens: List[Dict[str, Any]] = []
+    # V406: Track BOTH address and symbol for dedup
+    seen_addresses: set[str] = set()
+    seen_symbols: set[str] = set()
     source = "multi-source"
 
-    # Source 1: DexScreener search (V403: PRIMARY now — finds 60-100+ tokens)
+    # Source 1: DexScreener search (PRIMARY — finds 60-100+ tokens)
     try:
         search_tokens = await _dexscreener_search_tokens(limit * 3)
-        tokens.extend(search_tokens)
+        for t in search_tokens:
+            addr = t["address"].lower()
+            sym = t["symbol"].upper()
+            if addr not in seen_addresses and sym not in seen_symbols:
+                tokens.append(t)
+                seen_addresses.add(addr)
+                seen_symbols.add(sym)
         source = "dexscreener_search"
     except Exception as exc:
         logger.warning(f"DexScreener search failed: {exc}")
@@ -2117,11 +2131,13 @@ async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
     # Source 2: DexScreener boosted (adds tokens that paid for promotion)
     try:
         boosted = await _dexscreener_boosted_tokens(limit)
-        have = {t["address"].lower() for t in tokens}
         for bt in boosted:
-            if bt["address"].lower() not in have:
+            addr = bt["address"].lower()
+            sym = bt["symbol"].upper()
+            if addr not in seen_addresses and sym not in seen_symbols:
                 tokens.append(bt)
-                have.add(bt["address"].lower())
+                seen_addresses.add(addr)
+                seen_symbols.add(sym)
         source = "search+boosted"
     except Exception as exc:
         logger.warning(f"DexScreener boosted failed: {exc}")
@@ -2129,16 +2145,19 @@ async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
     # Source 3: GeckoTerminal (adds tokens other sources miss)
     try:
         geo_tokens = await _geckoterminal_trending_tokens(limit)
-        have = {t["address"].lower() for t in tokens}
         for gt in geo_tokens:
-            if gt["address"].lower() not in have:
+            addr = gt["address"].lower()
+            sym = gt["symbol"].upper()
+            # V406: dedup by symbol too (fixes COGE/AMD/GTA duplicates)
+            if addr not in seen_addresses and sym not in seen_symbols:
                 tokens.append(gt)
-                have.add(gt["address"].lower())
+                seen_addresses.add(addr)
+                seen_symbols.add(sym)
         source = "search+boosted+gecko"
     except Exception as exc:
         logger.warning(f"GeckoTerminal failed: {exc}")
 
-    # V403: Sort ALL tokens by 24h change (highest pumping first)
+    # V406: Sort by 24h change (highest pumping first)
     tokens = sorted(
         tokens,
         key=lambda t: float(t.get("price_change_24h_pct", 0) or 0),
