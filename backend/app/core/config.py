@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     risk_daily_loss_limit_pct: float = 5.0
     risk_weekly_loss_limit_pct: float = 10.0
     risk_max_drawdown_pct: float = 20.0
-    risk_cooldown_after_losses: int = 3
+    risk_cooldown_after_losses: int = 2  # V408: was 3 (mismatch with tests)
     risk_max_risk_per_trade_pct: float = 2.0
 
     # --- Qualification ---
