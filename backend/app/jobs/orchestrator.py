@@ -320,10 +320,16 @@ class MainOrchestrator:
                         logger.info(f"⏸️ Trading stopped - not opening {token.symbol}")
                     elif settings.is_live_trading:
                         # === REAL MONEY PATH ===
-                        # V201: Position sizing uses ACTUAL wallet balance, not
-                        # paper_capital_usd. This is critical for small capital:
-                        # if you deposit $100, the bot must size trades based on
-                        # $100, not the default $10,000 paper capital.
+                        # V300: AUTO-STRATEGY SELECTION based on wallet size.
+                        # Small capital (< $50 = ~0.3 SOL): use V300-SMALL-CAP
+                        #   - Higher risk per trade (5-10%)
+                        #   - R:R = 1:10 (asymmetric, capture big pumps)
+                        #   - 2 positions max (concentration)
+                        #   - 3-day hold (wait for big pump)
+                        # Large capital (≥ $50): use V200 (balanced)
+                        #   - Lower risk per trade (1-5%)
+                        #   - R:R = 1:5
+                        #   - 3 positions max
                         sol_price_usd = await self.live.client._fetch_sol_price()
                         wallet_balance = await self.live.client.get_wallet_balance()
                         wallet_sol = float(wallet_balance.get("sol", 0.0)) if wallet_balance else 0.0
@@ -332,47 +338,61 @@ class MainOrchestrator:
                         if sol_price_usd and sol_price_usd > 0:
                             real_capital_usd = wallet_sol * sol_price_usd
                         else:
-                            # Fallback: tiny amount if we can't get SOL price
                             real_capital_usd = 50.0  # conservative default
 
-                        position_pct = float(decision.suggested_position_size_pct or 0)
-                        # Cap at 5% (matches RiskAgent hard cap)
-                        position_pct = min(max(position_pct, 0.0), 5.0)
+                        # V300: Auto-detect strategy based on wallet size
+                        SMALL_CAP_THRESHOLD_USD = 50.0  # < $50 = small cap mode
+                        is_small_cap = real_capital_usd < SMALL_CAP_THRESHOLD_USD
 
-                        # Convert % of REAL capital → USD → SOL
+                        position_pct = float(decision.suggested_position_size_pct or 0)
+
+                        if is_small_cap:
+                            # V300-SMALL-CAP strategy
+                            # Scale AI's position_pct to 2.5-10% range
+                            position_pct = min(max(position_pct * 2.0, 2.5), 10.0)
+                            max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
+                            v300_max_trade_sol = min(0.1, settings.pump_max_trade_sol)
+                            v300_min_trade_sol = 0.005  # lower min for small cap
+                            logger.info(
+                                f"🐜 V300-SMALL-CAP mode: wallet=${real_capital_usd:.0f} "
+                                f"({wallet_sol:.4f} SOL) - concentrated strategy"
+                            )
+                        else:
+                            # V200 strategy (large capital)
+                            position_pct = min(max(position_pct, 0.0), 5.0)
+                            max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
+                            v300_max_trade_sol = settings.pump_max_trade_sol
+                            v300_min_trade_sol = 0.01
+
+                        # Convert % of REAL capital -> USD -> SOL
                         if sol_price_usd and sol_price_usd > 0 and real_capital_usd > 0:
                             target_usd = real_capital_usd * position_pct / 100.0
                             target_sol = target_usd / sol_price_usd
                         else:
-                            # Fallback: very small amount
                             target_sol = 0.02
 
-                        # V201: Safety floor — never trade more than 50% of
-                        # wallet balance in a single trade. This protects
-                        # against the bot trying to trade 80%+ of a small account.
-                        max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
+                        # Safety floor: never trade more than 50% of wallet
                         if target_sol > max_safe_sol and max_safe_sol > 0:
                             target_sol = max_safe_sol
 
-                        # Final safety cap: never exceed pump_max_trade_sol (0.5 SOL)
-                        target_sol = min(target_sol, settings.pump_max_trade_sol)
-                        # Floor: PumpPortal requires a minimum amount (0.01 SOL)
-                        # V201: if target is below 0.01 SOL, skip the trade
-                        # (PumpPortal rejects trades below ~0.005 SOL due to
-                        # network fees + slippage making them unprofitable)
-                        if target_sol < 0.01:
+                        # Final safety cap
+                        target_sol = min(target_sol, v300_max_trade_sol)
+
+                        # Floor: skip if too small
+                        if target_sol < v300_min_trade_sol:
                             logger.info(
-                                f"💰 Skip {token.symbol}: target size {target_sol:.4f} SOL "
+                                f"Skip {token.symbol}: target {target_sol:.4f} SOL "
                                 f"too small (wallet={wallet_sol:.4f} SOL, "
-                                f"pct={position_pct:.1f}%)"
+                                f"pct={position_pct:.1f}%, min={v300_min_trade_sol})"
                             )
                             continue
-                        target_sol = max(target_sol, 0.01)
+                        target_sol = max(target_sol, v300_min_trade_sol)
 
                         logger.info(
-                            f"💰 Live trade {token.symbol}: {target_sol:.4f} SOL "
+                            f"Live trade {token.symbol}: {target_sol:.4f} SOL "
                             f"(~${target_sol * (sol_price_usd or 0):.2f}) "
-                            f"= {position_pct:.1f}% of ${real_capital_usd:.0f} wallet"
+                            f"= {position_pct:.1f}% of ${real_capital_usd:.0f} wallet "
+                            f"[{'V300-SMALL' if is_small_cap else 'V200'}]"
                         )
                         result = await self.live.open_position(
                             token_id=token.id,
