@@ -1871,27 +1871,33 @@ async def _dexscreener_boosted_tokens(limit: int) -> List[Dict[str, Any]]:
                 if prev is None or liq > float(prev.get("liquidity_usd", 0) or 0):
                     candidates[key] = entry
 
-    # Deepest liquidity first, then cap
+    # V401: Sort by HIGHEST 24h price change (most pumping tokens first)
+    # was: sorted by liquidity (deepest first) — missed pumping tokens
     tokens = sorted(
         candidates.values(),
-        key=lambda t: float(t.get("liquidity_usd", 0) or 0),
+        key=lambda t: float(t.get("price_change_24h_pct", 0) or 0),
         reverse=True,
     )[:limit]
     return tokens
 
 
 async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
-    """Fallback: keyword search on DexScreener (may return tokens named MEME)."""
+    """Fallback: search DexScreener for trending Pump.fun tokens.
+
+    V401: Search for tokens with highest 24h gains (pumping tokens).
+    Uses multiple search terms to find diverse pumping tokens.
+    """
     import httpx
 
-    search_terms = ["pump", "pepe", "dog", "cat", "moon", "bonk", "gato", "vi"]
+    # V401: Search terms that find trending/pumping tokens
+    search_terms = ["pump", "sol", "meme", "pepe", "dog", "cat", "moon", "bonk"]
     excluded_symbols = {"SOL", "USDC", "USDT", "WSOL", "SOLANA"}
     seen_addresses: set[str] = set()
     tokens: List[Dict[str, Any]] = []
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         for term in search_terms:
-            if len(tokens) >= limit:
+            if len(tokens) >= limit * 2:  # fetch extra for sorting
                 break
             try:
                 resp = await client.get(
@@ -1902,7 +1908,7 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
                 continue
 
             for p in data.get("pairs", []) or []:
-                if len(tokens) >= limit:
+                if len(tokens) >= limit * 2:
                     break
                 if not isinstance(p, dict):
                     continue
@@ -1947,6 +1953,12 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
                     "chain": "solana",
                 })
 
+    # V401: Sort search results by highest 24h change (most pumping first)
+    tokens = sorted(
+        tokens,
+        key=lambda t: float(t.get("price_change_24h_pct", 0) or 0),
+        reverse=True,
+    )[:limit]
     return tokens
 
 
