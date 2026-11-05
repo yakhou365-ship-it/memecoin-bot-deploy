@@ -1882,30 +1882,31 @@ async def _dexscreener_boosted_tokens(limit: int) -> List[Dict[str, Any]]:
 
 
 async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
-    """V403: Search DexScreener for ALL Pump.fun tokens.
+    """V404: Search DexScreener for PUMP.FUN tokens only.
 
-    Uses MULTIPLE search terms to find hundreds of tokens:
-    - "pumpswap": tokens on Pump.fun's DEX (graduated tokens)
-    - "pumpfun": tokens on Pump.fun bonding curve
-    - "pump": general pump-related tokens
-    - "meme", "pepe", "dog", "cat", "moon": popular meme categories
-    Each search returns up to 30 pairs. Combined: 100-200+ tokens.
+    V404 fixes:
+    - Only pumpswap/pumpfun DEX (no raydium/orca spam)
+    - Deduplicate by SYMBOL (not just address) — removes duplicate PEPE
+    - Skip tokens with 0% change AND 0 volume (dead tokens)
+    - Skip stablecoins (USDC, USDT pairs)
     """
     import httpx
 
-    # V403: Expanded search terms to find ALL Pump.fun tokens
-    search_terms = [
-        "pumpswap", "pumpfun", "pump",
-        "meme", "pepe", "dog", "cat", "moon", "bonk",
-        "solana", "raydium", "meteora",
-    ]
-    excluded_symbols = {"SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL", "BTC", "ETH", "WETH"}
+    # V404: Only search terms that find Pump.fun tokens
+    search_terms = ["pumpswap", "pumpfun", "pump", "meme", "dog", "cat", "moon", "bonk"]
+    excluded_symbols = {
+        "SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL",
+        "BTC", "ETH", "WETH", "PEPE", "MEME", "PUMP",  # V404: remove generic duplicates
+    }
+    # V404: Only allow Pump.fun DEXes
+    allowed_dexes = {"pumpswap", "pumpfun", "pump", "meteora"}
     seen_addresses: set[str] = set()
+    seen_symbols: set[str] = set()  # V404: dedupe by symbol too
     tokens: List[Dict[str, Any]] = []
 
     async with httpx.AsyncClient(timeout=12.0) as client:
         for term in search_terms:
-            if len(tokens) >= limit * 5:  # fetch 5x for better sorting
+            if len(tokens) >= limit * 3:
                 break
             try:
                 resp = await client.get(
@@ -1916,37 +1917,48 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
                 continue
 
             for p in data.get("pairs", []) or []:
-                if len(tokens) >= limit * 5:
+                if len(tokens) >= limit * 3:
                     break
                 if not isinstance(p, dict):
                     continue
                 # V403: Only Solana chain
                 if (p.get("chainId") or "").lower() != "solana":
                     continue
+                # V404: Only Pump.fun DEXes (skip raydium/orca spam)
+                dex_id = (p.get("dexId") or "").lower()
+                if dex_id not in allowed_dexes:
+                    continue
                 base = p.get("baseToken", {}) or {}
                 address = base.get("address", "") or ""
-                symbol = base.get("symbol", "") or ""
+                symbol = (base.get("symbol", "") or "").strip().upper()
                 name = base.get("name", "") or ""
                 price = float(p.get("priceUsd", 0) or 0)
                 if (
                     not address
                     or address in seen_addresses
                     or not symbol
+                    or symbol in seen_symbols  # V404: dedupe by symbol
+                    or symbol in excluded_symbols
                     or price <= 0
-                    or symbol.upper() in excluded_symbols
                 ):
                     continue
-                # V403: Filter out spam (long names, no liquidity)
+                # V404: Filter spam
                 liquidity = p.get("liquidity", {}) or {}
                 liq_usd = float(liquidity.get("usd", 0) or 0)
-                if liq_usd < 500:  # skip dead tokens
+                if liq_usd < 500:
                     continue
-                if len(name) > 30:  # skip spam names
+                if len(name) > 30:
                     continue
-                seen_addresses.add(address)
-
-                volume = p.get("volume", {}) or {}
+                # V404: Skip tokens with 0% change AND low volume (dead)
                 change = p.get("priceChange", {}) or {}
+                chg_24h = float(change.get("h24", 0) or 0)
+                volume = p.get("volume", {}) or {}
+                vol_24h = float(volume.get("h24", 0) or 0)
+                if chg_24h == 0 and vol_24h < 1000:
+                    continue  # dead token, skip
+
+                seen_addresses.add(address)
+                seen_symbols.add(symbol)
                 mcap = float(p.get("marketCap", 0) or 0)
                 tokens.append({
                     "address": address,
