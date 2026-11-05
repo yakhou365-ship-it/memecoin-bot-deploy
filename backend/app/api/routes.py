@@ -1962,23 +1962,155 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
     return tokens
 
 
+async def _geckoterminal_trending_tokens(limit: int) -> List[Dict[str, Any]]:
+    """V402: Fetch trending Solana tokens from GeckoTerminal API.
+
+    GeckoTerminal shows pools sorted by volume — finds tokens that
+    DexScreener boosted feed misses (tokens that didn't pay for boosts).
+    """
+    import httpx
+
+    tokens: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    excluded = {"SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL", "BTC", "WBTC", "ETH", "WETH"}
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # Fetch trending pools from GeckoTerminal
+        for page in range(1, 4):  # 3 pages = ~60 pools
+            if len(tokens) >= limit:
+                break
+            try:
+                resp = await client.get(
+                    f"https://api.geckoterminal.com/api/v2/networks/solana/pools?page={page}"
+                )
+                data = resp.json() or {}
+            except Exception:
+                continue
+
+            for pool in data.get("data", []):
+                if len(tokens) >= limit:
+                    break
+                attrs = pool.get("attributes", {}) or {}
+                name = attrs.get("name", "") or ""
+                # Parse "SYMBOL / SOL" format
+                parts = name.split("/")
+                if not parts:
+                    continue
+                symbol = parts[0].strip().upper()
+                if symbol in excluded or not symbol:
+                    continue
+
+                # Get token address from relationships
+                rels = pool.get("relationships", {}) or {}
+                token_data = rels.get("base_token", {}).get("data", {})
+                if not token_data:
+                    continue
+                token_id = token_data.get("id", "")
+                if not token_id or token_id in seen:
+                    continue
+                seen.add(token_id)
+                address = token_id.split("_")[-1] if "_" in token_id else token_id
+
+                # Price change
+                change = attrs.get("price_change_percentage", {}) or {}
+                chg_24h = float(change.get("h24", 0) or 0)
+                chg_5m = float(change.get("m5", 0) or 0)
+
+                # Volume
+                vol = attrs.get("volume_usd", {}) or {}
+                vol_24h = float(vol.get("h24", 0) or 0)
+                vol_5m = float(vol.get("m5", 0) or 0)
+
+                # Liquidity
+                liq = attrs.get("reserve_in_usd", "") or "0"
+                try:
+                    liq_usd = float(liq)
+                except (ValueError, TypeError):
+                    liq_usd = 0.0
+
+                # Only include tokens with meaningful liquidity
+                if liq_usd < 1000:
+                    continue
+
+                tokens.append({
+                    "address": address,
+                    "symbol": symbol,
+                    "name": name,
+                    "price_usd": 0.001,  # GeckoTerminal doesn't return price directly
+                    "price_sol": 0.0,
+                    "market_cap_usd": 0,
+                    "liquidity_usd": liq_usd,
+                    "volume_24h_usd": vol_24h,
+                    "volume_5m_usd": vol_5m,
+                    "price_change_5m": chg_5m,
+                    "price_change_24h": chg_24h,
+                    "price_change_24h_pct": chg_24h,
+                    "price_change_5m_pct": chg_5m,
+                    "bonding_curve_progress": 100.0,
+                    "bonding_curve_status": "geckoterminal",
+                    "is_graduated": True,
+                    "holder_count": 0,
+                    "pair_address": pool.get("id", ""),
+                    "dex": "geckoterminal",
+                    "url": f"https://www.geckoterminal.com/solana/pools/{pool.get('id','')}",
+                    "chain": "solana",
+                })
+
+    # Sort by 24h change (highest first)
+    tokens = sorted(
+        tokens,
+        key=lambda t: float(t.get("price_change_24h_pct", 0) or 0),
+        reverse=True,
+    )[:limit]
+    return tokens
+
+
 async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
-    """Primary token feed: real boosted/profile tokens, search as fallback."""
+    """V402: Primary token feed with MULTIPLE sources.
+
+    Sources (in priority order):
+    1. DexScreener boosted tokens (paid promotions, sorted by 24h gain)
+    2. GeckoTerminal trending pools (finds tokens DexScreener misses)
+    3. DexScreener search (fallback)
+    """
     tokens: List[Dict[str, Any]] = []
     source = "dexscreener_boosted"
+
+    # Source 1: DexScreener boosted (sorted by 24h gain)
     try:
         tokens = await _dexscreener_boosted_tokens(limit)
     except Exception as exc:
         logger.warning(f"DexScreener boosted feed failed: {exc}")
 
+    # Source 2: GeckoTerminal (adds tokens DexScreener misses)
+    try:
+        geo_tokens = await _geckoterminal_trending_tokens(limit)
+        have = {t["address"].lower() for t in tokens}
+        for gt in geo_tokens:
+            if gt["address"].lower() not in have:
+                tokens.append(gt)
+                have.add(gt["address"].lower())
+        if geo_tokens:
+            source = "dexscreener+geckoterminal"
+    except Exception as exc:
+        logger.warning(f"GeckoTerminal feed failed: {exc}")
+
+    # Source 3: DexScreener search (final fallback)
     if len(tokens) < min(limit, 5):
         try:
             extra = await _dexscreener_search_tokens(limit - len(tokens))
-            have = {t["address"] for t in tokens}
-            tokens.extend([t for t in extra if t["address"] not in have])
-            source = "dexscreener_boosted+search"
+            have = {t["address"].lower() for t in tokens}
+            tokens.extend([t for t in extra if t["address"].lower() not in have])
+            source = "dexscreener+gecko+search"
         except Exception as exc:
             logger.warning(f"DexScreener search fallback failed: {exc}")
+
+    # V402: Final sort by 24h change (highest pumping first)
+    tokens = sorted(
+        tokens,
+        key=lambda t: float(t.get("price_change_24h_pct", 0) or 0),
+        reverse=True,
+    )[:limit]
 
     return {"source": source, "total": len(tokens), "tokens": tokens, "fallback": True}
 
