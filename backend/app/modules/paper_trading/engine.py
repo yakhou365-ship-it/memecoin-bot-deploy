@@ -380,27 +380,9 @@ class PaperTradingEngine:
                 trade._peak_price = max(trade.entry_price, current_price)
             if current_price > trade._peak_price:
                 trade._peak_price = current_price
-            # V101: Adaptive trailing stop — wider in bull (let winners run),
-            # tighter in bear/high-vol (lock profits faster).
-            # We detect regime from recent price action vs entry.
-            recent_trend = 0.0
-            if not hasattr(trade, '_recent_prices'):
-                trade._recent_prices = []
-            trade._recent_prices.append(current_price)
-            if len(trade._recent_prices) > 10:
-                trade._recent_prices = trade._recent_prices[-10:]
-            if len(trade._recent_prices) >= 5:
-                first = trade._recent_prices[0]
-                if first > 0:
-                    recent_trend = (trade._recent_prices[-1] / first - 1)
-
-            # V101: Adaptive trailing (35% in downtrend, 40% normal, 45% strong uptrend)
-            if recent_trend < -0.05:  # price declining
-                trail_pct = 0.35
-            elif recent_trend > 0.10:  # strong uptrend
-                trail_pct = 0.45
-            else:
-                trail_pct = 0.40  # V57 default
+            # V200: Fixed trailing stop at 40% (V57 proven value).
+            # V101's adaptive trailing (35%/40%/45%) killed bull gains.
+            trail_pct = 0.40  # V57 default — constant, no adaptation
             trailing_level = trade._peak_price * (1 - trail_pct)
             # Only activate trailing stop once we've had a meaningful peak
             # (>20% above entry) and we're no longer at the peak.

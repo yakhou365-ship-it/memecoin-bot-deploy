@@ -193,23 +193,9 @@ class RiskManager:
                 f"Cooldown after {state.consecutive_losses} consecutive losses"
             )
 
-        # V101: Adaptive Bear Pause — if 3+ consecutive losses, pause 24h.
-        # This protects against sustained bear markets where individual
-        # token SL keeps getting hit. Be defensive, let the market recover.
-        if state.consecutive_losses >= 3:
-            cooldown_until = datetime.utcnow() + timedelta(hours=24)
-            state.cooldown_active = True
-            state.cooldown_until = cooldown_until
-            await self._persist_state(state)
-            logger.warning(
-                f"🛑 V101 BEAR PAUSE: {state.consecutive_losses} consecutive losses — "
-                f"pausing trading for 24h to protect capital"
-            )
-            return RiskCheckResult(
-                False,
-                f"V101 Bear Pause: {state.consecutive_losses} consecutive losses, "
-                f"24h cooldown until {cooldown_until}"
-            )
+        # V200: Removed V101's 24h adaptive bear pause.
+        # Backtest proved it kills bull profits (V101 mixed = +5% vs V57 mixed = +103%).
+        # The 2h cooldown above is sufficient — it protects without over-blocking.
 
         return RiskCheckResult(True)
 

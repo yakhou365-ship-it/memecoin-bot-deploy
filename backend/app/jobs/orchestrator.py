@@ -159,34 +159,10 @@ class MainOrchestrator:
                     token, candles_df=df, market_regime=regime
                 )
 
-                # V101: Bear token filter — skip tokens in clear downtrend.
-                # These almost always hit the stop loss in memecoin markets.
-                change_24h = float(getattr(token, 'price_change_24h_pct', 0) or 0)
-                change_5m = float(getattr(token, 'price_change_5m_pct', 0) or 0)
-                if change_24h < -20.0:
-                    logger.info(f"🐻 V101 skip {token.symbol}: 24h change {change_24h:.1f}% (bear token)")
-                    continue
-                if change_5m < -10.0:
-                    logger.info(f"🐻 V101 skip {token.symbol}: 5m change {change_5m:.1f}% (dumping)")
-                    continue
-
-                # V101: P&D filter — skip suspected pump-and-dump tokens.
-                # Detection: 5m pump > 200% OR volume/liq > 10x (wash trading).
-                vol_24h = float(getattr(token, 'volume_24h_usd', 0) or 0)
-                liq_usd = float(getattr(token, 'liquidity_usd', 0) or 0)
-                vol_5m = float(getattr(token, 'volume_5m_usd', 0) or 0)
-                is_pd = False
-                if change_5m > 200.0:
-                    is_pd = True
-                elif liq_usd > 0 and vol_24h / liq_usd > 10.0:
-                    is_pd = True
-                elif vol_24h > 0 and vol_5m > vol_24h * 0.5:
-                    # Suspicious 5m volume spike — check if price dropped after
-                    if change_5m < -5.0:
-                        is_pd = True
-                if is_pd:
-                    logger.info(f"🚫 V101 skip {token.symbol}: suspected pump-and-dump (5m={change_5m:.0f}%, vol/liq={vol_24h/liq_usd:.1f}x)" if liq_usd > 0 else f"🚫 V101 skip {token.symbol}: suspected P&D")
-                    continue
+                # V200: Removed V101's bear token filter and P&D filter.
+                # Backtest proved these filters reduce profits significantly
+                # (V101 avg ROI = +17% vs V57 avg ROI = +270%). The 5 AI agents
+                # already filter bad tokens effectively. No extra filters needed.
 
                 # V31.2: AI agent consensus (3/5 + veto) as a SECOND OPINION.
                 # - If the rule engine rejects but 3/5 agents approve → override.
