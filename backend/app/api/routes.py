@@ -785,9 +785,52 @@ class RunAgentsRequest(BaseModel):
     token_id: str
 
 
+class RunAgentsByMintRequest(BaseModel):
+    mint_address: str
+
+
 @router.post("/agents/run")
 async def run_agents(req: RunAgentsRequest):
-    """Manually trigger AI agent consensus on a token."""
+    """Manually trigger AI agent consensus on a token (by DB token id)."""
+    return await _run_agents_for_token(req.token_id)
+
+
+@router.post("/agents/run-by-mint")
+async def run_agents_by_mint(req: RunAgentsByMintRequest):
+    """Run AI agent consensus by mint address (auto-creates placeholder row).
+
+    Allows running the agents directly from the live token list even before
+    the scanner has persisted the token in the DB.
+    """
+    mint = (req.mint_address or "").strip()
+    if not mint:
+        raise HTTPException(400, "mint_address is required")
+
+    async with get_session() as s:
+        token = (await s.execute(
+            select(Token).where(Token.address == mint)
+        )).scalar_one_or_none()
+        if token is None:
+            meta = await _lookup_token_meta(mint)
+            token = Token(
+                address=mint,
+                chain="solana",
+                symbol=(meta.get("symbol") or mint[:6])[:64],
+                name=(meta.get("name") or "Manual agent run")[:256],
+                dex=meta.get("dex"),
+                price_usd=meta.get("price_usd"),
+                market_cap_usd=meta.get("market_cap_usd"),
+                liquidity_usd=meta.get("liquidity_usd"),
+                active=True,
+            )
+            s.add(token)
+            await s.flush()
+        token_id = token.id
+
+    return await _run_agents_for_token(token_id)
+
+
+async def _run_agents_for_token(token_id: str):
     from ..modules.ai_agents.orchestrator import AgentOrchestrator
     from ..modules.decision_engine.engine import DecisionEngine
     from ..modules.market_scanner.ohlcv_fetcher import OHLCVFetcher
@@ -795,7 +838,7 @@ async def run_agents(req: RunAgentsRequest):
     import pandas as pd
 
     async with get_session() as s:
-        token = await s.get(Token, req.token_id)
+        token = await s.get(Token, token_id)
         if not token:
             raise HTTPException(404, "Token not found")
 

@@ -19,14 +19,44 @@ export default function AgentsPage() {
     refetchInterval: 5000,
   })
 
-  const { data: tokens } = useQuery({
+  // DB tokens (persisted by the scanner)
+  const { data: dbTokens } = useQuery({
     queryKey: ['agents-tokens'],
     queryFn: () => api.get(endpoints.tokens, { params: { limit: 50 } }).then(r => r.data as any[]),
     refetchInterval: 15000,
   })
 
+  // Live tokens from DexScreener (not always persisted yet)
+  const { data: liveTokens } = useQuery({
+    queryKey: ['agents-live-tokens'],
+    queryFn: () => api.get(endpoints.marketLiveTokens, { params: { limit: 50 } }).then(r => r.data?.tokens || []),
+    refetchInterval: 15000,
+  })
+
+  // Unified dropdown: live tokens first (by mint), then any DB extras
+  const seenMints = new Set<string>()
+  const options: any[] = []
+  for (const t of ((liveTokens as any[]) || [])) {
+    const mint = t?.address
+    if (mint && !seenMints.has(mint)) {
+      seenMints.add(mint)
+      options.push({ kind: 'mint', value: mint, label: `${t.symbol} (${mint.slice(0, 6)}…)` })
+    }
+  }
+  for (const t of ((dbTokens as any[]) || [])) {
+    const mint = t?.address
+    if (mint && !seenMints.has(mint)) {
+      seenMints.add(mint)
+      options.push({ kind: 'id', value: t.id, label: `${t.symbol} (${mint.slice(0, 6)}…)` })
+    }
+  }
+
   const runMutation = useMutation({
-    mutationFn: (id: string) => api.post(endpoints.runAgents, { token_id: id }).then(r => r.data),
+    mutationFn: (opt: { kind: string; value: string }) =>
+      (opt.kind === 'mint'
+        ? api.post(endpoints.runAgentsByMint, { mint_address: opt.value })
+        : api.post(endpoints.runAgents, { token_id: opt.value })
+      ).then(r => r.data),
     onSuccess: (data: any) => {
       const n = data?.approvals_count ?? 0
       const total = data?.total_agents ?? 5
@@ -38,6 +68,7 @@ export default function AgentsPage() {
 
   const agents = agentsData?.agents || []
   const result = runMutation.data
+  const selectedOption = options.find((o: any) => `${o.kind}:${o.value}` === tokenId)
 
   return (
     <div className="p-6 space-y-4">
@@ -61,15 +92,15 @@ export default function AgentsPage() {
             className="flex-1 min-w-[220px] bg-bg-soft border border-bg-border rounded-lg px-3 py-2 text-sm"
           >
             <option value="">— اختر عملة —</option>
-            {(tokens || []).map((t: any) => (
-              <option key={t.id} value={t.id}>
-                {t.symbol} {t.address ? `(${t.address.slice(0, 6)}…)` : ''}
+            {options.map((o: any) => (
+              <option key={`${o.kind}:${o.value}`} value={`${o.kind}:${o.value}`}>
+                {o.label}
               </option>
             ))}
           </select>
           <button
-            onClick={() => tokenId && runMutation.mutate(tokenId)}
-            disabled={!tokenId || runMutation.isPending}
+            onClick={() => selectedOption && runMutation.mutate(selectedOption)}
+            disabled={!selectedOption || runMutation.isPending}
             className="btn-primary text-sm disabled:opacity-50"
           >
             {runMutation.isPending
@@ -78,9 +109,9 @@ export default function AgentsPage() {
             تشغيل الوكلاء
           </button>
         </div>
-        {(!tokens || tokens.length === 0) && (
+        {(options.length === 0) && (
           <p className="text-xs text-gray-500 mt-2">
-            لا توجد عملات محفوظة بعد. شغّل الماسح أولًا من صفحة العملات أو انتظر دورة المسح.
+            لا توجد عملات بعد. شغّل الماسح أولًا من صفحة العملات أو انتظر دورة المسح.
           </p>
         )}
         {result && (

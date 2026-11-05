@@ -92,14 +92,14 @@ export default function LiveTradingPage() {
         <StatusCard
           icon={<Zap size={20} />}
           label="حد الصفقة"
-          value={`${live?.max_trade_sol ?? 0.1} SOL`}
+          value={`${live?.max_trade_sol ?? 2.0} SOL`}
           sub={`Slippage: ${(pumpfunStatus?.slippage_bps ?? 500) / 100}%`}
           color="text-amber-400"
         />
         <StatusCard
           icon={<Activity size={20} />}
           label="صفقات مفتوحة"
-          value={`${live?.open_live_positions ?? 0} / ${live?.max_open_positions ?? 3}`}
+          value={`${live?.open_live_positions ?? 0} / ${live?.max_open_positions ?? 5}`}
           sub={`PnL اليوم: ${(daily.sol_pnl ?? 0).toFixed(4)} SOL`}
           color="text-accent-purple"
         />
@@ -111,9 +111,9 @@ export default function LiveTradingPage() {
           <Shield size={16} /> الحدود اليومية
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <Metric label="المصروف اليوم" value={`${(daily.sol_spent ?? 0).toFixed(4)} / ${live?.daily_cap_sol ?? 0.5} SOL`} />
+          <Metric label="المصروف اليوم" value={`${(daily.sol_spent ?? 0).toFixed(4)} / ${live?.daily_cap_sol ?? 5.0} SOL`} />
           <Metric label="PnL اليوم" value={`${(daily.sol_pnl ?? 0).toFixed(4)} SOL`} tone={(daily.sol_pnl ?? 0) >= 0 ? 'good' : 'bad'} />
-          <Metric label="حد الخسارة" value={`${live?.daily_loss_limit_sol ?? 0.2} SOL`} />
+          <Metric label="حد الخسارة" value={`${live?.daily_loss_limit_sol ?? 1.0} SOL`} />
           <Metric label="صفقات اليوم" value={`${daily.trades_opened ?? 0} مفتوحة / ${daily.trades_closed ?? 0} مغلقة`} />
         </div>
       </div>

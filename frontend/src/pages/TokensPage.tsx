@@ -52,11 +52,15 @@ export default function TokensPage() {
     onError: (e: any) => toast.error(`خطأ: ${e?.response?.data?.detail || e.message}`),
   })
 
-  const filtered = (pumpfunTokens || []).filter((t: any) =>
-    !search ||
-    t.symbol?.toLowerCase().includes(search.toLowerCase()) ||
-    t.address?.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = (pumpfunTokens || []).filter((t: any) => {
+    if (tab === 'new' && t.is_graduated) return false
+    if (tab === 'graduated' && !t.is_graduated) return false
+    return (
+      !search ||
+      t.symbol?.toLowerCase().includes(search.toLowerCase()) ||
+      t.address?.toLowerCase().includes(search.toLowerCase())
+    )
+  })
 
   return (
     <div className="p-6 space-y-4">
@@ -108,7 +112,7 @@ export default function TokensPage() {
             onBuy={(mint, sol) => buyMutation.mutate({ mint_address: mint, amount_sol: sol })}
             buying={buyMutation.isPending}
             canBuy={!!pumpfunStatus?.live_trading_enabled}
-            maxSol={pumpfunStatus?.max_trade_sol || 0.1}
+            maxSol={pumpfunStatus?.max_trade_sol || 2.0}
           />
         ))}
       </div>

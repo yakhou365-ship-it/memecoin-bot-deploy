@@ -57,6 +57,7 @@ export const endpoints = {
   agentsStatus: '/agents/status',
   agentsList: '/agents/list',
   runAgents: '/agents/run',
+  runAgentsByMint: '/agents/run-by-mint',
   analyzeTokenFull: (tokenId: string) => `/agents/analyze/${tokenId}`,
   
   // Chat AI
