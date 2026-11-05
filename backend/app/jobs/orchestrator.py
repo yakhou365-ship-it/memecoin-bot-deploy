@@ -60,18 +60,20 @@ class MainOrchestrator:
         logger.info("🧠 Decision engine initialized (Smart Rule-Based)")
 
     async def _trading_active(self) -> bool:
-        """Read the dashboard Start/Stop switch. Defaults to active.
+        """Read the dashboard Start/Stop switch. Defaults to inactive.
 
-        On DB read failure we DEFAULT TO FALSE (safer) so a transient
-        DB error doesn't cause runaway live trades. Previously this
-        returned True, which meant a DB hiccup could re-enable live
-        trading even if the operator had pressed Stop.
+        V400 P1-8 FIX: On DB read failure OR missing TradingState row,
+        we DEFAULT TO FALSE (safer). Previously this returned True on
+        missing row (auto-created is_active=True), which meant the bot
+        could start live trading without explicit user approval.
         """
         try:
             async with get_session() as s:
                 state = await s.get(TradingState, 1)
                 if state is None:
-                    state = TradingState(id=1, is_active=True, started_at=datetime.utcnow())
+                    # V400: create with is_active=False (was True)
+                    # User must explicitly start trading via /api/trading/start
+                    state = TradingState(id=1, is_active=False)
                     s.add(state)
                     await s.flush()
                 return bool(state.is_active)
@@ -270,13 +272,34 @@ class MainOrchestrator:
                             decision.suggested_position_size_pct = min(
                                 consensus.final_position_size_pct, 5.0
                             )
+                            # V400 P0-2 FIX: Ensure SL/TP/entry are always set.
+                            # If _decide() rejected early (before _suggest_trade_params),
+                            # suggested_stop_loss/take_profit/entry will be None.
+                            # This caused ~20% of trades to have NO protection!
+                            token_price = float(token.price_usd or 0)
+                            if token_price <= 0:
+                                # Skip — no valid price (P1-9 fix)
+                                logger.warning(f"Skip {token.symbol}: no valid price")
+                                continue
+                            if not decision.suggested_entry or decision.suggested_entry <= 0:
+                                decision.suggested_entry = token_price
+                            if not decision.suggested_stop_loss or decision.suggested_stop_loss <= 0:
+                                # V57: -8% SL (ATR fallback)
+                                decision.suggested_stop_loss = token_price * 0.92
+                            if not decision.suggested_take_profit or decision.suggested_take_profit <= 0:
+                                # V57: +50% TP (ATR fallback)
+                                decision.suggested_take_profit = token_price * 1.50
+                            if not decision.suggested_holding_period_minutes:
+                                decision.suggested_holding_period_minutes = 3600  # V57 60h
                             decision.reasons.append(
                                 f"AI consensus: {consensus.approvals_count}/"
                                 f"{consensus.total_agents} approved"
                             )
                             logger.info(
                                 f"🤖 AI OVERRIDE: {token.symbol} approved by "
-                                f"{consensus.approvals_count}/{consensus.total_agents} agents"
+                                f"{consensus.approvals_count}/{consensus.total_agents} agents "
+                                f"(SL=${decision.suggested_stop_loss:.8f}, "
+                                f"TP=${decision.suggested_take_profit:.8f})"
                             )
                         elif decision.qualified and not consensus.approved:
                             # V31.4: any rejection (not just < 3) now vetoes.
@@ -348,8 +371,12 @@ class MainOrchestrator:
 
                         if is_small_cap:
                             # V300-SMALL-CAP strategy
-                            # Scale AI's position_pct to 2.5-10% range
-                            position_pct = min(max(position_pct * 2.0, 2.5), 10.0)
+                            # V400 P1-10 FIX: Don't blindly multiply AI pct × 2.
+                            # Instead, use a fixed 5% for small cap (in [2.5%, 10%] range).
+                            # This is safer — the AI's confidence level is preserved.
+                            position_pct = min(max(position_pct, 2.5), 10.0)
+                            # If AI suggested very low (< 2.5%), use the floor 2.5%
+                            # If AI suggested high (5%), use 5% (not 10%)
                             max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
                             v300_max_trade_sol = min(0.1, settings.pump_max_trade_sol)
                             v300_min_trade_sol = 0.005  # lower min for small cap

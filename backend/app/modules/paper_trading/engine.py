@@ -83,6 +83,10 @@ class PaperTradingEngine:
         self.account = AccountState(starting_capital=settings.paper_capital_usd)
         self.account.cash_balance = settings.paper_capital_usd
         self.account.peak_equity = settings.paper_capital_usd
+        # V400 P1-6 FIX: Add asyncio.Lock to prevent race conditions
+        # between run_cycle (open) and fast_monitor_forever (close).
+        # Without this, both can close the same trade simultaneously.
+        self._lock = asyncio.Lock()
 
     # =====================================================================
     # Account queries
@@ -355,14 +359,19 @@ class PaperTradingEngine:
     # Manage open positions (check SL/TP/time exits)
     # =====================================================================
     async def manage_open_positions(self) -> Dict[str, int]:
-        """Check all open positions for SL/TP/time exit triggers."""
-        async with get_session() as session:
-            stmt = select(Trade).where(
-                Trade.status == "open",
-                or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
-            )
-            result = await session.execute(stmt)
-            open_trades = list(result.scalars().all())
+        """Check all open positions for SL/TP/time exit triggers.
+
+        V400 P1-6 FIX: Wrapped in asyncio.Lock to prevent race condition
+        with open_position (called from run_cycle).
+        """
+        async with self._lock:
+            async with get_session() as session:
+                stmt = select(Trade).where(
+                    Trade.status == "open",
+                    or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
+                )
+                result = await session.execute(stmt)
+                open_trades = list(result.scalars().all())
 
         closed = {"stop_loss": 0, "take_profit": 0, "time_exit": 0, "circuit_breaker": 0, "trailing_stop": 0}
         for trade in open_trades:
@@ -370,23 +379,36 @@ class PaperTradingEngine:
             if not current_price:
                 continue
 
-            # V57: Trailing stop — track peak price since entry and exit
-            # if price drops trail_pct below the peak. This lets winners run
-            # while locking in profits. The peak is stored in the trade's
-            # max_unrealized_profit_usd field as a side channel (it gets
-            # overwritten by get_account_state which tracks PnL, not price).
-            # So we use a separate in-memory attribute that doesn't persist.
-            if not hasattr(trade, "_peak_price") or trade._peak_price is None:
-                trade._peak_price = max(trade.entry_price, current_price)
-            if current_price > trade._peak_price:
-                trade._peak_price = current_price
+            # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
+            # Use max_unrealized_profit_usd to store peak_price in DB
+            # (this field is normally for PnL, but for open trades we
+            # repurpose it to track the highest price seen since entry).
+            # This survives restarts and is visible across cycles.
+            if trade.max_unrealized_profit_usd is None or trade.max_unrealized_profit_usd == 0:
+                trade.max_unrealized_profit_usd = max(trade.entry_price, current_price)
+            # Treat max_unrealized_profit_usd as peak_price (only if it's >= entry_price)
+            peak_price = trade.max_unrealized_profit_usd
+            if peak_price < trade.entry_price:
+                # Field was used for something else, reinitialize
+                peak_price = max(trade.entry_price, current_price)
+                trade.max_unrealized_profit_usd = peak_price
+            if current_price > peak_price:
+                peak_price = current_price
+                trade.max_unrealized_profit_usd = peak_price
+                # Persist peak to DB (so it survives cycles/restarts)
+                try:
+                    async with get_session() as s2:
+                        db_trade = await s2.get(Trade, trade.id)
+                        if db_trade and db_trade.status == "open":
+                            db_trade.max_unrealized_profit_usd = peak_price
+                            await s2.commit()
+                except Exception:
+                    pass  # non-critical
             # V200: Fixed trailing stop at 40% (V57 proven value).
-            # V101's adaptive trailing (35%/40%/45%) killed bull gains.
             trail_pct = 0.40  # V57 default — constant, no adaptation
-            trailing_level = trade._peak_price * (1 - trail_pct)
+            trailing_level = peak_price * (1 - trail_pct)
             # Only activate trailing stop once we've had a meaningful peak
-            # (>20% above entry) and we're no longer at the peak.
-            peak_gain_pct = (trade._peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
+            peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             trailing_hit = (
                 peak_gain_pct >= 0.20  # peak was at least +20%
                 and current_price < trailing_level  # dropped below trail

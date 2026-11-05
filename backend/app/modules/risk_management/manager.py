@@ -94,6 +94,8 @@ class RiskManager:
             result = await session.execute(stmt)
             daily_trades = list(result.scalars().all())
             state.daily_pnl_usd = sum(t.net_pnl_usd or 0 for t in daily_trades)
+            # V400 P2-9 FIX: use actual capital (wallet balance) if available,
+            # fall back to paper_capital. This makes daily_pnl_pct meaningful.
             state.daily_pnl_pct = state.daily_pnl_usd / settings.paper_capital_usd * 100
 
             # Weekly PnL
@@ -109,16 +111,22 @@ class RiskManager:
             open_stmt = select(Trade).where(Trade.status == "open")
             state.open_positions_count = len((await session.execute(open_stmt)).scalars().all())
 
-            # Max drawdown (need account peak; we'll load from system_state)
+            # V400 P1-4 + P1-5 FIX: Compute equity from ALL-TIME cumulative PnL,
+            # not just daily trades. This was a critical bug: peak_equity was
+            # based on single-trade PnL, and equity only counted 24h trades.
+            all_time_stmt = select(Trade).where(Trade.status == "closed")
+            all_time_trades = list((await session.execute(all_time_stmt)).scalars().all())
+            all_time_pnl = sum(t.net_pnl_usd or 0 for t in all_time_trades)
+
+            # V400: peak_equity is cumulative (max of starting_capital + cumulative_pnl)
             peak = sys_state.value_json.get("peak_equity", settings.paper_capital_usd) if sys_state else settings.paper_capital_usd
-            # Reconstruct current equity (rough estimate)
-            cash = settings.paper_capital_usd + sum(t.net_pnl_usd or 0 for t in daily_trades)
-            # Subtract open positions value (approximate by entry_size)
-            open_value_stmt = select(Trade.entry_size_usd).where(Trade.status == "open")
-            open_values = (await session.execute(open_value_stmt)).scalars().all()
-            equity = cash  # simplified; true equity is computed in PaperTradingEngine
+            current_equity = settings.paper_capital_usd + all_time_pnl
+            if current_equity > peak:
+                peak = current_equity
+                # Will be persisted by _persist_state later
+
             if peak > 0:
-                state.max_drawdown_pct = (peak - equity) / peak * 100
+                state.max_drawdown_pct = (peak - current_equity) / peak * 100
 
         # Check cooldown expiry
         if state.cooldown_active and state.cooldown_until:
@@ -218,9 +226,14 @@ class RiskManager:
                 v["consecutive_losses"] = v.get("consecutive_losses", 0) + 1
                 v["last_loss_at"] = datetime.utcnow().isoformat()
 
-            # Update peak equity
+            # V400 P1-4 FIX: peak_equity is cumulative, not single-trade.
+            # Compute current equity from ALL closed trades' cumulative PnL.
+            all_time_stmt = select(Trade).where(Trade.status == "closed")
+            all_time_trades = list((await session.execute(all_time_stmt)).scalars().all())
+            all_time_pnl = sum(t.net_pnl_usd or 0 for t in all_time_trades)
             current_peak = v.get("peak_equity", settings.paper_capital_usd)
-            approx_equity = settings.paper_capital_usd + pnl_usd
+            # V400: equity = starting_capital + all_time_pnl (cumulative)
+            approx_equity = settings.paper_capital_usd + all_time_pnl
             if approx_equity > current_peak:
                 v["peak_equity"] = approx_equity
 

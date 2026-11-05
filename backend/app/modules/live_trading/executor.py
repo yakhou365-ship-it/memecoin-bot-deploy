@@ -218,16 +218,46 @@ class LiveTradingExecutor:
                 logger.warning(f"Live buy failed for {symbol}: {result.error}")
                 return self._reject("buy_failed", result.error or "PumpPortal rejected the buy")
 
-            # Estimate fill price / quantity.  PumpPortal does not return the
-            # exact token amount, so we derive it from the pre-trade price.
+            # V400 P0-3 FIX: Confirm the transaction on-chain before recording.
+            # PumpPortal returns a signature immediately, but the tx may fail
+            # on-chain (slippage exceeded, insufficient funds, congestion).
+            # We wait up to 15 seconds for confirmation.
+            confirmed = False
+            if result.tx_signature:
+                try:
+                    confirmed = await self.client.confirm_signature(result.tx_signature, timeout=15)
+                except Exception as confirm_exc:
+                    logger.warning(f"Buy confirm failed for {symbol}: {confirm_exc}")
+                    # Don't fail — proceed with DB save (P0-4 safety)
+            if not confirmed:
+                # Transaction may have failed on-chain.
+                # Log warning but still record — if tokens were received,
+                # we need to track them. If not, the position will be closed
+                # by manage_open_positions when price = 0.
+                logger.warning(
+                    f"⚠️ Buy tx {result.tx_signature} for {symbol} NOT confirmed on-chain. "
+                    f"Recording anyway — monitor for stuck position."
+                )
+
+            # V400 P1-2/P1-3 FIX: Estimate fill price with slippage.
+            # PumpPortal doesn't return fill details, so we estimate:
+            # assume 3% slippage on buy (conservative).
+            estimated_slippage_pct = 3.0
             notional_usd = amount * sol_price_usd
-            fill_price = price_usd if price_usd > 0 else notional_usd
+            # V400: if price_usd is valid, use it + slippage estimate
+            if price_usd and price_usd > 0:
+                fill_price = price_usd * (1 + estimated_slippage_pct / 100)
+            else:
+                fill_price = notional_usd  # fallback (quantity = 1.0)
             quantity = notional_usd / fill_price if fill_price > 0 else 0.0
             entry_fee_usd = notional_usd * PUMPPORTAL_FEE_PCT
+            entry_slippage_usd = notional_usd * estimated_slippage_pct / 100  # V400 P1-3
 
             reasons = list(entry_reasons or [])
             reasons.append(f"LIVE buy {amount} SOL via PumpPortal")
             reasons.append(f"tx:{result.tx_signature}")
+            if not confirmed:
+                reasons.append("⚠️ tx not confirmed on-chain")
 
             trade = Trade(
                 token_id=token_id,
@@ -237,21 +267,54 @@ class LiveTradingExecutor:
                 entry_size_usd=notional_usd,
                 entry_quantity=quantity,
                 entry_fee_usd=entry_fee_usd,
-                entry_slippage_usd=0.0,
+                entry_slippage_usd=entry_slippage_usd,  # V400 P1-3: track slippage
                 stop_loss_price=stop_loss,
                 take_profit_price=take_profit,
                 planned_holding_period_minutes=holding_period_minutes,
                 strategy_id=LIVE_STRATEGY_ID,
                 fees_total_usd=entry_fee_usd,
-                slippage_total_usd=0.0,
+                slippage_total_usd=entry_slippage_usd,  # V400 P1-3
                 entry_reasons_json=reasons,
                 status="open",
+                max_unrealized_profit_usd=fill_price,  # V400 P0-1: init peak = entry
             )
-            async with get_session() as session:
-                session.add(trade)
-                await session.commit()
-                await session.refresh(trade)
-                trade_id = trade.id
+            # V400 P0-4 FIX: DB save with retry + compensation logic.
+            # If DB save fails after on-chain buy, we log the tx_signature
+            # so the operator can manually recover the tokens.
+            trade_id = None
+            try:
+                async with get_session() as session:
+                    session.add(trade)
+                    await session.commit()
+                    await session.refresh(trade)
+                    trade_id = trade.id
+            except Exception as db_exc:
+                logger.error(
+                    f"🚨 CRITICAL: DB save failed after on-chain buy! "
+                    f"tx={result.tx_signature} symbol={symbol} amount={amount}SOL. "
+                    f"Tokens are in wallet but NOT tracked. Error: {db_exc}"
+                )
+                # Try one more time with a fresh session
+                try:
+                    async with get_session() as session2:
+                        session2.add(trade)
+                        await session2.commit()
+                        await session2.refresh(trade)
+                        trade_id = trade.id
+                except Exception as db_exc2:
+                    logger.error(
+                        f"🚨 DB save retry also failed! Manual recovery needed. "
+                        f"tx={result.tx_signature}"
+                    )
+                    return {
+                        "success": False,
+                        "code": "db_save_failed_after_buy",
+                        "error": f"DB save failed after on-chain buy. tx={result.tx_signature}",
+                        "tx_signature": result.tx_signature,
+                        "symbol": symbol,
+                    }
+            if not trade_id:
+                return self._reject("db_save_failed", "Could not save trade to DB")
 
             daily["sol_spent"] = round(float(daily["sol_spent"]) + amount, 9)
             daily["trades_opened"] = int(daily["trades_opened"]) + 1
@@ -296,24 +359,47 @@ class LiveTradingExecutor:
                 logger.warning(f"Live sell failed for {symbol}: {result.error}")
                 return self._reject("sell_failed", result.error or "PumpPortal rejected the sell")
 
+            # V400 P0-3 FIX: Confirm sell on-chain
+            if result.tx_signature:
+                try:
+                    sell_confirmed = await self.client.confirm_signature(result.tx_signature, timeout=15)
+                    if not sell_confirmed:
+                        logger.warning(f"⚠️ Sell tx {result.tx_signature} for {symbol} NOT confirmed")
+                except Exception as confirm_exc:
+                    logger.warning(f"Sell confirm failed: {confirm_exc}")
+
             sol_price_usd = await self.client._fetch_sol_price()
-            proceeds_usd = trade.entry_quantity * exit_price
+            # V400 P1-2 FIX: Apply slippage to exit_price (was missing!)
+            # Estimate 5% slippage on sell (memecoins have thin liquidity)
+            estimated_exit_slippage_pct = 5.0
+            actual_exit_price = exit_price * (1 - estimated_exit_slippage_pct / 100)
+            proceeds_usd = trade.entry_quantity * actual_exit_price  # V400: use actual price
             exit_fee_usd = proceeds_usd * PUMPPORTAL_FEE_PCT
-            gross_pnl = (exit_price - float(trade.entry_price)) * float(trade.entry_quantity)
-            net_pnl = gross_pnl - float(trade.entry_fee_usd or 0) - exit_fee_usd
+            exit_slippage_usd = trade.entry_quantity * exit_price * estimated_exit_slippage_pct / 100
+            gross_pnl = (actual_exit_price - float(trade.entry_price)) * float(trade.entry_quantity)
+            # V400 P1-2: Include exit slippage in net PnL (was missing!)
+            net_pnl = (gross_pnl
+                      - float(trade.entry_fee_usd or 0)
+                      - exit_fee_usd
+                      - float(trade.entry_slippage_usd or 0)  # V400 P1-3
+                      - exit_slippage_usd)  # V400 P1-2: NEW!
             pnl_pct = (net_pnl / float(trade.entry_size_usd) * 100) if trade.entry_size_usd else 0.0
 
-            async with get_session() as session:
-                db_trade = await session.get(Trade, trade_id)
-                if db_trade is None or db_trade.status != "open":
-                    return self._reject("already_closed", "Trade was already closed")
-                db_trade.exit_price = exit_price
-                db_trade.exit_timestamp = _utcnow()
-                db_trade.exit_fee_usd = exit_fee_usd
-                db_trade.exit_reason = exit_reason
-                db_trade.gross_pnl_usd = gross_pnl
-                db_trade.net_pnl_usd = net_pnl
-                db_trade.pnl_pct = pnl_pct
+            # V400 P1-11 FIX: DB save with retry to prevent double-sell
+            db_save_success = False
+            try:
+                async with get_session() as session:
+                    db_trade = await session.get(Trade, trade_id)
+                    if db_trade is None or db_trade.status != "open":
+                        return self._reject("already_closed", "Trade was already closed")
+                    db_trade.exit_price = actual_exit_price  # V400: use slippage-adjusted price
+                    db_trade.exit_slippage_usd = exit_slippage_usd  # V400 P1-2: track it
+                    db_trade.exit_timestamp = _utcnow()
+                    db_trade.exit_fee_usd = exit_fee_usd
+                    db_trade.exit_reason = exit_reason
+                    db_trade.gross_pnl_usd = gross_pnl
+                    db_trade.net_pnl_usd = net_pnl
+                    db_trade.pnl_pct = pnl_pct
                 db_trade.fees_total_usd = float(db_trade.entry_fee_usd or 0) + exit_fee_usd
                 db_trade.status = "closed"
                 db_trade.exit_reasons_json = list(db_trade.exit_reasons_json or []) + [
@@ -323,6 +409,34 @@ class LiveTradingExecutor:
                 ]
                 session.add(db_trade)
                 await session.commit()
+                db_save_success = True
+            except Exception as db_exc:
+                logger.error(f"DB save failed on close for trade {trade_id}: {db_exc}")
+                # V400 P1-11: retry once
+                try:
+                    async with get_session() as session2:
+                        db_trade2 = await session2.get(Trade, trade_id)
+                        if db_trade2 and db_trade2.status == "open":
+                            db_trade2.exit_price = actual_exit_price
+                            db_trade2.exit_slippage_usd = exit_slippage_usd
+                            db_trade2.exit_timestamp = _utcnow()
+                            db_trade2.exit_fee_usd = exit_fee_usd
+                            db_trade2.exit_reason = exit_reason
+                            db_trade2.gross_pnl_usd = gross_pnl
+                            db_trade2.net_pnl_usd = net_pnl
+                            db_trade2.pnl_pct = pnl_pct
+                            db_trade2.fees_total_usd = float(db_trade2.entry_fee_usd or 0) + exit_fee_usd
+                            db_trade2.slippage_total_usd = float(db_trade2.entry_slippage_usd or 0) + exit_slippage_usd
+                            db_trade2.status = "closed"
+                            db_trade2.exit_reasons_json = list(db_trade2.exit_reasons_json or []) + [
+                                exit_reason,
+                                f"LIVE sell 100% tx:{result.tx_signature}",
+                            ]
+                            session2.add(db_trade2)
+                            await session2.commit()
+                            db_save_success = True
+                except Exception as db_exc2:
+                    logger.error(f"DB save retry also failed: {db_exc2}")
 
             daily = await self._load_daily()
             daily["sol_pnl"] = round(
@@ -369,20 +483,32 @@ class LiveTradingExecutor:
                 if price is None or price <= 0:
                     continue
 
-                # V201: Trailing stop — track peak price since entry.
-                # We store the peak in the in-memory trade object (not DB).
+                # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
+                # Use max_unrealized_profit_usd as a proxy to store peak_price:
+                # we encode peak_price in this field (it's normally a PnL value,
+                # but for open trades it's the best available DB column).
+                # If None, initialize to max(entry, current).
+                if trade.max_unrealized_profit_usd is None:
+                    trade.max_unrealized_profit_usd = max(trade.entry_price, price)
+                # Update peak if current price is higher
+                if price > trade.max_unrealized_profit_usd:
+                    trade.max_unrealized_profit_usd = price
+                    # Persist the updated peak to DB
+                    try:
+                        async with get_session() as s2:
+                            db_trade = await s2.get(Trade, trade.id)
+                            if db_trade and db_trade.status == "open":
+                                db_trade.max_unrealized_profit_usd = price
+                                await s2.commit()
+                    except Exception:
+                        pass  # non-critical, will retry next cycle
+
+                peak_price = trade.max_unrealized_profit_usd
                 # V57 strategy: 40% trailing from peak, only activates after
                 # the trade has gained at least 20% from entry.
-                if not hasattr(trade, "_peak_price") or trade._peak_price is None:
-                    trade._peak_price = max(trade.entry_price, price)
-                if price > trade._peak_price:
-                    trade._peak_price = price
                 trail_pct = 0.40  # V57 constant
-                trailing_level = trade._peak_price * (1 - trail_pct)
-                peak_gain_pct = (
-                    (trade._peak_price / trade.entry_price - 1)
-                    if trade.entry_price > 0 else 0
-                )
+                trailing_level = peak_price * (1 - trail_pct)
+                peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
                 trailing_hit = (
                     peak_gain_pct >= 0.20  # only after +20% gain
                     and price < trailing_level  # price dropped below trail
