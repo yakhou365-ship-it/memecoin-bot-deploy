@@ -109,8 +109,11 @@ class Settings(BaseSettings):
     pump_slippage_bps: int = 500
     # Priority fee in SOL (higher = faster execution)
     pump_priority_fee_sol: float = 0.0001
-    # Max SOL per trade on Pump.fun (hard safety limit)
-    pump_max_trade_sol: float = 2.0
+    # V201: Max SOL per trade — reduced from 2.0 to 0.5 SOL for small capital.
+    # For a $100 wallet (0.59 SOL), 0.5 SOL = 85% of capital per trade max.
+    # The AI consensus typically suggests 1-4% of capital, so this is just
+    # a hard ceiling that prevents catastrophic single-trade losses.
+    pump_max_trade_sol: float = 0.5
     # Pool to trade on (pump, raydium, pump-amm, launchlab, raydium-cpmm, bonk, auto)
     pump_default_pool: str = "auto"
     # Skip preflight simulation for faster execution (PumpPortal Lightning)
@@ -124,9 +127,14 @@ class Settings(BaseSettings):
     #   live_trading_confirm == "I_UNDERSTAND_THE_RISK"
     trading_mode: str = "paper"  # paper | live
     live_trading_confirm: str = ""
-    live_max_open_positions: int = 5
-    live_daily_cap_sol: float = 5.0
-    live_daily_loss_limit_sol: float = 1.0
+    # V201: Tuned for small capital ($100-500).
+    #   max_open_positions = 3 (was 5) — focus, don't spread too thin
+    #   daily_cap_sol = 1.5 SOL (was 5.0) — ~$255 max daily spend
+    #   daily_loss_limit_sol = 0.3 SOL (was 1.0) — ~$51 max daily loss
+    #   These limits protect small accounts from being wiped out in one day.
+    live_max_open_positions: int = 3
+    live_daily_cap_sol: float = 1.5
+    live_daily_loss_limit_sol: float = 0.3
     live_cycle_timeout_seconds: int = 300
 
     # --- Orchestrator ---

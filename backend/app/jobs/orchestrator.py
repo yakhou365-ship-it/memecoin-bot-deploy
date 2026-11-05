@@ -320,29 +320,60 @@ class MainOrchestrator:
                         logger.info(f"⏸️ Trading stopped - not opening {token.symbol}")
                     elif settings.is_live_trading:
                         # === REAL MONEY PATH ===
-                        # V31.3: convert the percentage returned by the AI
-                        # consensus into an actual SOL amount, instead of
-                        # always trading the hard cap (pump_max_trade_sol).
-                        # This was a serious bug: the consensus could say
-                        # "0.5% of capital" and we'd still trade 2 SOL.
-                        # Convert: pct of paper_capital_usd → USD → SOL.
+                        # V201: Position sizing uses ACTUAL wallet balance, not
+                        # paper_capital_usd. This is critical for small capital:
+                        # if you deposit $100, the bot must size trades based on
+                        # $100, not the default $10,000 paper capital.
                         sol_price_usd = await self.live.client._fetch_sol_price()
-                        position_pct = float(decision.suggested_position_size_pct or 0)
-                        # Cap the percentage at 5% (hard cap, matches RiskAgent).
-                        position_pct = min(max(position_pct, 0.0), 5.0)
-                        # Convert % of paper_capital_usd → USD → SOL.
-                        # If sol_price_usd is unavailable, fall back to
-                        # a small fixed amount rather than the max.
+                        wallet_balance = await self.live.client.get_wallet_balance()
+                        wallet_sol = float(wallet_balance.get("sol", 0.0)) if wallet_balance else 0.0
+
+                        # Use real wallet balance (in USD) as the capital base
                         if sol_price_usd and sol_price_usd > 0:
-                            target_usd = settings.paper_capital_usd * position_pct / 100.0
+                            real_capital_usd = wallet_sol * sol_price_usd
+                        else:
+                            # Fallback: tiny amount if we can't get SOL price
+                            real_capital_usd = 50.0  # conservative default
+
+                        position_pct = float(decision.suggested_position_size_pct or 0)
+                        # Cap at 5% (matches RiskAgent hard cap)
+                        position_pct = min(max(position_pct, 0.0), 5.0)
+
+                        # Convert % of REAL capital → USD → SOL
+                        if sol_price_usd and sol_price_usd > 0 and real_capital_usd > 0:
+                            target_usd = real_capital_usd * position_pct / 100.0
                             target_sol = target_usd / sol_price_usd
                         else:
-                            # Fallback: 0.05 SOL when SOL price is unknown.
-                            target_sol = 0.05
-                        # Final safety cap: never exceed pump_max_trade_sol.
+                            # Fallback: very small amount
+                            target_sol = 0.02
+
+                        # V201: Safety floor — never trade more than 50% of
+                        # wallet balance in a single trade. This protects
+                        # against the bot trying to trade 80%+ of a small account.
+                        max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
+                        if target_sol > max_safe_sol and max_safe_sol > 0:
+                            target_sol = max_safe_sol
+
+                        # Final safety cap: never exceed pump_max_trade_sol (0.5 SOL)
                         target_sol = min(target_sol, settings.pump_max_trade_sol)
-                        # Floor: PumpPortal requires a small min amount.
+                        # Floor: PumpPortal requires a minimum amount (0.01 SOL)
+                        # V201: if target is below 0.01 SOL, skip the trade
+                        # (PumpPortal rejects trades below ~0.005 SOL due to
+                        # network fees + slippage making them unprofitable)
+                        if target_sol < 0.01:
+                            logger.info(
+                                f"💰 Skip {token.symbol}: target size {target_sol:.4f} SOL "
+                                f"too small (wallet={wallet_sol:.4f} SOL, "
+                                f"pct={position_pct:.1f}%)"
+                            )
+                            continue
                         target_sol = max(target_sol, 0.01)
+
+                        logger.info(
+                            f"💰 Live trade {token.symbol}: {target_sol:.4f} SOL "
+                            f"(~${target_sol * (sol_price_usd or 0):.2f}) "
+                            f"= {position_pct:.1f}% of ${real_capital_usd:.0f} wallet"
+                        )
                         result = await self.live.open_position(
                             token_id=token.id,
                             amount_sol=target_sol,

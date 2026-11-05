@@ -347,7 +347,7 @@ class LiveTradingExecutor:
             }
 
     # ------------------------------------------------------------------
-    # Manage open live positions (SL / TP / time exit)
+    # Manage open live positions (SL / TP / trailing / time exit)
     # ------------------------------------------------------------------
     async def manage_open_positions(self) -> Dict[str, int]:
         closed = {"stop_loss": 0, "take_profit": 0, "time_exit": 0, "trailing_stop": 0}
@@ -369,11 +369,32 @@ class LiveTradingExecutor:
                 if price is None or price <= 0:
                     continue
 
+                # V201: Trailing stop — track peak price since entry.
+                # We store the peak in the in-memory trade object (not DB).
+                # V57 strategy: 40% trailing from peak, only activates after
+                # the trade has gained at least 20% from entry.
+                if not hasattr(trade, "_peak_price") or trade._peak_price is None:
+                    trade._peak_price = max(trade.entry_price, price)
+                if price > trade._peak_price:
+                    trade._peak_price = price
+                trail_pct = 0.40  # V57 constant
+                trailing_level = trade._peak_price * (1 - trail_pct)
+                peak_gain_pct = (
+                    (trade._peak_price / trade.entry_price - 1)
+                    if trade.entry_price > 0 else 0
+                )
+                trailing_hit = (
+                    peak_gain_pct >= 0.20  # only after +20% gain
+                    and price < trailing_level  # price dropped below trail
+                )
+
                 reason = None
                 if trade.stop_loss_price and price <= trade.stop_loss_price:
                     reason = "stop_loss"
                 elif trade.take_profit_price and price >= trade.take_profit_price:
                     reason = "take_profit"
+                elif trailing_hit:
+                    reason = "trailing_stop"
                 elif trade.planned_holding_period_minutes and trade.entry_timestamp:
                     age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
                     if age_min >= trade.planned_holding_period_minutes:
