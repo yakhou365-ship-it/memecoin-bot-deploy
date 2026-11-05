@@ -1882,22 +1882,30 @@ async def _dexscreener_boosted_tokens(limit: int) -> List[Dict[str, Any]]:
 
 
 async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
-    """Fallback: search DexScreener for trending Pump.fun tokens.
+    """V403: Search DexScreener for ALL Pump.fun tokens.
 
-    V401: Search for tokens with highest 24h gains (pumping tokens).
-    Uses multiple search terms to find diverse pumping tokens.
+    Uses MULTIPLE search terms to find hundreds of tokens:
+    - "pumpswap": tokens on Pump.fun's DEX (graduated tokens)
+    - "pumpfun": tokens on Pump.fun bonding curve
+    - "pump": general pump-related tokens
+    - "meme", "pepe", "dog", "cat", "moon": popular meme categories
+    Each search returns up to 30 pairs. Combined: 100-200+ tokens.
     """
     import httpx
 
-    # V401: Search terms that find trending/pumping tokens
-    search_terms = ["pump", "sol", "meme", "pepe", "dog", "cat", "moon", "bonk"]
-    excluded_symbols = {"SOL", "USDC", "USDT", "WSOL", "SOLANA"}
+    # V403: Expanded search terms to find ALL Pump.fun tokens
+    search_terms = [
+        "pumpswap", "pumpfun", "pump",
+        "meme", "pepe", "dog", "cat", "moon", "bonk",
+        "solana", "raydium", "meteora",
+    ]
+    excluded_symbols = {"SOL", "USDC", "USDT", "WSOL", "SOLANA", "MSOL", "JITOSOL", "BTC", "ETH", "WETH"}
     seen_addresses: set[str] = set()
     tokens: List[Dict[str, Any]] = []
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=12.0) as client:
         for term in search_terms:
-            if len(tokens) >= limit * 2:  # fetch extra for sorting
+            if len(tokens) >= limit * 5:  # fetch 5x for better sorting
                 break
             try:
                 resp = await client.get(
@@ -1908,9 +1916,12 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
                 continue
 
             for p in data.get("pairs", []) or []:
-                if len(tokens) >= limit * 2:
+                if len(tokens) >= limit * 5:
                     break
                 if not isinstance(p, dict):
+                    continue
+                # V403: Only Solana chain
+                if (p.get("chainId") or "").lower() != "solana":
                     continue
                 base = p.get("baseToken", {}) or {}
                 address = base.get("address", "") or ""
@@ -1925,9 +1936,15 @@ async def _dexscreener_search_tokens(limit: int) -> List[Dict[str, Any]]:
                     or symbol.upper() in excluded_symbols
                 ):
                     continue
+                # V403: Filter out spam (long names, no liquidity)
+                liquidity = p.get("liquidity", {}) or {}
+                liq_usd = float(liquidity.get("usd", 0) or 0)
+                if liq_usd < 500:  # skip dead tokens
+                    continue
+                if len(name) > 30:  # skip spam names
+                    continue
                 seen_addresses.add(address)
 
-                liquidity = p.get("liquidity", {}) or {}
                 volume = p.get("volume", {}) or {}
                 change = p.get("priceChange", {}) or {}
                 mcap = float(p.get("marketCap", 0) or 0)
@@ -2066,23 +2083,38 @@ async def _geckoterminal_trending_tokens(limit: int) -> List[Dict[str, Any]]:
 
 
 async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
-    """V402: Primary token feed with MULTIPLE sources.
+    """V403: Aggressive token discovery — finds 100-200+ tokens.
 
-    Sources (in priority order):
-    1. DexScreener boosted tokens (paid promotions, sorted by 24h gain)
-    2. GeckoTerminal trending pools (finds tokens DexScreener misses)
-    3. DexScreener search (fallback)
+    Sources (ALL used, not just fallback):
+    1. DexScreener boosted tokens (paid promotions)
+    2. DexScreener search (pumpswap + pumpfun + meme keywords) — NEW PRIMARY
+    3. GeckoTerminal trending pools
+    All results merged, deduplicated, sorted by 24h gain.
     """
     tokens: List[Dict[str, Any]] = []
-    source = "dexscreener_boosted"
+    source = "multi-source"
 
-    # Source 1: DexScreener boosted (sorted by 24h gain)
+    # Source 1: DexScreener search (V403: PRIMARY now — finds 60-100+ tokens)
     try:
-        tokens = await _dexscreener_boosted_tokens(limit)
+        search_tokens = await _dexscreener_search_tokens(limit * 3)
+        tokens.extend(search_tokens)
+        source = "dexscreener_search"
     except Exception as exc:
-        logger.warning(f"DexScreener boosted feed failed: {exc}")
+        logger.warning(f"DexScreener search failed: {exc}")
 
-    # Source 2: GeckoTerminal (adds tokens DexScreener misses)
+    # Source 2: DexScreener boosted (adds tokens that paid for promotion)
+    try:
+        boosted = await _dexscreener_boosted_tokens(limit)
+        have = {t["address"].lower() for t in tokens}
+        for bt in boosted:
+            if bt["address"].lower() not in have:
+                tokens.append(bt)
+                have.add(bt["address"].lower())
+        source = "search+boosted"
+    except Exception as exc:
+        logger.warning(f"DexScreener boosted failed: {exc}")
+
+    # Source 3: GeckoTerminal (adds tokens other sources miss)
     try:
         geo_tokens = await _geckoterminal_trending_tokens(limit)
         have = {t["address"].lower() for t in tokens}
@@ -2090,22 +2122,11 @@ async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
             if gt["address"].lower() not in have:
                 tokens.append(gt)
                 have.add(gt["address"].lower())
-        if geo_tokens:
-            source = "dexscreener+geckoterminal"
+        source = "search+boosted+gecko"
     except Exception as exc:
-        logger.warning(f"GeckoTerminal feed failed: {exc}")
+        logger.warning(f"GeckoTerminal failed: {exc}")
 
-    # Source 3: DexScreener search (final fallback)
-    if len(tokens) < min(limit, 5):
-        try:
-            extra = await _dexscreener_search_tokens(limit - len(tokens))
-            have = {t["address"].lower() for t in tokens}
-            tokens.extend([t for t in extra if t["address"].lower() not in have])
-            source = "dexscreener+gecko+search"
-        except Exception as exc:
-            logger.warning(f"DexScreener search fallback failed: {exc}")
-
-    # V402: Final sort by 24h change (highest pumping first)
+    # V403: Sort ALL tokens by 24h change (highest pumping first)
     tokens = sorted(
         tokens,
         key=lambda t: float(t.get("price_change_24h_pct", 0) or 0),
