@@ -36,14 +36,14 @@ export default function HomePage() {
 
   const { data: liveTokens } = useQuery({
     queryKey: ['live-tokens-home'],
-    queryFn: () => api.get(endpoints.marketLiveTokens, { params: { limit: 20 } }).then(r => r.data?.tokens || []),
-    refetchInterval: 1_500,
+    queryFn: () => api.get(endpoints.marketLiveTokens, { params: { limit: 50 } }).then(r => r.data?.tokens || []),
+    refetchInterval: 30_000, // V403: 30s (was 1.5s — caused tokens to flicker)
   })
 
   const { data: bestTrades } = useQuery({
     queryKey: ['best-trades-home'],
     queryFn: () => api.get(endpoints.trades, { params: { limit: 10, status: 'closed' } }).then(r => r.data as any[]),
-    refetchInterval: 1_500,
+    refetchInterval: 10_000, // V403: 10s (was 1.5s)
   })
 
   const topTrades = (bestTrades || [])

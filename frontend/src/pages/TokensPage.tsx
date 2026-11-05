@@ -16,12 +16,12 @@ export default function TokensPage() {
     queryKey: ['pumpfun-tokens', tab],
     queryFn: async () => {
       if (tab === 'graduated') {
-        return (await api.get(endpoints.pumpfunTokensGraduated, { params: { limit: 50 } })).data?.tokens || []
+        return (await api.get(endpoints.pumpfunTokensGraduated, { params: { limit: 100 } })).data?.tokens || []
       }
-      // new / trending / all all use the always-live DexScreener aggregated feed
-      return (await api.get(endpoints.marketLiveTokens, { params: { limit: 50 } })).data?.tokens || []
+      // V403: fetch 100 tokens (was 50) + 30s refresh (was 10s)
+      return (await api.get(endpoints.marketLiveTokens, { params: { limit: 100 } })).data?.tokens || []
     },
-    refetchInterval: 10000, // Auto-refresh every 10s
+    refetchInterval: 30000, // V403: 30s (was 10s — caused flickering)
   })
 
   // Fetch wallet balance
