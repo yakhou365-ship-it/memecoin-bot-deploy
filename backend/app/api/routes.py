@@ -770,11 +770,11 @@ async def agents_status():
     latest = await orch.get_latest_consensus()
     return {
         "agents": [
-            {"name": "technical_agent", "role": "خبير التحليل الفني", "enabled": settings.ai_agent_technical_enabled},
-            {"name": "security_agent", "role": "خبير الأمان", "enabled": settings.ai_agent_security_enabled},
-            {"name": "liquidity_agent", "role": "خبير السيولة", "enabled": settings.ai_agent_liquidity_enabled},
-            {"name": "sentiment_agent", "role": "خبير المشاعر", "enabled": settings.ai_agent_sentiment_enabled},
-            {"name": "risk_agent", "role": "مدير المخاطر", "enabled": settings.ai_agent_risk_enabled},
+            {"name": "technical_agent", "role": "Ultimate Technical Analyst", "enabled": settings.ai_agent_technical_enabled, "has_veto": False, "weight": 1.3},
+            {"name": "security_agent", "role": "Ultimate Security Analyst", "enabled": settings.ai_agent_security_enabled, "has_veto": True, "weight": 2.0},
+            {"name": "liquidity_agent", "role": "Ultimate Liquidity Analyst", "enabled": settings.ai_agent_liquidity_enabled, "has_veto": False, "weight": 1.2},
+            {"name": "sentiment_agent", "role": "Ultimate Sentiment Analyst", "enabled": settings.ai_agent_sentiment_enabled, "has_veto": False, "weight": 1.0},
+            {"name": "risk_agent", "role": "Ultimate Risk Manager", "enabled": settings.ai_agent_risk_enabled, "has_veto": True, "weight": 2.0},
         ],
         "require_unanimity": settings.ai_agent_require_unanimity,
         "latest_consensus": latest,
@@ -1190,37 +1190,54 @@ async def analyze_token_full(token_id: str):
 
 @router.get("/agents/list")
 async def list_agents():
-    """List all 18 agents with their roles, veto status, weights."""
-    from ..modules.agents.multi_agent_system import MultiAgentSystem
-
-    try:
-        mas = MultiAgentSystem()
-        agents_meta = []
-        # Map agent name -> settings flag (best-effort)
-        enabled_flags = {
-            "technical_analysis": settings.ai_agent_technical_enabled,
-            "security": settings.ai_agent_security_enabled,
-            "liquidity_intelligence": settings.ai_agent_liquidity_enabled,
-            "social_intelligence": settings.ai_agent_sentiment_enabled,
-            "risk_management": settings.ai_agent_risk_enabled,
-        }
-        for a in mas.agents:
-            agents_meta.append({
-                "name": a.name,
-                "role": a.role,
-                "specialty": getattr(a, "specialty", ""),
-                "has_veto": bool(getattr(a, "has_veto", False)),
-                "weight": float(getattr(a, "weight", 1.0)),
-                "enabled": enabled_flags.get(a.name, True),
-            })
-        return {
-            "total_agents": len(agents_meta),
-            "require_unanimity": settings.ai_agent_require_unanimity,
-            "agents": agents_meta,
-        }
-    except Exception as exc:
-        logger.exception(f"list_agents failed: {exc}")
-        raise HTTPException(500, f"Failed to list agents: {str(exc)[:200]}")
+    """List the 5 Ultimate AI agents with their roles, veto status, weights."""
+    agents_meta = [
+        {
+            "name": "technical_agent",
+            "role": "Ultimate Technical Analyst",
+            "specialty": "Price action, momentum, volume, RSI, trend, bonding curve",
+            "has_veto": False,
+            "weight": 1.3,
+            "enabled": settings.ai_agent_technical_enabled,
+        },
+        {
+            "name": "security_agent",
+            "role": "Ultimate Security Analyst",
+            "specialty": "Honeypot, rug pull, contract safety, authority checks",
+            "has_veto": True,
+            "weight": 2.0,
+            "enabled": settings.ai_agent_security_enabled,
+        },
+        {
+            "name": "liquidity_agent",
+            "role": "Ultimate Liquidity Analyst",
+            "specialty": "Liquidity depth, volume, buy/sell pressure, mcap/liq ratio",
+            "has_veto": False,
+            "weight": 1.2,
+            "enabled": settings.ai_agent_liquidity_enabled,
+        },
+        {
+            "name": "sentiment_agent",
+            "role": "Ultimate Sentiment Analyst",
+            "specialty": "Social sentiment, community hype, trader behavior",
+            "has_veto": False,
+            "weight": 1.0,
+            "enabled": settings.ai_agent_sentiment_enabled,
+        },
+        {
+            "name": "risk_agent",
+            "role": "Ultimate Risk Manager",
+            "specialty": "Position sizing, circuit breaker, loss limits, exit strategy",
+            "has_veto": True,
+            "weight": 2.0,
+            "enabled": settings.ai_agent_risk_enabled,
+        },
+    ]
+    return {
+        "total_agents": len(agents_meta),
+        "require_unanimity": settings.ai_agent_require_unanimity,
+        "agents": agents_meta,
+    }
 
 
 # =========================================================================

@@ -112,7 +112,7 @@ class StrategyConfig:
     risk_per_trade: float = 0.03             # 3% risk per trade (was 1%)
     max_position_pct: float = 0.18           # max 18% per trade (was 15%)
     max_open_positions: int = 3              # max 3 concurrent (was 4)
-    daily_loss_limit: float = 0.15           # 15% daily loss limit (was 4%)
+    daily_loss_limit: float = 0.10           # 10% daily loss limit (UNIFIED)
     weekly_loss_limit: float = 0.08          # 8% weekly (was 6%)
     max_drawdown_halt: float = 0.30          # halt at 30% DD (was 10%)
     halt_days: int = 3                       # 3 day cooldown (was 7)

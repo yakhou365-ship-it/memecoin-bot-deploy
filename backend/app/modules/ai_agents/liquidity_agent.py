@@ -5,7 +5,7 @@ market cap vs liquidity ratio, trading activity, entry/exit viability.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ...core.config import settings
 from ...core.logger import logger
@@ -17,7 +17,7 @@ class LiquidityAgent(BaseAgent):
     role = "Ultimate Liquidity Analyst"
     specialty = "Liquidity depth, volume, buy/sell pressure, mcap/liq ratio"
     enabled_setting = "ai_agent_liquidity_enabled"
-    has_veto = False
+    has_veto = True
 
     def _system_prompt(self) -> str:
         return (
@@ -47,8 +47,13 @@ class LiquidityAgent(BaseAgent):
         vol_5m = token.volume_5m_usd or 0
         mcap = token.market_cap_usd or 0
         chg_24h = token.price_change_24h_pct or 0
-        buys = token.txns_24h_buys or 0
-        sells = token.txns_24h_sells or 0
+
+        # Optional transaction counts: None = unknown (neutral), 0 = no activity
+        raw_buys = getattr(token, "txns_24h_buys", None)
+        raw_sells = getattr(token, "txns_24h_sells", None)
+        txns_known = raw_buys is not None and raw_sells is not None
+        buys = int(raw_buys or 0)
+        sells = int(raw_sells or 0)
 
         score = 50
         factors: List[str] = []
@@ -120,8 +125,11 @@ class LiquidityAgent(BaseAgent):
             concerns.append("No recent trading (5m volume near zero)")
 
         # === Buy/Sell Pressure ===
+        # Unknown counts (None) are neutral — do not penalize missing data.
         total_txns = buys + sells
-        if total_txns > 50:
+        if not txns_known:
+            factors.append("Transaction counts unknown (neutral)")
+        elif total_txns > 50:
             buy_ratio = buys / total_txns
             if buy_ratio >= 0.7:
                 score += 15

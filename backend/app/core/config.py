@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     paper_slippage_pct: float = 0.5
 
     # --- Risk Management ---
-    risk_daily_loss_limit_pct: float = 5.0
+    risk_daily_loss_limit_pct: float = 10.0  # 10% (unified with strategy_v2 V31.2)
     risk_weekly_loss_limit_pct: float = 10.0
     risk_max_drawdown_pct: float = 20.0
     risk_cooldown_after_losses: int = 3

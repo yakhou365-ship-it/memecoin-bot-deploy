@@ -5,7 +5,7 @@ ownership renounced, mint/freeze authority, holder concentration, LP lock.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ...core.config import settings
 from ...core.logger import logger
@@ -152,8 +152,10 @@ class SecurityAgent(BaseAgent):
             decision = "REJECT"
 
         # === Position Size ===
+        # Security cap stays conservative (3%) but no longer bottlenecks the
+        # final size as severely; the risk agent still applies the final cap.
         if decision in ("BUY", "STRONG_BUY"):
-            suggested_size = min(3.0, max(0.5, score / 25))
+            suggested_size = min(5.0, max(0.5, score / 20))
         else:
             suggested_size = 0.0
 
