@@ -233,14 +233,14 @@ export default function HomePage() {
                   <td className="p-2 font-mono">{t.price_usd ? `$${Number(t.price_usd).toFixed(8)}` : '—'}</td>
                   <td className="p-2 font-mono">${Number(t.market_cap_usd || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
                   <td className="p-2 font-mono">${Number(t.liquidity_usd || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
-                  <td className={`p-2 font-mono ${Number(t.price_change_5m || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {Number(t.price_change_5m || 0).toFixed(1)}%
+                  <td className={`p-2 font-mono ${Number(t.price_change_5m || t.price_change_5m_pct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {Number(t.price_change_5m || t.price_change_5m_pct || 0).toFixed(1)}%
                   </td>
                   <td className={`p-2 font-mono ${Number(t.price_change_1h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {Number(t.price_change_1h || 0).toFixed(1)}%
                   </td>
-                  <td className={`p-2 font-mono ${Number(t.price_change_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {Number(t.price_change_24h || 0).toFixed(1)}%
+                  <td className={`p-2 font-mono ${Number(t.price_change_24h || t.price_change_24h_pct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {Number(t.price_change_24h || t.price_change_24h_pct || 0).toFixed(1)}%
                   </td>
                   <td className="p-2 font-mono">${Number(t.volume_24h_usd || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
                 </tr>
