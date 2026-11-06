@@ -127,6 +127,49 @@ class OnChainAnalyzer:
                 result.token_bundling_probability = min(bundle_like / 5.0 + 0.2, 1.0)
                 result.reasons.append("نمط يشبه Token Bundling بين أكبر 5 محافظ")
 
+            # Ultimate-bot: SCATTERED BUNDLE detection
+            # المخادع الذكي يوزع على 20+ محفظة، كل واحدة 2-4% فقط — لا تظهر
+            # في top 5 كـ bundle، لكن مجتمعة تملك 60-80%.
+            # الحل: احسب نسبة كل محفظة في top 20، وابحث عن:
+            #   1. كثير من المحافظ تملك نسب صغيرة متشابهة (1-5%)
+            #   2. مجموعها الكلي مرتفع (>50%)
+            #   3. وقت إنشائها متقارب (تم فحصه في check_wallet_funding_times)
+            all_pcts = [(amt / supply) * 100 for amt in amounts]
+            small_holders = [p for p in all_pcts if 0.5 <= p <= 5.0]  # 0.5%-5% each
+            small_total = sum(small_holders)
+            if len(small_holders) >= 8 and small_total > 40:
+                # 8+ محافظ تملك 0.5-5% كل واحدة، مجموعها >40% = scattered bundle
+                scattered_prob = min((len(small_holders) / 15.0) * 0.7 + 0.3, 1.0)
+                result.token_bundling_probability = max(
+                    result.token_bundling_probability, scattered_prob
+                )
+                result.insider_activity_probability = max(
+                    result.insider_activity_probability, scattered_prob * 0.8
+                )
+                result.reasons.append(
+                    f"🔴 Scattered Bundle: {len(small_holders)} محفظة تملك "
+                    f"{small_total:.1f}% مجتمعة (كل واحدة 0.5-5%) — توزيع وهمي!"
+                )
+                logger.warning(
+                    f"Scattered bundle detected for {token.symbol}: "
+                    f"{len(small_holders)} wallets holding {small_total:.1f}% total"
+                )
+
+            # Ultimate-bot: GENESIS HOLDING check
+            # إذا أعلى 20 محفظة تملك > 70% = سيطرة شبه كاملة
+            # (حتى لو كل واحدة تملك 3-4% فقط، المجموع خطر)
+            if result.top_20_pct > 70 and result.top_10_pct < 50:
+                # أعلى 20 تملك >70% لكن أعلى 10 تملك <50%
+                # هذا يعني أن التوزيع على عدة محافظ صغيرة = محاولة إخفاء
+                result.insider_activity_probability = max(
+                    result.insider_activity_probability, 0.6
+                )
+                result.reasons.append(
+                    f"⚠️ أعلى 20 محفظة تملك {result.top_20_pct:.1f}% "
+                    f"(لكن أعلى 10 تملك {result.top_10_pct:.1f}%) — "
+                    f"توزيع على عدة محافظ لإخفاء السيطرة"
+                )
+
             # Insider activity: very recent wallets with very large holdings
             if amounts and (amounts[0] / supply) > 0.10:
                 result.insider_activity_probability = 0.4
