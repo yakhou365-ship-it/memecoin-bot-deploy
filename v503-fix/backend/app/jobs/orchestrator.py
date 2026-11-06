@@ -365,7 +365,7 @@ class MainOrchestrator:
                     if not trading_active:
                         logger.info(f"⏸️ Trading stopped - not opening {token.symbol}")
                     elif settings.is_live_trading:
-                        # === REAL MONEY PATH ===
+                        # === REAL MONEY PATH (V507: live-only — paper path removed) ===
                         # V300: AUTO-STRATEGY SELECTION based on wallet size.
                         # Small capital (< $50 = ~0.3 SOL): use V300-SMALL-CAP
                         #   - Higher risk per trade (5-10%)
@@ -477,35 +477,15 @@ class MainOrchestrator:
                                 f"{result.get('code')} - {result.get('error')}"
                             )
                     else:
-                        # === PAPER PATH ===
-                        trade = await self.engine.open_position(
-                            token_id=token.id,
-                            entry_price=decision.suggested_entry or token.price_usd or 0,
-                            position_size_usd=settings.paper_capital_usd * decision.suggested_position_size_pct / 100,
-                            stop_loss=decision.suggested_stop_loss,
-                            take_profit=decision.suggested_take_profit,
-                            holding_period_minutes=decision.suggested_holding_period_minutes,
-                            strategy_id="default_v1",
-                            analysis_snapshot_id=snapshot_id,
-                            entry_reasons=decision.reasons,
-                            liquidity_usd=token.liquidity_usd or 0,
+                        # === V507: PAPER PATH REMOVED — bot is live-only ===
+                        # If we reach here it means is_live_trading == False, which
+                        # means the live requirements aren't satisfied. Log it and
+                        # skip the trade (do NOT fall back to paper trading).
+                        summary["trades_rejected"] += 1
+                        logger.warning(
+                            f"Live trading not configured — skipping {token.symbol}. "
+                            f"Missing: {settings.live_requirements}"
                         )
-                        if trade:
-                            summary["trades_opened"] += 1
-                            await self.alerts.send(
-                                "trade_opened",
-                                f"صفقة افتراضية: {token.symbol}",
-                                f"دخول @ ${trade.entry_price:.8f}\n"
-                                f"الحجم: ${trade.entry_size_usd:.2f}\n"
-                                f"Stop Loss: ${trade.stop_loss_price:.8f}\n"
-                                f"Take Profit: ${trade.take_profit_price:.8f}\n"
-                                f"احتمال النجاح: {decision.win_probability:.1%}",
-                                {
-                                    "trade_id": trade.id,
-                                    "token": token.symbol,
-                                    "win_probability": decision.win_probability,
-                                },
-                            )
                 elif anti_check["blocked"]:
                     await self.alerts.send(
                         "opportunity_rejected",
@@ -525,15 +505,8 @@ class MainOrchestrator:
             except Exception as exc:
                 logger.exception(f"Analysis failed for token {token.id}: {exc}")
 
-        # === 5. Manage open positions ===
-        try:
-            closed = await self.engine.manage_open_positions()
-            for reason, count in closed.items():
-                summary["trades_closed"] += count
-        except Exception as exc:
-            logger.exception(f"Paper position management failed: {exc}")
-
-        # === 5b. Manage live positions (real money) ===
+        # === 5. Manage open LIVE positions (real money) ===
+        # V507: paper engine manage_open_positions removed — bot is live-only.
         if settings.is_live_trading:
             try:
                 live_closed = await self.live.manage_open_positions()
@@ -651,13 +624,12 @@ class MainOrchestrator:
 
         The full analysis cycle is slow (scanning + LLM agents).  Stop-loss and
         take-profit must react quickly, so this lightweight loop checks open
-        positions every second using the latest prices already stored by the
-        scanner.
+        LIVE positions every second using the latest prices already stored by
+        the scanner. V507: paper engine removed — live-only.
         """
         logger.info(f"⚡ Fast position monitor started (every {interval_seconds}s)")
         while self._running:
             try:
-                await self.engine.manage_open_positions()
                 if settings.is_live_trading:
                     await self.live.manage_open_positions()
             except Exception as exc:

@@ -160,9 +160,15 @@ export default function TradesPage() {
 function exitReasonAr(r: string): string {
   return ({
     take_profit: 'Take Profit',
+    mega_tp: 'Mega TP',
     stop_loss: 'Stop Loss',
     time_exit: 'انتهاء الوقت',
     circuit_breaker: 'Circuit Breaker',
+    sudden_dump: 'هبوط مفاجئ',
+    smart_trailing: 'Trailing',
+    stagnation: 'ركود',
+    exit_all: 'إغلاق الكل',
     manual: 'يدوي',
+    manual_recovery: 'استرداد يدوي',
   } as Record<string, string>)[r] || r
 }
