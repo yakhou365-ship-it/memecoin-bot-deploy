@@ -7,30 +7,34 @@ import { api, endpoints } from '../lib/api'
 export default function AgentsPage() {
   const [tokenId, setTokenId] = useState('')
 
-  const { data: agentsData, isLoading } = useQuery({
+  const { data: agentsData, isLoading, isError: agentsErr } = useQuery({
     queryKey: ['agents-list'],
     queryFn: () => api.get(endpoints.agentsList).then(r => r.data),
     refetchInterval: 5000,
+    retry: false,
   })
 
-  const { data: status } = useQuery({
+  const { data: status, isError: statusErr } = useQuery({
     queryKey: ['agents-status'],
     queryFn: () => api.get(endpoints.agentsStatus).then(r => r.data),
     refetchInterval: 5000,
+    retry: false,
   })
 
   // DB tokens (persisted by the scanner)
-  const { data: dbTokens } = useQuery({
+  const { data: dbTokens, isError: dbTokensErr } = useQuery({
     queryKey: ['agents-tokens'],
     queryFn: () => api.get(endpoints.tokens, { params: { limit: 50 } }).then(r => r.data as any[]),
     refetchInterval: 15000,
+    retry: false,
   })
 
   // Live tokens from DexScreener (not always persisted yet)
-  const { data: liveTokens } = useQuery({
+  const { data: liveTokens, isError: liveTokensErr } = useQuery({
     queryKey: ['agents-live-tokens'],
     queryFn: () => api.get(endpoints.marketLiveTokens, { params: { limit: 50 } }).then(r => r.data?.tokens || []),
     refetchInterval: 15000,
+    retry: false,
   })
 
   // Unified dropdown: live tokens first (by mint), then any DB extras
@@ -61,9 +65,20 @@ export default function AgentsPage() {
       const n = data?.approvals_count ?? 0
       const total = data?.total_agents ?? 5
       if (data?.approved) toast.success(`✅ إجماع: ${n}/${total} وكيل وافقوا`)
+      else if (data?.error) toast.error(`فشل: ${data.error}`)
       else toast.warning(`⏸️ لا إجماع: ${n}/${total} فقط`)
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل تشغيل الوكلاء'),
+    onError: (e: any) => {
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || e?.message || 'خطأ غير معروف'
+      if (status === 401) {
+        toast.error('🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.')
+      } else if (status === 404) {
+        toast.error('العملة غير موجودة في قاعدة البيانات. اختر عملة أخرى.')
+      } else {
+        toast.error(`فشل تشغيل الوكلاء (${status || '؟'}): ${detail}`)
+      }
+    },
   })
 
   const agents = agentsData?.agents || []
@@ -85,6 +100,16 @@ export default function AgentsPage() {
       {/* Run consensus */}
       <div className="card p-4">
         <h3 className="text-sm font-medium text-gray-400 mb-3">تشغيل إجماع الوكلاء على عملة</h3>
+
+        {/* Ultimate-bot: show auth error if queries fail */}
+        {(agentsErr || dbTokensErr || liveTokensErr) && (
+          <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+            <AlertTriangle size={16} className="inline ml-2" />
+            فشل تحميل البيانات. تأكد من أن مفتاح API صحيح.
+            افتح الرابط مع <span className="font-mono">#resetkey</span> لإدخال المفتاح الصحيح من Railway Variables.
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <select
             value={tokenId}
