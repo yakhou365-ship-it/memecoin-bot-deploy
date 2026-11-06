@@ -334,7 +334,7 @@ class DangerousPatternDetector:
         recent = df.tail(5)
         spike = (recent["high"].max() - recent["open"].iloc[0]) / recent["open"].iloc[0]
         drop = (recent["high"].max() - recent["close"].iloc[-1]) / recent["high"].max()
-        detected = spike > 0.03 and drop > 0.5
+        detected = spike > 0.03 and drop > 0.05  # Ultimate-bot: was 0.5 (50%!), should be 5%
         return DangerDetection(
             "mev_sandwich", detected,
             "high" if detected else "low",
@@ -434,7 +434,7 @@ class DangerousPatternDetector:
         current = recent["close"].iloc[-1]
         drop = (recent["open"].iloc[0] - min_price) / recent["open"].iloc[0]
         recovery = (current - min_price) / min_price
-        detected = drop > 0.05 and recovery > 0.5
+        detected = drop > 0.05 and recovery > 0.05  # Ultimate-bot: was 0.5 (50%!), should be 5%
         return DangerDetection(
             "bear_trap", detected,
             "medium" if detected else "low",
@@ -453,7 +453,7 @@ class DangerousPatternDetector:
         current = recent["close"].iloc[-1]
         spike = (max_price - recent["open"].iloc[0]) / recent["open"].iloc[0]
         drop = (max_price - current) / max_price
-        detected = spike > 0.05 and drop > 0.5
+        detected = spike > 0.05 and drop > 0.05  # Ultimate-bot: was 0.5 (50%!), should be 5%
         return DangerDetection(
             "bull_trap", detected,
             "high" if detected else "low",

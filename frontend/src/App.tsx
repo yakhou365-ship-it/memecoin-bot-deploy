@@ -96,9 +96,7 @@ export default function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/budget" element={<BudgetPage />} />
           <Route path="/live-trading" element={<LiveTradingPage />} />
-          {/* V31.2: Removed /chat and /alerts routes */}
-          <Route path="/chat" element={<HomePage />} />
-          <Route path="/alerts" element={<HomePage />} />
+          {/* Ultimate-bot: removed dead /chat and /alerts routes */}
         </Routes>
       </main>
     </div>

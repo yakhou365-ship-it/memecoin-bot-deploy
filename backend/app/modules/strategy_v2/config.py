@@ -31,9 +31,8 @@ VENUES: Dict[str, VenueCosts] = {
     # Original: 0.1% fee + 0.05% slippage = 0.30% RT
     # Improved: 0.075% fee (BNB discount) + 0.02% slippage (maker) = ~0.19% RT
     "pumpfun": VenueCosts("pumpfun", 0.01, 0.005),
-    
-    # PumpPortal Lightning 1%/side + 0.5% slippage/side = 3% round trip
-    "pumpfun": VenueCosts("pumpfun", 0.01, 0.005),
+    # Ultimate-bot FIX: removed duplicate "pumpfun" key (second one overwrote
+    # the first, both had the same value — dead code).
     # DEX 0.3% + slippage
     "fomo": VenueCosts("fomo", 0.003, 0.003),
 }

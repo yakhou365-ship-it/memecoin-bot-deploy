@@ -138,15 +138,23 @@ class OnChainAnalyzer:
             try:
                 account_info = await self.rpc.get_account_info(token.address)
                 if account_info and account_info.get("data"):
-                    # SPL token mint account: parse mint authority (first 32 bytes after magic byte)
                     b64data = account_info["data"][0]
                     raw = base64_decode_safe(b64data)
-                    if raw and len(raw) >= 32:
-                        # Byte 6 (offset 0-4 are mint supply, byte 4-5 options, byte 6 = mint auth flag)
-                        if len(raw) >= 32 and raw[4] != 0:  # mint authority option byte (1 = present)
+                    if raw and len(raw) >= 46:
+                        # Ultimate-bot FIX: SPL Mint account layout:
+                        #   0..4    COption tag for mint_authority (0=None, 1=Some)
+                        #   4..36   mint_authority pubkey
+                        #   36..44  supply (u64)
+                        #   44      decimals (u8)
+                        #   45      is_initialized (bool)
+                        #   46..50  COption tag for freeze_authority (0=None, 1=Some)
+                        #   50..82  freeze_authority pubkey
+                        # Old code checked raw[4] (first byte of pubkey, not
+                        # the COption tag) → false positives.
+                        if int.from_bytes(raw[0:4], "little") != 0:
                             result.mint_authority_enabled = True
                             result.reasons.append("⚠️ Mint Authority مفعّل - يمكن إنشاء عملات جديدة!")
-                        if len(raw) >= 50 and raw[46] != 0:  # freeze authority option byte
+                        if len(raw) >= 50 and int.from_bytes(raw[46:50], "little") != 0:
                             result.freeze_authority_enabled = True
                             result.reasons.append("⚠️ Freeze Authority مفعّل - يمكن تجميد الحسابات!")
             except Exception as exc:

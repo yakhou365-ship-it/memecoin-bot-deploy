@@ -344,6 +344,17 @@ class PaperTradingEngine:
                 # Live positions must be closed through LiveTradingExecutor.
                 return None
 
+            # Ultimate-bot FIX: fetch liquidity from Token row if not provided.
+            # Manual close was always called with liquidity_usd=0 → 5% flat
+            # slippage fallback, making every manual close look ~5% worse.
+            if liquidity_usd <= 0:
+                try:
+                    token = await session.get(Token, trade.token_id)
+                    if token:
+                        liquidity_usd = float(token.liquidity_usd or 0)
+                except Exception:
+                    pass
+
             # Fetch current price if not provided
             if exit_price is None:
                 exit_price = await self._fetch_current_price(trade.token_id)
@@ -623,8 +634,9 @@ class PaperTradingEngine:
             )
             gross_profit = (await session.execute(gross_profit_stmt)).scalar() or 0
             gross_loss = abs((await session.execute(gross_loss_stmt)).scalar() or 0)
-            profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
+        # Ultimate-bot FIX: removed dead `profit_factor` line that was
+        # overwritten by the line below (computed but never used).
         win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
         profit_factor = (gross_profit / gross_loss) if (gross_loss > 0 and gross_profit > 0) else (0.0 if gross_profit == 0 else 99.99)
         return {

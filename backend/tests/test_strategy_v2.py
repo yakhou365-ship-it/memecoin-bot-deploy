@@ -42,7 +42,7 @@ def test_stop_wins_when_bar_touches_both():
 def test_partial_tp_then_breakeven_stop_not_a_loss():
     p = Position(side=1, entry=100.0, atr=1.0, cfg=CFG)
     p.on_bar(100, 101.6, 99.9, 101.4)                        # TP1 hit, 50% closed
-    assert p.tp1_done and abs(p.remaining - 0.5) < 1e-9
+    assert p.tp1_done and abs(p.remaining - (1 - CFG.partial_fraction)) < 1e-9  # Ultimate-bot: was hardcoded 0.5, but partial_fraction=0.40 → remaining=0.60
     assert p.stop >= 100 * (1 + CFG.costs.round_trip)         # stop at >= breakeven + costs
     p.on_bar(101.2, 101.3, 99.0, 99.5)                        # stopped on runner
     assert p.done

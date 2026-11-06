@@ -196,7 +196,7 @@ class BudgetManager:
         record = await self.get_daily_record()
         record["remaining_budget"] -= amount
         record["allocated_capital"] += amount
-        record["available_capital"] = record["remaining_budget"] - record["allocated_capital"]
+        record["available_capital"] = record["remaining_budget"]  # Ultimate-bot FIX: no double-subtract
         record["trades_opened"] += 1
         await self.update_daily_record(record)
         logger.info(f"Allocated ${amount:.2f} for trade {trade_id}")
@@ -211,18 +211,10 @@ class BudgetManager:
             record["realized_loss"] += abs(pnl)
             record["trades_lost"] += 1
         record["remaining_budget"] += amount + pnl
-        record["available_capital"] = record["remaining_budget"] - record["allocated_capital"]
-        
-        current_equity = record["remaining_budget"] + record["allocated_capital"]
-        if current_equity > record.get("peak_equity", 0):
-            record["peak_equity"] = current_equity
-        if record["peak_equity"] > 0:
-            dd = (record["peak_equity"] - current_equity) / record["peak_equity"] * 100
-            if dd > record.get("max_drawdown_pct", 0):
-                record["max_drawdown_pct"] = dd
-        
-        await self.update_daily_record(record)
-        logger.info(f"Released ${amount:.2f} from trade {trade_id}. PnL: ${pnl:+.2f}")
+        record["available_capital"] = record["remaining_budget"]
+        # Ultimate-bot FIX: was `remaining_budget - allocated_capital` which
+        # double-subtracts (allocated_capital is already part of the budget
+        # that's been "spent" from remaining).
 
     async def check_daily_limits(self) -> Optional[str]:
         settings_dict = await self.get_settings()

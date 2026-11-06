@@ -30,7 +30,7 @@ async def db():
 async def test_config_loads(db):
     from app.core.config import settings
     assert settings.paper_capital_usd == 10000
-    assert settings.min_win_probability == 0.70
+    assert settings.min_win_probability == 0.55  # Ultimate-bot: was 0.70 (stale — V31.2 lowered it)
 
 
 @pytest.mark.asyncio

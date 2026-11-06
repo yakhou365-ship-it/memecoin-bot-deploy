@@ -36,25 +36,35 @@ _background_tasks: list[asyncio.Task] = []
 
 
 async def _ensure_trading_state() -> None:
-    """Create the singleton TradingState row and auto-start if configured."""
+    """Create the singleton TradingState row and auto-start if configured.
+
+    Ultimate-bot FIX: NEVER auto-start in live mode. A human must explicitly
+    press Start so the bot doesn't spend real SOL after a Railway redeploy
+    without consent. Only paper mode respects auto_start_trading.
+    """
+    # Ultimate-bot: auto-start is only allowed in paper mode
+    safe_auto_start = (
+        settings.auto_start_trading
+        and settings.trading_mode.strip().lower() != "live"
+    )
     try:
         async with get_session() as s:
             state = await s.get(TradingState, 1)
             if state is None:
                 state = TradingState(
                     id=1,
-                    is_active=bool(settings.auto_start_trading),
-                    started_at=datetime.utcnow() if settings.auto_start_trading else None,
+                    is_active=bool(safe_auto_start),
+                    started_at=datetime.utcnow() if safe_auto_start else None,
                 )
                 s.add(state)
                 logger.info(
-                    f"TradingState created (is_active={settings.auto_start_trading})"
+                    f"TradingState created (is_active={safe_auto_start})"
                 )
-            elif settings.auto_start_trading and not state.is_active:
+            elif safe_auto_start and not state.is_active:
                 state.is_active = True
                 state.started_at = datetime.utcnow()
                 s.add(state)
-                logger.info("TradingState auto-started")
+                logger.info("TradingState auto-started (paper mode only)")
     except Exception as exc:
         logger.warning(f"TradingState init failed (non-fatal): {exc}")
 

@@ -572,12 +572,30 @@ class HealthMonitor:
             failed = (await s.execute(failed_stmt)).scalar() or 0
 
         evidence = {"scan_runs_last_hour": count, "failed_scans": failed}
+        # Ultimate-bot FIX: a fresh install (zero total scan runs ever) should
+        # NOT block trading. Only flag an error if scans WERE happening but
+        # stopped (i.e. total scan runs > 0 but none in the last hour).
+        total_stmt = select(func.count(ScanRun.id))
+        total = (await s.execute(total_stmt)).scalar() or 0
+
         if count == 0:
+            if total == 0:
+                # Fresh install — no scans ever ran yet. Don't block trading.
+                return HealthCheck(
+                    name="scan_runs_health",
+                    passed=True,
+                    severity="info",
+                    message="Fresh install — no scan runs yet. Trading allowed.",
+                    metric_value=count,
+                    threshold=1,
+                    evidence=evidence,
+                )
+            # Scans existed before but none in the last hour — real problem
             return HealthCheck(
                 name="scan_runs_health",
                 passed=False,
-                severity="error",
-                message="No scan runs in the last hour",
+                severity="warning",
+                message="No scan runs in the last hour (scanner may be down)",
                 metric_value=count,
                 threshold=1,
                 evidence=evidence,

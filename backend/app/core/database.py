@@ -107,13 +107,24 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db() -> None:
-    """Create all tables. Used for dev / first-run. Use Alembic for migrations in prod."""
+    """Create all tables + migrate existing ones. Used for dev / first-run."""
     from .models import Base  # noqa
-    # V510: also ensure the directory exists at startup time (in case the
-    # Volume mount changed after import).
+    # V510: also ensure the directory exists at startup time
     _ensure_db_dir()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Ultimate-bot: ALTER TABLE migration for existing SQLite DBs. SQLAlchemy's
+    # create_all doesn't ALTER existing tables, so for already-deployed bots
+    # the new peak_price column would be missing and crash on access.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE trades ADD COLUMN peak_price FLOAT"
+                )
+            )
+    except Exception:
+        pass  # column already exists — non-fatal
 
 
 async def close_db() -> None:

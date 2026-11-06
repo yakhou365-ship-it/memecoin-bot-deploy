@@ -200,6 +200,10 @@ class Trade(Base):
     # Extrema during the trade
     max_unrealized_profit_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_unrealized_loss_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Ultimate-bot: dedicated peak_price column for trailing stop.
+    # Separated from max_unrealized_profit_usd (which is a USD PnL figure, not
+    # a price). Used by both paper_trading and live_trading engines.
+    peak_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(String(16), default="open", index=True)
