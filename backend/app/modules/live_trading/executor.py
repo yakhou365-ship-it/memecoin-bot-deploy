@@ -196,12 +196,19 @@ class LiveTradingExecutor:
             # only rejecting this single trade, so the next cycle would try again).
             effective_loss_limit = float(settings.live_daily_loss_limit_sol)
             try:
+                # Ultimate-bot: read auto_loss_pct from budget settings (dashboard-controlled)
+                try:
+                    from ..budget.budget_manager import BudgetManager
+                    _bs = await BudgetManager().get_settings()
+                    _loss_pct = float(_bs.get("auto_loss_pct", 15.0))
+                except Exception:
+                    _loss_pct = getattr(settings, 'auto_loss_pct', 15.0)
+
                 _w = await self.client.get_wallet_balance()
                 _start_wallet = float(_w.get("sol", 0.0)) + max(0.0, -float(daily["sol_pnl"]))
                 if _start_wallet > 0:
                     if getattr(settings, 'auto_sizing', False):
-                        # Ultimate-bot: use auto_loss_pct (default 15%)
-                        effective_loss_limit = _start_wallet * (settings.auto_loss_pct / 100.0)
+                        effective_loss_limit = _start_wallet * (_loss_pct / 100.0)
                     else:
                         effective_loss_limit = min(
                             effective_loss_limit,

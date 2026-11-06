@@ -40,6 +40,13 @@ DEFAULT_BUDGET = {
     "daily_reset_hour": 0,
     "daily_reset_timezone": "UTC",
     "is_active": True,
+    # Ultimate-bot: auto-sizing percentages controlled from the dashboard.
+    # When the user changes max_capital_per_trade / max_daily_loss /
+    # max_simultaneous_positions in the budget page, these percentages update
+    # and the orchestrator reads them to compute SOL limits from the wallet.
+    "auto_trade_pct": 5.0,       # 5% of wallet per trade
+    "auto_loss_pct": 15.0,       # 15% of wallet = daily loss limit
+    "auto_max_positions": 3,     # max concurrent positions
 }
 
 BUDGET_KEY = "daily_budget_settings"
@@ -96,6 +103,30 @@ class BudgetManager:
 
     async def update_settings(self, updates: Dict) -> Dict:
         current = await self.get_settings()
+
+        # Ultimate-bot: sync budget page values to auto-sizing percentages.
+        # When the user changes a USD value in the dashboard, convert it
+        # to a percentage of daily_trading_budget so the orchestrator can
+        # apply it to the actual wallet.
+        budget = float(current.get("daily_trading_budget", 1000.0))
+
+        if "max_capital_per_trade" in updates:
+            max_trade = float(updates["max_capital_per_trade"])
+            if budget > 0:
+                # Convert USD → percentage (e.g. $50 trade on $1000 budget = 5%)
+                current["auto_trade_pct"] = round((max_trade / budget) * 100.0, 2)
+                current["auto_trade_pct"] = max(0.5, min(50.0, current["auto_trade_pct"]))
+
+        if "max_daily_loss" in updates:
+            max_loss = float(updates["max_daily_loss"])
+            if budget > 0:
+                current["auto_loss_pct"] = round((max_loss / budget) * 100.0, 2)
+                current["auto_loss_pct"] = max(1.0, min(50.0, current["auto_loss_pct"]))
+
+        if "max_simultaneous_positions" in updates:
+            positions = int(updates["max_simultaneous_positions"])
+            current["auto_max_positions"] = max(1, min(10, positions))
+
         current.update(updates)
         async with get_session() as s:
             state = await s.get(SystemState, BUDGET_KEY)
@@ -105,7 +136,7 @@ class BudgetManager:
             else:
                 state.value_json = current
                 flag_modified(state, "value_json")
-        logger.info(f"Budget settings updated: {updates}")
+        logger.info(f"Budget settings updated: {updates} → auto_trade_pct={current.get('auto_trade_pct')}%, auto_loss_pct={current.get('auto_loss_pct')}%, auto_max_positions={current.get('auto_max_positions')}")
         return current
 
     async def get_daily_record(self, date: Optional[str] = None) -> Dict:

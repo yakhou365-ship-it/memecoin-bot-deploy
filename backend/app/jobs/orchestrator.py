@@ -369,11 +369,25 @@ class MainOrchestrator:
 
                         # Ultimate-bot AUTO-SIZING: compute limits from wallet
                         if getattr(settings, 'auto_sizing', True):
-                            # 5% of wallet per trade, capped at settings.pump_max_trade_sol
-                            auto_max_trade = wallet_sol * (settings.auto_trade_pct / 100.0)
-                            auto_daily_cap = wallet_sol * (settings.auto_daily_cap_pct / 100.0)
-                            auto_loss_limit = wallet_sol * (settings.auto_loss_pct / 100.0)
-                            auto_max_positions = settings.auto_max_positions
+                            # Read auto-sizing percentages from budget settings (dashboard-controlled)
+                            try:
+                                from ..modules.budget.budget_manager import BudgetManager
+                                _bm = BudgetManager()
+                                _bs = await _bm.get_settings()
+                                _trade_pct = float(_bs.get("auto_trade_pct", 5.0))
+                                _daily_cap_pct = float(_bs.get("auto_daily_cap_pct", 30.0)) if "auto_daily_cap_pct" in _bs else 30.0
+                                _loss_pct = float(_bs.get("auto_loss_pct", 15.0))
+                                _max_positions = int(_bs.get("auto_max_positions", 3))
+                            except Exception:
+                                _trade_pct = settings.auto_trade_pct
+                                _loss_pct = settings.auto_loss_pct
+                                _max_positions = settings.auto_max_positions
+                                _daily_cap_pct = settings.auto_daily_cap_pct
+
+                            auto_max_trade = wallet_sol * (_trade_pct / 100.0)
+                            auto_daily_cap = wallet_sol * (_daily_cap_pct / 100.0)
+                            auto_loss_limit = wallet_sol * (_loss_pct / 100.0)
+                            auto_max_positions = _max_positions
 
                             # Override the fixed settings with auto-computed values
                             effective_max_trade_sol = auto_max_trade
