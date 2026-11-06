@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _orchestrator
 
     setup_logging()
-    logger.info("Memecoin AI Bot starting...")
+    logger.info("SOL Sniper Ultimate Bot starting...")
 
     try:
         await init_db()
@@ -173,8 +173,8 @@ def _inject_api_key(html: str) -> str:
 def create_app() -> FastAPI:
     """Application factory."""
     app = FastAPI(
-        title="Memecoin AI Bot",
-        description="Autonomous intelligence system for memecoin analysis & trading",
+        title="SOL Sniper — Ultimate Trading Bot",
+        description="Autonomous AI-powered memecoin trading on Pump.fun (Solana)",
         version="0.3.0",
         lifespan=lifespan,
     )
@@ -279,7 +279,7 @@ def create_app() -> FastAPI:
         @app.get("/")
         async def root():
             return {
-                "name": "Memecoin AI Bot",
+                "name": "SOL Sniper",
                 "version": "0.3.0",
                 "status": "running",
                 "trading_mode": settings.trading_mode,
