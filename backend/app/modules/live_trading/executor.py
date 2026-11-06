@@ -474,7 +474,7 @@ class LiveTradingExecutor:
     # Manage open live positions (SL / TP / trailing / time exit)
     # ------------------------------------------------------------------
     async def manage_open_positions(self) -> Dict[str, int]:
-        closed = {"stop_loss": 0, "take_profit": 0, "time_exit": 0, "trailing_stop": 0}
+        closed = {"stop_loss": 0, "sudden_dump": 0, "mega_tp": 0, "smart_trailing": 0, "stagnation": 0, "time_exit": 0, "exit_all": 0}
         async with get_session() as session:
             trades = (
                 await session.execute(
@@ -514,23 +514,31 @@ class LiveTradingExecutor:
                         pass  # non-critical, will retry next cycle
 
                 peak_price = trade.max_unrealized_profit_usd
-                # V57 strategy: 40% trailing from peak, only activates after
-                # the trade has gained at least 20% from entry.
-                trail_pct = 0.40  # V57 constant
-                trailing_level = peak_price * (1 - trail_pct)
+                # V500: Smart Exit Strategy — Variable trailing
                 peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
-                trailing_hit = (
-                    peak_gain_pct >= 0.20  # only after +20% gain
-                    and price < trailing_level  # price dropped below trail
-                )
+                if peak_gain_pct >= 5.0: trail_pct = 0.45  # +500%
+                elif peak_gain_pct >= 1.0: trail_pct = 0.35  # +100%
+                elif peak_gain_pct >= 0.30: trail_pct = 0.25  # +30%
+                else: trail_pct = 0.40
+                trailing_level = peak_price * (1 - trail_pct)
+                trailing_hit = peak_gain_pct >= 0.30 and price < trailing_level
+                # V500: Sudden dump (25%+ from peak while in profit)
+                sudden_dump = peak_gain_pct >= 0.10 and (peak_price - price) / peak_price >= 0.25 if peak_price > 0 else False
+                # V500: Stagnation (±5% for 4h while in profit)
+                stagnation_hit = False
+                if trade.entry_timestamp:
+                    elapsed_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
+                    if elapsed_min >= 240:
+                        current_gain = (price / trade.entry_price - 1) * 100
+                        if current_gain > 5 and abs(price - trade.entry_price) / trade.entry_price < 0.05:
+                            stagnation_hit = True
 
                 reason = None
-                if trade.stop_loss_price and price <= trade.stop_loss_price:
-                    reason = "stop_loss"
-                elif trade.take_profit_price and price >= trade.take_profit_price:
-                    reason = "take_profit"
-                elif trailing_hit:
-                    reason = "trailing_stop"
+                if sudden_dump: reason = "sudden_dump"
+                elif trade.stop_loss_price and price <= trade.stop_loss_price: reason = "stop_loss"
+                elif trade.take_profit_price and price >= trade.take_profit_price: reason = "mega_tp"
+                elif trailing_hit: reason = "smart_trailing"
+                elif stagnation_hit: reason = "stagnation"
                 elif trade.planned_holding_period_minutes and trade.entry_timestamp:
                     age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
                     if age_min >= trade.planned_holding_period_minutes:

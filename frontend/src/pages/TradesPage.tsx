@@ -23,9 +23,35 @@ export default function TradesPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل الإغلاق'),
   })
 
+  // V500: Exit All mutation
+  const exitAllMutation = useMutation({
+    mutationFn: () => api.post(endpoints.exitAll).then(r => r.data),
+    onSuccess: (data: any) => {
+      const closed = data?.total_closed || 0
+      const pnl = data?.total_pnl || 0
+      toast.success(`🚪 تم إغلاق ${closed} صفقة — PnL: $${pnl.toFixed(2)}`)
+      qc.invalidateQueries({ queryKey: ['trades'] })
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل الإغلاق الجماعي'),
+  })
+
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">الصفقات</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">الصفقات</h1>
+        {/* V500: Exit All button */}
+        <button
+          onClick={() => {
+            if (confirm('🚪 هل أنت متأكد؟ سيبيع البوت كل الصفقات المفتوحة فوراً!')) {
+              exitAllMutation.mutate()
+            }
+          }}
+          disabled={exitAllMutation.isPending}
+          className="btn bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-lg disabled:opacity-50"
+        >
+          {exitAllMutation.isPending ? '⏳ جاري الإغلاق...' : '🚪 إغلاق الكل'}
+        </button>
+      </div>
 
       <div className="flex gap-2">
         {(['all', 'open', 'closed'] as const).map((f) => (

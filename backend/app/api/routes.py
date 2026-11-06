@@ -293,6 +293,66 @@ async def close_trade(trade_id: str, req: CloseTradeRequest):
 
 
 # =========================================================================
+# V500: Exit All — sell ALL open positions immediately
+# =========================================================================
+@router.post("/trades/exit-all")
+async def exit_all_trades():
+    """V500: Close ALL open trades immediately — emergency exit button.
+
+    Closes both paper and live trades. For live trades, sells on-chain
+    via PumpPortal. Returns summary of closed positions.
+    """
+    results = {"paper": [], "live": [], "total_closed": 0, "total_pnl": 0.0}
+    from ..modules.live_trading.executor import LiveTradingExecutor, is_live_trade
+
+    # Get all open trades
+    async with get_session() as s:
+        stmt = select(Trade).where(Trade.status == "open")
+        open_trades = list((await s.execute(stmt)).scalars().all())
+
+    if not open_trades:
+        return {"status": "no_open_trades", "message": "لا توجد صفقات مفتوحة"}
+
+    # Close each trade
+    for trade in open_trades:
+        try:
+            if is_live_trade(trade):
+                # Live: sell on-chain
+                executor = LiveTradingExecutor()
+                result = await executor.close_position(trade.id, "exit_all")
+                if result.get("success"):
+                    results["live"].append({
+                        "trade_id": trade.id,
+                        "symbol": result.get("symbol"),
+                        "pnl": result.get("net_pnl_usd", 0),
+                        "tx": result.get("tx_signature"),
+                    })
+                    results["total_pnl"] += result.get("net_pnl_usd", 0)
+                else:
+                    results["live"].append({
+                        "trade_id": trade.id,
+                        "error": result.get("error", "Unknown"),
+                    })
+            else:
+                # Paper: close in engine
+                engine = PaperTradingEngine()
+                closed = await engine.close_position(trade.id, exit_reason="exit_all")
+                if closed:
+                    results["paper"].append({
+                        "trade_id": closed.id,
+                        "pnl": closed.net_pnl_usd or 0,
+                    })
+                    results["total_pnl"] += closed.net_pnl_usd or 0
+        except Exception as exc:
+            logger.exception(f"Exit-all failed for trade {trade.id}: {exc}")
+            results["paper"].append({"trade_id": trade.id, "error": str(exc)[:100]})
+
+    results["total_closed"] = len(results["paper"]) + len(results["live"])
+    logger.info(f"🚪 EXIT ALL: closed {results['total_closed']} trades, PnL=${results['total_pnl']:.2f}")
+    return results
+
+
+# =========================================================================
 # Mistakes / Learning
 # =========================================================================
 @router.get("/learning/mistakes")

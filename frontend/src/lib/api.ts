@@ -30,6 +30,7 @@ export const endpoints = {
   tokenDetail: (id: string) => `/tokens/${id}`,
   trades: '/trades',
   closeTrade: (id: string) => `/trades/${id}/close`,
+  exitAll: '/trades/exit-all',  // V500: Emergency exit button
   systemStatus: '/system/status',
   
   // Learning

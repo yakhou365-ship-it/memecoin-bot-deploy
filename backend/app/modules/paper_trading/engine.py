@@ -436,7 +436,7 @@ class PaperTradingEngine:
                 result = await session.execute(stmt)
                 open_trades = list(result.scalars().all())
 
-        closed = {"stop_loss": 0, "take_profit": 0, "time_exit": 0, "circuit_breaker": 0, "trailing_stop": 0}
+        closed = {"stop_loss": 0, "sudden_dump": 0, "mega_tp": 0, "smart_trailing": 0, "stagnation": 0, "time_exit": 0, "circuit_breaker": 0, "exit_all": 0}
         for trade in open_trades:
             current_price = await self._fetch_current_price(trade.token_id)
             if not current_price:
@@ -467,24 +467,62 @@ class PaperTradingEngine:
                             await s2.commit()
                 except Exception:
                     pass  # non-critical
-            # V200: Fixed trailing stop at 40% (V57 proven value).
-            trail_pct = 0.40  # V57 default — constant, no adaptation
-            trailing_level = peak_price * (1 - trail_pct)
-            # Only activate trailing stop once we've had a meaningful peak
+            # V500: Smart Exit Strategy — Variable trailing based on gain level
+            # No early TP (let winners run), trailing activates at +30%
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
+            current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
+
+            # V500: Variable trailing (wider for bigger gains = let mega pumps run)
+            if peak_gain_pct >= 5.0:  # +500%
+                trail_pct = 0.45
+            elif peak_gain_pct >= 1.0:  # +100%
+                trail_pct = 0.35
+            elif peak_gain_pct >= 0.30:  # +30%
+                trail_pct = 0.25
+            else:
+                trail_pct = 0.40  # before significant gain (was V57 default)
+
+            trailing_level = peak_price * (1 - trail_pct)
             trailing_hit = (
-                peak_gain_pct >= 0.20  # peak was at least +20%
-                and current_price < trailing_level  # dropped below trail
+                peak_gain_pct >= 0.30  # V500: activate at +30% (was +20%)
+                and current_price < trailing_level
             )
 
-            # Determine exit reason (priority order)
+            # V500: Sudden dump detection (25%+ drop in 5 min)
+            # We approximate 5 min as ~5 candles of polling
+            sudden_dump = False
+            if peak_gain_pct >= 0.10:  # only if was in profit
+                drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
+                if drop_from_peak >= 0.25:  # 25%+ drop from recent peak
+                    sudden_dump = True
+
+            # V500: Stagnation exit (price stuck ±5% for 4 hours)
+            # Approximated: if current price is within ±5% of entry for 240+ minutes
+            stagnation_hit = False
+            if trade.entry_timestamp and current_gain > 5:
+                elapsed_min = (datetime.utcnow() - trade.entry_timestamp).total_seconds() / 60
+                if elapsed_min >= 240:  # 4 hours
+                    if abs(current_price - trade.entry_price) / trade.entry_price < 0.05:
+                        stagnation_hit = True
+
+            # Determine exit reason (V500 priority order)
             exit_reason = None
-            if trade.stop_loss_price and current_price <= trade.stop_loss_price:
+            # 1. Sudden dump (emergency)
+            if sudden_dump:
+                exit_reason = "sudden_dump"
+            # 2. Hard SL
+            elif trade.stop_loss_price and current_price <= trade.stop_loss_price:
                 exit_reason = "stop_loss"
+            # 3. Mega TP cap (1000% = 10x)
             elif trade.take_profit_price and current_price >= trade.take_profit_price:
-                exit_reason = "take_profit"
+                exit_reason = "mega_tp"
+            # 4. Smart trailing (variable)
             elif trailing_hit:
-                exit_reason = "trailing_stop"
+                exit_reason = "smart_trailing"
+            # 5. Stagnation exit
+            elif stagnation_hit:
+                exit_reason = "stagnation"
+            # 6. Time exit (5 days = 7200 min)
             elif (
                 trade.planned_holding_period_minutes
                 and trade.entry_timestamp
