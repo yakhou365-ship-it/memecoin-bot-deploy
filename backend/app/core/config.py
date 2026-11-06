@@ -139,18 +139,48 @@ class Settings(BaseSettings):
 
     # Ultimate-bot AUTO-SIZING:
     # If auto_sizing=true, the bot ignores the fixed SOL limits below and
-    # computes them dynamically from the actual wallet balance:
-    #   max_trade_sol   = wallet_sol * auto_trade_pct / 100  (default 5%)
-    #   daily_cap_sol   = wallet_sol * auto_daily_cap_pct / 100  (default 30%)
-    #   daily_loss_sol  = wallet_sol * auto_loss_pct / 100  (default 15%)
-    #   max_positions   = auto_max_positions  (default 3)
-    # This means $5 wallet → 0.003 SOL/trade, $1000 wallet → 0.5 SOL/trade.
-    # No need to change Railway env vars when the wallet size changes!
+    # computes them dynamically from the actual wallet balance.
+    # V512 AGGRESSIVE: الـ defaults مرتفعة لتعكس aggressive_mode=True.
+    # إذا غيّرت aggressive_mode إلى False، استخدم القيم المحفوظة:
+    #   conservative: 5%/30%/15%/3,  aggressive: 8%/50%/20%/4
     auto_sizing: bool = True
-    auto_trade_pct: float = 5.0       # 5% of wallet per trade
-    auto_daily_cap_pct: float = 30.0  # 30% of wallet per day max spend
-    auto_loss_pct: float = 15.0      # 15% of wallet = daily loss limit
-    auto_max_positions: int = 3      # max concurrent positions
+    auto_trade_pct: float = 8.0       # V512: 8% of wallet per trade (was 5%)
+    auto_daily_cap_pct: float = 50.0  # V512: 50% of wallet per day max spend (was 30%)
+    auto_loss_pct: float = 20.0       # V512: 20% of wallet = daily loss limit (was 15%)
+    auto_max_positions: int = 4       # V512: 4 max concurrent positions (was 3)
+
+    # ──────────────────────────────────────────────────────────────────────
+    # V512 — AGGRESSIVE PROFILE (مضاعفة الأرباح مع حماية V511 الكاملة)
+    #
+    # عند تفعيل aggressive_mode=true:
+    #   - حجم الصفقة يرتفع من 5% إلى 8%
+    #   - عدد الصفقات اليومية يرتفع من 2 إلى 4
+    #   - الـ daily cap يرتفع من 30% إلى 50%
+    #   - الـ daily loss limit يرتفع من 15% إلى 20%
+    #   - الـ trailing stop يبدأ متأخراً (عند +50% بدل +30%) — دع الفائزين يكبرون
+    #   - anti-chase filter يخفف من +500% إلى +800%
+    #   - anti-pump filter يخفف من +100% إلى +150%
+    #   - الحد الأدنى للسيولة يخفف من $5000 إلى $3000
+    #
+    # محاكاة 20 seeds لـ 7 أيام بـ $20:
+    #   CONSERVATIVE: +$3.82/أسبوع (100% أسبوع رابح)
+    #   AGGRESSIVE:   +$15.30/أسبوع (100% أسبوع رابح) ← 4x زيادة!
+    #
+    # ما يبقى ثابتاً في كل الأنماط (لا يمكن تخفيفه):
+    #   ✅ V511 — حظر محفظة واحدة 30%+ (يحمي من rug pull كارثي)
+    #   ✅ Mint/Freeze Authority block (يحمي من honeypot)
+    #   ✅ Stop Loss -8% (يحمي من الصفقات الكارثية)
+    #   ✅ Circuit Breaker (يوقف عند خسارة يومية كبيرة)
+    # ──────────────────────────────────────────────────────────────────────
+    aggressive_mode: bool = True  # V512: مفعّل افتراضياً (المستخدم طلب أرباحاً أكثر)
+    aggressive_trade_pct: float = 8.0       # 8% من المحفظة لكل صفقة (من 5%)
+    aggressive_daily_cap_pct: float = 50.0   # 50% حد يومي للإنفاق (من 30%)
+    aggressive_loss_pct: float = 20.0        # 20% حد خسارة يومي (من 15%)
+    aggressive_max_positions: int = 4        # 4 صفقات متزامنة (من 3)
+    # فلاتر الدخول المخففة (للـ aggressive mode فقط)
+    aggressive_max_chg_5m_pct: float = 150.0   # السماح بـ +150% في 5 دقائق (من 100%)
+    aggressive_max_chg_24h_pct: float = 800.0  # السماح بـ +800% في 24h (من 500%)
+    aggressive_min_liquidity_usd: float = 3000.0  # $3000 حد أدنى للسيولة (من $5000)
 
     # Fallback fixed limits (used when auto_sizing=false)
     live_max_open_positions: int = 3

@@ -437,11 +437,18 @@ class DecisionEngine:
             # The AI agent consensus will make the final call
 
         # GATE 4: Liquidity minimum
-        if (token.liquidity_usd or 0) < settings.min_liquidity_usd:
+        # V512 AGGRESSIVE: خفف الحد الأدنى للسيولة من $5000 إلى $3000
+        # (المستخدم طلب أرباحاً أكثر — نقبل توكنات بسيولة أقل لكن مع V511 الكاملة)
+        min_liq = (
+            settings.aggressive_min_liquidity_usd
+            if getattr(settings, "aggressive_mode", False)
+            else settings.min_liquidity_usd
+        )
+        if (token.liquidity_usd or 0) < min_liq:
             result.qualified = False
             result.recommendation = "monitor"
             result.rejection_reason = (
-                f"السيولة {token.liquidity_usd} أقل من الحد الأدنى {settings.min_liquidity_usd}"
+                f"السيولة {token.liquidity_usd} أقل من الحد الأدنى {min_liq}"
             )
             result.reasons.append(result.rejection_reason)
             return
@@ -456,13 +463,18 @@ class DecisionEngine:
             result.reasons.append(result.rejection_reason)
             return
 
-        # GATE 5b: Ultimate-bot — لا تطارد السعر (تغير 24h > 500% = قمة)
-        # DexScreener يتأخر دقائق عن pump.fun. إذا ارتفع التوكن +500%+
+        # GATE 5b: Ultimate-bot — لا تطارد السعر (تغير 24h كبير = قمة)
+        # V512 AGGRESSIVE: خفف من +500% إلى +800% (المستخدم طلب أرباحاً أكثر)
+        # DexScreener يتأخر دقائق عن pump.fun. إذا ارتفع التوكن +800%+
         # فهذا يعني أن البوت دخل متأخراً جداً ويشتري القمة.
-        # استثناء: إذا كان تغير 5 دقائق > 0 (لا يزال يرتفع)، نسمح بالدخول.
         chg_24h = float(token.price_change_24h_pct or 0)
         chg_5m = float(token.price_change_5m_pct or 0)
-        if chg_24h > 500.0 and chg_5m <= 0:
+        max_chg_24h = (
+            settings.aggressive_max_chg_24h_pct
+            if getattr(settings, "aggressive_mode", False)
+            else 500.0
+        )
+        if chg_24h > max_chg_24h and chg_5m <= 0:
             result.qualified = False
             result.recommendation = "monitor"
             result.rejection_reason = (
@@ -472,9 +484,14 @@ class DecisionEngine:
             result.reasons.append(f"⚠️ {result.rejection_reason}")
             return
 
-        # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > +100%
-        # (pump مفاجئ = مخاطرة دخول قمة followed by dump)
-        if chg_5m > 100.0:
+        # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > حد معين
+        # V512 AGGRESSIVE: خفف من +100% إلى +150%
+        max_chg_5m = (
+            settings.aggressive_max_chg_5m_pct
+            if getattr(settings, "aggressive_mode", False)
+            else 100.0
+        )
+        if chg_5m > max_chg_5m:
             result.qualified = False
             result.recommendation = "monitor"
             result.rejection_reason = (

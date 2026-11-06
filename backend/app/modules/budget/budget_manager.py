@@ -44,9 +44,10 @@ DEFAULT_BUDGET = {
     # When the user changes max_capital_per_trade / max_daily_loss /
     # max_simultaneous_positions in the budget page, these percentages update
     # and the orchestrator reads them to compute SOL limits from the wallet.
-    "auto_trade_pct": 5.0,       # 5% of wallet per trade
-    "auto_loss_pct": 15.0,       # 15% of wallet = daily loss limit
-    "auto_max_positions": 3,     # max concurrent positions
+    # V512 AGGRESSIVE: defaults مرتفعة (المستخدم طلب أرباحاً أكثر)
+    "auto_trade_pct": 8.0,       # V512: 8% of wallet per trade (was 5%)
+    "auto_loss_pct": 20.0,       # V512: 20% of wallet = daily loss limit (was 15%)
+    "auto_max_positions": 4,     # V512: 4 max concurrent positions (was 3)
 }
 
 BUDGET_KEY = "daily_budget_settings"

@@ -486,22 +486,38 @@ class PaperTradingEngine:
                             await s2.commit()
                 except Exception:
                     pass  # non-critical
-            # V500: Smart Exit Strategy — Variable trailing based on gain level
-            # No early TP (let winners run), trailing activates at +30%
+            # V500/V512: Smart Exit Strategy — Variable trailing based on gain level
+            # No early TP (let winners run), trailing activates at +30% (or +50% aggressive)
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
 
             # V500: Variable trailing (wider for bigger gains = let mega pumps run)
             # V510 FIX: trail_pct was set to 0.40 even when peak_gain < 30%,
             # which armed the trailing stop from entry. Now None until +30%.
-            if peak_gain_pct >= 5.0:  # +500%
-                trail_pct = 0.45
-            elif peak_gain_pct >= 1.0:  # +100%
-                trail_pct = 0.35
-            elif peak_gain_pct >= 0.30:  # +30%
-                trail_pct = 0.25
+            # V512 AGGRESSIVE: trailing يبدأ متأخراً (عند +50% بدل +30%)
+            #   دع الفائزين يكبرون إلى 10x+ قبل البيع (مضاعفة الأرباح)
+            if getattr(settings, "aggressive_mode", False):
+                # V512 AGGRESSIVE
+                if peak_gain_pct >= 10.0:  # +1000% — moonshots
+                    trail_pct = 0.50
+                elif peak_gain_pct >= 3.0:  # +300%
+                    trail_pct = 0.40
+                elif peak_gain_pct >= 1.0:  # +100%
+                    trail_pct = 0.35
+                elif peak_gain_pct >= 0.50:  # +50%
+                    trail_pct = 0.25
+                else:
+                    trail_pct = None  # لم يبدأ الـ trailing بعد
             else:
-                trail_pct = None  # V510: trailing not armed yet
+                # V500 CONSERVATIVE
+                if peak_gain_pct >= 5.0:  # +500%
+                    trail_pct = 0.45
+                elif peak_gain_pct >= 1.0:  # +100%
+                    trail_pct = 0.35
+                elif peak_gain_pct >= 0.30:  # +30%
+                    trail_pct = 0.25
+                else:
+                    trail_pct = None  # V510: trailing not armed yet
 
             drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
             trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
@@ -510,13 +526,20 @@ class PaperTradingEngine:
                 and current_price < trailing_level
             )
 
-            # V500: Sudden dump detection (25%+ drop from peak while in profit)
+            # V500/V512: Sudden dump detection
             # V510 FIX: only triggers BEFORE the trailing is armed (otherwise
             # it would re-trigger at every trailing tier and make them dead code).
+            # V512 AGGRESSIVE: حد أعلى (peak_gain ≥ 0.20 و drop ≥ 0.30)
             sudden_dump = False
-            if trail_pct is None and peak_gain_pct >= 0.10:
-                if drop_from_peak >= 0.25:  # 25%+ drop from recent peak
-                    sudden_dump = True
+            if trail_pct is None:
+                if getattr(settings, "aggressive_mode", False):
+                    # V512: أكثر تساهلاً — يعطي الفائزين مساحة أكبر للتذبذب
+                    if peak_gain_pct >= 0.20 and drop_from_peak >= 0.30:
+                        sudden_dump = True
+                else:
+                    # V500: الأصلي
+                    if peak_gain_pct >= 0.10 and drop_from_peak >= 0.25:
+                        sudden_dump = True
 
             # V500: Stagnation exit (held 4h+ with small gain, never above +5%)
             # V510 FIX: original condition was contradictory (gain>5% AND within 5%).
