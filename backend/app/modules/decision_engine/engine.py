@@ -424,6 +424,33 @@ class DecisionEngine:
             result.reasons.append(result.rejection_reason)
             return
 
+        # GATE 5b: Ultimate-bot — لا تطارد السعر (تغير 24h > 500% = قمة)
+        # DexScreener يتأخر دقائق عن pump.fun. إذا ارتفع التوكن +500%+
+        # فهذا يعني أن البوت دخل متأخراً جداً ويشتري القمة.
+        # استثناء: إذا كان تغير 5 دقائق > 0 (لا يزال يرتفع)، نسمح بالدخول.
+        chg_24h = float(token.price_change_24h_pct or 0)
+        chg_5m = float(token.price_change_5m_pct or 0)
+        if chg_24h > 500.0 and chg_5m <= 0:
+            result.qualified = False
+            result.recommendation = "monitor"
+            result.rejection_reason = (
+                f"تغير 24h = {chg_24h:.0f}% (قمة) و 5m = {chg_5m:.1f}% (يهبط) — "
+                f"مطاردة السعر، انتظار تصحيح"
+            )
+            result.reasons.append(f"⚠️ {result.rejection_reason}")
+            return
+
+        # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > +100%
+        # (pump مفاجئ = مخاطرة دخول قمة followed by dump)
+        if chg_5m > 100.0:
+            result.qualified = False
+            result.recommendation = "monitor"
+            result.rejection_reason = (
+                f"ارتفاع 5 دقائق = {chg_5m:.0f}% — pump مفاجئ، انتظار استقرار"
+            )
+            result.reasons.append(f"⚠️ {result.rejection_reason}")
+            return
+
         # GATE 6: Risk score maximum
         if result.risk_score > settings.max_risk_score:
             result.qualified = False
