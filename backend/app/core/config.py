@@ -127,11 +127,23 @@ class Settings(BaseSettings):
     #   live_trading_confirm == "I_UNDERSTAND_THE_RISK"
     trading_mode: str = "paper"  # paper | live
     live_trading_confirm: str = ""
-    # V201: Tuned for small capital ($100-500).
-    #   max_open_positions = 3 (was 5) — focus, don't spread too thin
-    #   daily_cap_sol = 1.5 SOL (was 5.0) — ~$255 max daily spend
-    #   daily_loss_limit_sol = 0.3 SOL (was 1.0) — ~$51 max daily loss
-    #   These limits protect small accounts from being wiped out in one day.
+
+    # Ultimate-bot AUTO-SIZING:
+    # If auto_sizing=true, the bot ignores the fixed SOL limits below and
+    # computes them dynamically from the actual wallet balance:
+    #   max_trade_sol   = wallet_sol * auto_trade_pct / 100  (default 5%)
+    #   daily_cap_sol   = wallet_sol * auto_daily_cap_pct / 100  (default 30%)
+    #   daily_loss_sol  = wallet_sol * auto_loss_pct / 100  (default 15%)
+    #   max_positions   = auto_max_positions  (default 3)
+    # This means $5 wallet → 0.003 SOL/trade, $1000 wallet → 0.5 SOL/trade.
+    # No need to change Railway env vars when the wallet size changes!
+    auto_sizing: bool = True
+    auto_trade_pct: float = 5.0       # 5% of wallet per trade
+    auto_daily_cap_pct: float = 30.0  # 30% of wallet per day max spend
+    auto_loss_pct: float = 15.0      # 15% of wallet = daily loss limit
+    auto_max_positions: int = 3      # max concurrent positions
+
+    # Fallback fixed limits (used when auto_sizing=false)
     live_max_open_positions: int = 3
     live_daily_cap_sol: float = 1.5
     live_daily_loss_limit_sol: float = 0.3

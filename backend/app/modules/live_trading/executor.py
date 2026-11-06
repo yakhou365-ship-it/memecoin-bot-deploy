@@ -159,17 +159,34 @@ class LiveTradingExecutor:
             amount = float(amount_sol or settings.pump_max_trade_sol)
             if amount <= 0:
                 return self._reject("invalid_amount", "Amount must be positive")
-            if amount > settings.pump_max_trade_sol + 1e-9:
-                return self._reject(
-                    "amount_above_cap",
-                    f"{amount} SOL exceeds per-trade cap {settings.pump_max_trade_sol} SOL",
-                )
+            # Ultimate-bot AUTO-SIZING: when auto_sizing=true, the orchestrator
+            # already computed the correct amount from wallet balance. Skip
+            # the fixed cap check — the orchestrator's V300/V200 logic handles it.
+            if not getattr(settings, 'auto_sizing', False):
+                if amount > settings.pump_max_trade_sol + 1e-9:
+                    return self._reject(
+                        "amount_above_cap",
+                        f"{amount} SOL exceeds per-trade cap {settings.pump_max_trade_sol} SOL",
+                    )
 
             daily = await self._load_daily()
-            if daily["sol_spent"] + amount > settings.live_daily_cap_sol + 1e-9:
+            # Ultimate-bot AUTO-SIZING: use auto-computed daily cap
+            if getattr(settings, 'auto_sizing', False):
+                try:
+                    _wb = await self.client.get_wallet_balance()
+                    _ws = float(_wb.get("sol", 0.0)) + max(0.0, -float(daily["sol_pnl"]))
+                    if _ws > 0:
+                        _daily_cap = _ws * (settings.auto_daily_cap_pct / 100.0)
+                    else:
+                        _daily_cap = settings.live_daily_cap_sol
+                except Exception:
+                    _daily_cap = settings.live_daily_cap_sol
+            else:
+                _daily_cap = settings.live_daily_cap_sol
+            if daily["sol_spent"] + amount > _daily_cap + 1e-9:
                 return self._reject(
                     "daily_cap_reached",
-                    f"Daily cap {settings.live_daily_cap_sol} SOL would be exceeded "
+                    f"Daily cap {_daily_cap:.4f} SOL would be exceeded "
                     f"(spent {daily['sol_spent']:.4f} SOL)",
                 )
             # V503 FIX: effective daily loss limit = min(absolute SOL limit,
@@ -180,14 +197,16 @@ class LiveTradingExecutor:
             effective_loss_limit = float(settings.live_daily_loss_limit_sol)
             try:
                 _w = await self.client.get_wallet_balance()
-                # Approximate the start-of-day wallet = current balance + today's losses
                 _start_wallet = float(_w.get("sol", 0.0)) + max(0.0, -float(daily["sol_pnl"]))
                 if _start_wallet > 0:
-                    # V503 default: 30% of the wallet (env-configurable later).
-                    effective_loss_limit = min(
-                        effective_loss_limit,
-                        _start_wallet * 0.30,
-                    )
+                    if getattr(settings, 'auto_sizing', False):
+                        # Ultimate-bot: use auto_loss_pct (default 15%)
+                        effective_loss_limit = _start_wallet * (settings.auto_loss_pct / 100.0)
+                    else:
+                        effective_loss_limit = min(
+                            effective_loss_limit,
+                            _start_wallet * 0.30,
+                        )
             except Exception as _exc:
                 logger.warning(f"Could not read wallet for loss-limit check: {_exc}")
             if daily["sol_pnl"] <= -effective_loss_limit:

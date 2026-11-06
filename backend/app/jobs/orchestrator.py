@@ -353,53 +353,67 @@ class MainOrchestrator:
                         logger.info(f"⏸️ Trading stopped - not opening {token.symbol}")
                     elif settings.is_live_trading:
                         # === REAL MONEY PATH ===
-                        # V300: AUTO-STRATEGY SELECTION based on wallet size.
-                        # Small capital (< $50 = ~0.3 SOL): use V300-SMALL-CAP
-                        #   - Higher risk per trade (5-10%)
-                        #   - R:R = 1:10 (asymmetric, capture big pumps)
-                        #   - 2 positions max (concentration)
-                        #   - 3-day hold (wait for big pump)
-                        # Large capital (≥ $50): use V200 (balanced)
-                        #   - Lower risk per trade (1-5%)
-                        #   - R:R = 1:5
-                        #   - 3 positions max
+                        # Ultimate-bot AUTO-SIZING: limits computed from actual wallet
                         sol_price_usd = await self.live.client._fetch_sol_price()
-                        # V407 P1-5: Skip trade if SOL price fetch fails
                         if not sol_price_usd or sol_price_usd <= 0:
                             logger.warning(f"Skip {token.symbol}: SOL price fetch failed — cannot size position")
                             continue
                         wallet_balance = await self.live.client.get_wallet_balance()
                         wallet_sol = float(wallet_balance.get("sol", 0.0)) if wallet_balance else 0.0
+                        if wallet_sol <= 0:
+                            logger.warning(f"Skip {token.symbol}: wallet has 0 SOL")
+                            continue
 
                         # Use real wallet balance (in USD) as the capital base
                         real_capital_usd = wallet_sol * sol_price_usd
 
+                        # Ultimate-bot AUTO-SIZING: compute limits from wallet
+                        if getattr(settings, 'auto_sizing', True):
+                            # 5% of wallet per trade, capped at settings.pump_max_trade_sol
+                            auto_max_trade = wallet_sol * (settings.auto_trade_pct / 100.0)
+                            auto_daily_cap = wallet_sol * (settings.auto_daily_cap_pct / 100.0)
+                            auto_loss_limit = wallet_sol * (settings.auto_loss_pct / 100.0)
+                            auto_max_positions = settings.auto_max_positions
+
+                            # Override the fixed settings with auto-computed values
+                            effective_max_trade_sol = auto_max_trade
+                            effective_daily_cap = auto_daily_cap
+                            effective_loss_limit = auto_loss_limit
+                            effective_max_positions = auto_max_positions
+
+                            logger.info(
+                                f"🔧 AUTO-SIZING: wallet={wallet_sol:.4f} SOL (~${real_capital_usd:.0f}) | "
+                                f"max/trade={effective_max_trade_sol:.4f} SOL | "
+                                f"daily_cap={effective_daily_cap:.4f} SOL | "
+                                f"loss_limit={effective_loss_limit:.4f} SOL | "
+                                f"max_pos={effective_max_positions}"
+                            )
+                        else:
+                            # Use fixed limits from settings
+                            effective_max_trade_sol = settings.pump_max_trade_sol
+                            effective_daily_cap = settings.live_daily_cap_sol
+                            effective_loss_limit = settings.live_daily_loss_limit_sol
+                            effective_max_positions = settings.live_max_open_positions
+
                         # V300: Auto-detect strategy based on wallet size
-                        SMALL_CAP_THRESHOLD_USD = 50.0  # < $50 = small cap mode
+                        SMALL_CAP_THRESHOLD_USD = 50.0
                         is_small_cap = real_capital_usd < SMALL_CAP_THRESHOLD_USD
 
                         position_pct = float(decision.suggested_position_size_pct or 0)
 
                         if is_small_cap:
-                            # V300-SMALL-CAP strategy
-                            # V400 P1-10 FIX: Don't blindly multiply AI pct × 2.
-                            # Instead, use a fixed 5% for small cap (in [2.5%, 10%] range).
-                            # This is safer — the AI's confidence level is preserved.
                             position_pct = min(max(position_pct, 2.5), 10.0)
-                            # If AI suggested very low (< 2.5%), use the floor 2.5%
-                            # If AI suggested high (5%), use 5% (not 10%)
                             max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
-                            v300_max_trade_sol = min(0.1, settings.pump_max_trade_sol)
-                            v300_min_trade_sol = 0.005  # lower min for small cap
+                            v300_max_trade_sol = min(effective_max_trade_sol, settings.pump_max_trade_sol) if effective_max_trade_sol < settings.pump_max_trade_sol else effective_max_trade_sol
+                            v300_min_trade_sol = 0.005
                             logger.info(
                                 f"🐜 V300-SMALL-CAP mode: wallet=${real_capital_usd:.0f} "
                                 f"({wallet_sol:.4f} SOL) - concentrated strategy"
                             )
                         else:
-                            # V200 strategy (large capital)
                             position_pct = min(max(position_pct, 0.0), 5.0)
                             max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
-                            v300_max_trade_sol = settings.pump_max_trade_sol
+                            v300_max_trade_sol = effective_max_trade_sol
                             v300_min_trade_sol = 0.01
 
                         # Convert % of REAL capital -> USD -> SOL
