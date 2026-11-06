@@ -108,7 +108,9 @@ class BudgetManager:
         # When the user changes a USD value in the dashboard, convert it
         # to a percentage of daily_trading_budget so the orchestrator can
         # apply it to the actual wallet.
-        budget = float(current.get("daily_trading_budget", 1000.0))
+        # FIX: read budget from updates FIRST (it may be changing in the
+        # same request), then fall back to current.
+        budget = float(updates.get("daily_trading_budget", current.get("daily_trading_budget", 1000.0)))
 
         if "max_capital_per_trade" in updates:
             max_trade = float(updates["max_capital_per_trade"])
