@@ -1103,7 +1103,8 @@ async def get_trading_state():
 
 @router.post("/trading/start")
 async def start_trading():
-    """Start automated trading."""
+    """Start automated trading.
+    Ultimate-bot: also activates budget (syncs both systems)."""
     from ..core.models import TradingState
     from datetime import datetime
     async with get_session() as s:
@@ -1117,12 +1118,20 @@ async def start_trading():
         state.is_active = True
         state.started_at = datetime.utcnow()
         state.stopped_at = None
+    # Ultimate-bot: also resume budget (sync both systems)
+    try:
+        from ..modules.budget.budget_manager import BudgetManager
+        await BudgetManager().start_trading()
+        logger.info("Budget also resumed (synced with trading start)")
+    except Exception as exc:
+        logger.warning(f"Budget resume failed (non-fatal): {exc}")
     return {"status": "started", "message": "Trading started successfully"}
 
 
 @router.post("/trading/stop")
 async def stop_trading():
-    """Stop automated trading."""
+    """Stop automated trading.
+    Ultimate-bot: also pauses budget (syncs both systems)."""
     from ..core.models import TradingState
     from datetime import datetime
     async with get_session() as s:
@@ -1135,6 +1144,13 @@ async def stop_trading():
             return {"status": "already_stopped", "message": "Trading is already stopped"}
         state.is_active = False
         state.stopped_at = datetime.utcnow()
+    # Ultimate-bot: also pause budget (sync both systems)
+    try:
+        from ..modules.budget.budget_manager import BudgetManager
+        await BudgetManager().stop_trading("Manual stop from HomePage")
+        logger.info("Budget also paused (synced with trading stop)")
+    except Exception as exc:
+        logger.warning(f"Budget pause failed (non-fatal): {exc}")
     return {"status": "stopped", "message": "Trading stopped successfully"}
 
 

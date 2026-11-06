@@ -563,7 +563,7 @@ async def run_all():
             print("\n--- Scenario 30: Frontend served ---")
             r = await c.get("/", timeout=10.0)
             check("Frontend 200", r.status_code == 200)
-            check("Has localStorage script", "localStorage" in r.text or "bot_api_key" in r.text)
+            check("Has API key injection", "window.__API_KEY__" in r.text)
 
     await close_db()
 
