@@ -526,6 +526,36 @@ class MainOrchestrator:
             except Exception as exc:
                 logger.exception(f"Live position management failed: {exc}")
 
+        # === 5c. Smart Rebalancing (Ultimate-bot) ===
+        if settings.is_live_trading and trading_active:
+            try:
+                from ..modules.rebalancing.manager import RebalanceManager
+                rb = RebalanceManager()
+                can_rebal, reason = await rb.should_rebalance()
+                if can_rebal:
+                    sol_price = await self.live.client._fetch_sol_price()
+                    if sol_price and sol_price > 0:
+                        wallet = await self.live.client.get_wallet_balance()
+                        wallet_sol = float(wallet.get("sol", 0.0)) if wallet else 0.0
+                        if wallet_sol > 0:
+                            opp = await rb.find_rebalance_opportunity(wallet_sol, sol_price)
+                            if opp:
+                                logger.info(
+                                    f"🔄 Smart Rebalance: star={opp['star_symbol']} "
+                                    f"(+{opp['star_gain_pct']:.1f}%), closing {len(opp['close_trade_ids'])} "
+                                    f"small winners, buying {opp['additional_buy_sol']:.4f} SOL more"
+                                )
+                                rebal_result = await rb.execute_rebalance(opp)
+                                if rebal_result["closed"]:
+                                    summary["trades_closed"] += len(rebal_result["closed"])
+                                    logger.info(
+                                        f"✅ Rebalance done: closed {len(rebal_result['closed'])}, "
+                                        f"bought {rebal_result['additional_sol_bought']:.4f} SOL more, "
+                                        f"realized PnL ${rebal_result['total_pnl_usd']:.4f}"
+                                    )
+            except Exception as exc:
+                logger.debug(f"Smart rebalance skipped: {exc}")
+
         # === 6. Analyze newly closed trades (learning) ===
         await self._analyze_recently_closed_trades()
 
