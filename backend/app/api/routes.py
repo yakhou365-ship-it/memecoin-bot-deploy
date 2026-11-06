@@ -415,9 +415,26 @@ async def list_learnings(limit: int = Query(50, le=200)):
 # =========================================================================
 @router.get("/risk/state")
 async def get_risk_state():
-    rm = RiskManager()
-    state = await rm.get_state()
-    return state.to_dict()
+    # Never return 500 — degrade gracefully so the dashboard can render.
+    try:
+        rm = RiskManager()
+        state = await rm.get_state()
+        return state.to_dict()
+    except Exception as exc:
+        logger.exception(f"get_risk_state failed: {exc}")
+        return {
+            "daily_pnl_usd": 0.0, "weekly_pnl_usd": 0.0,
+            "daily_pnl_pct": 0.0, "weekly_pnl_pct": 0.0,
+            "max_drawdown_pct": 0.0,
+            "open_positions_count": 0,
+            "consecutive_losses": 0,
+            "cooldown_active": False, "cooldown_until": None,
+            "circuit_breaker_active": False,
+            "circuit_breaker_reason": f"error: {str(exc)[:100]}",
+            "last_trade_at": None, "last_loss_at": None,
+            "can_open": False,
+            "reason": f"risk state error: {str(exc)[:150]}",
+        }
 
 
 @router.post("/risk/reset-circuit-breaker")
@@ -764,43 +781,65 @@ async def get_research(token_id: str):
 # =========================================================================
 @router.get("/system/status")
 async def system_status():
-    """Get overall system status."""
-    rm = RiskManager()
-    risk_state = await rm.get_state()
+    """Get overall system status. Never return 500 — degrade gracefully so
+    the dashboard can keep rendering the rest of the page."""
+    try:
+        rm = RiskManager()
+        risk_state = await rm.get_state()
+        risk_dict = risk_state.to_dict()
+        cb_active = risk_state.circuit_breaker_active
+        cd_active = risk_state.cooldown_active
+    except Exception as exc:
+        logger.exception(f"system_status: risk state failed: {exc}")
+        risk_dict = {
+            "daily_pnl_pct": 0.0, "weekly_pnl_pct": 0.0, "max_drawdown_pct": 0.0,
+            "open_positions_count": 0, "consecutive_losses": 0,
+            "cooldown_active": False, "circuit_breaker_active": False,
+            "circuit_breaker_reason": f"error: {str(exc)[:100]}",
+            "can_open": False, "reason": f"risk state error: {str(exc)[:100]}",
+        }
+        cb_active = False
+        cd_active = False
 
-    async with get_session() as s:
-        tokens_count = (await s.execute(
-            select(func.count(Token.id)).where(Token.active == True)
-        )).scalar() or 0
-        open_paper = (await s.execute(
-            select(func.count(Trade.id)).where(
-                Trade.status == "open",
-                or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
-            )
-        )).scalar() or 0
-        open_live = (await s.execute(
-            select(func.count(Trade.id)).where(
-                Trade.status == "open",
-                Trade.strategy_id.startswith("live"),
-            )
-        )).scalar() or 0
-        closed_trades = (await s.execute(
-            select(func.count(Trade.id)).where(Trade.status == "closed")
-        )).scalar() or 0
-        last_alert = (await s.execute(
-            select(Alert).order_by(desc(Alert.created_at)).limit(1)
-        )).scalar_one_or_none()
-        trading_state = await s.get(TradingState, 1)
+    try:
+        async with get_session() as s:
+            tokens_count = (await s.execute(
+                select(func.count(Token.id)).where(Token.active == True)
+            )).scalar() or 0
+            open_paper = (await s.execute(
+                select(func.count(Trade.id)).where(
+                    Trade.status == "open",
+                    or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
+                )
+            )).scalar() or 0
+            open_live = (await s.execute(
+                select(func.count(Trade.id)).where(
+                    Trade.status == "open",
+                    Trade.strategy_id.startswith("live"),
+                )
+            )).scalar() or 0
+            closed_trades = (await s.execute(
+                select(func.count(Trade.id)).where(Trade.status == "closed")
+            )).scalar() or 0
+            last_alert = (await s.execute(
+                select(Alert).order_by(desc(Alert.created_at)).limit(1)
+            )).scalar_one_or_none()
+            trading_state = await s.get(TradingState, 1)
+    except Exception as exc:
+        logger.exception(f"system_status: DB query failed: {exc}")
+        tokens_count = open_paper = open_live = closed_trades = 0
+        last_alert = None
+        trading_state = None
 
     return {
-        "risk_state": risk_state.to_dict(),
+        "risk_state": risk_dict,
         "tokens_active": tokens_count,
         "open_trades": open_paper + open_live,
         "open_paper_trades": open_paper,
         "open_live_trades": open_live,
         "closed_trades": closed_trades,
-        "circuit_breaker_active": risk_state.circuit_breaker_active,
-        "cooldown_active": risk_state.cooldown_active,
+        "circuit_breaker_active": cb_active,
+        "cooldown_active": cd_active,
         "last_alert": last_alert.created_at.isoformat() if last_alert else None,
         "version": "0.3.0",
         "trading_mode": settings.trading_mode,
@@ -2389,19 +2428,29 @@ async def pumpfun_wallet_balance():
         balance = await client.get_wallet_balance()
         tokens = await client.get_wallet_token_balances()
         sol = float(balance.get("sol", 0) or 0)
-        sol_price = await client._fetch_sol_price()
+        sol_price = await client._fetch_sol_price() or 0.0
         return {
             "wallet_configured": bool(settings.solana_wallet_address),
             "wallet_address": settings.solana_wallet_address,
             "sol_balance": sol,
             "sol_price_usd": sol_price,
-            "usd_value": round(sol * sol_price, 2),
+            "usd_value": round(sol * sol_price, 2) if sol_price else 0.0,
             "token_accounts": tokens[:20],
             "token_accounts_count": len(tokens),
         }
     except Exception as exc:
         logger.exception(f"Wallet balance failed: {exc}")
-        raise HTTPException(500, f"Wallet error: {str(exc)[:200]}")
+        # Never 500 — degrade so the dashboard can render.
+        return {
+            "wallet_configured": bool(settings.solana_wallet_address),
+            "wallet_address": settings.solana_wallet_address,
+            "sol_balance": 0.0,
+            "sol_price_usd": 0.0,
+            "usd_value": 0.0,
+            "token_accounts": [],
+            "token_accounts_count": 0,
+            "error": str(exc)[:200],
+        }
 
 
 @router.get("/live/status")
@@ -2411,7 +2460,22 @@ async def live_status():
         return await LiveTradingExecutor().status()
     except Exception as exc:
         logger.exception(f"Live status failed: {exc}")
-        raise HTTPException(500, f"Live status error: {str(exc)[:200]}")
+        # Never 500 — return a safe default shape.
+        return {
+            "configured": False,
+            "missing_requirements": ["internal_error"],
+            "trading_mode": settings.trading_mode,
+            "wallet_address": settings.solana_wallet_address,
+            "wallet_sol": 0.0,
+            "max_trade_sol": settings.pump_max_trade_sol,
+            "daily_cap_sol": settings.live_daily_cap_sol,
+            "daily_loss_limit_sol": settings.live_daily_loss_limit_sol,
+            "max_open_positions": settings.live_max_open_positions,
+            "open_live_positions": 0,
+            "daily": {"date": "", "sol_spent": 0.0, "sol_pnl": 0.0, "trades_opened": 0, "trades_closed": 0},
+            "can_open": False,
+            "error": str(exc)[:200],
+        }
 
 
 @router.get("/fomo/status")

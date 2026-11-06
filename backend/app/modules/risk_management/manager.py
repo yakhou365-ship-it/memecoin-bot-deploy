@@ -192,13 +192,18 @@ class RiskManager:
             cooldown_until = datetime.utcnow() + timedelta(hours=2)
             state.cooldown_active = True
             state.cooldown_until = cooldown_until
+            streak = state.consecutive_losses
+            # V503 FIX: reset the streak when arming the cooldown. Before, the
+            # counter only reset on a WIN, so after the 2h pause the cooldown
+            # re-armed forever (no trade could ever be placed to win again).
+            state.consecutive_losses = 0
             await self._persist_state(state)
             logger.warning(
-                f"⚠️ Cooldown activated: {state.consecutive_losses} consecutive losses"
+                f"⚠️ Cooldown activated: {streak} consecutive losses"
             )
             return RiskCheckResult(
                 False,
-                f"Cooldown after {state.consecutive_losses} consecutive losses"
+                f"Cooldown after {streak} consecutive losses"
             )
 
         # V200: Removed V101's 24h adaptive bear pause.

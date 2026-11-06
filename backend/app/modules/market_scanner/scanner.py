@@ -31,6 +31,16 @@ from .fomo_client import FomoClient
 # =========================================================================
 # Data normalizer: convert DexScreener pair -> our Token schema
 # =========================================================================
+def _norm_addr(addr: str) -> str:
+    """V503 FIX: keep Solana (base58) addresses case-exact.
+
+    Base58 mints/pairs are case-sensitive; lowercasing them produced invalid
+    mints for PumpPortal buy/sell. Only EVM (0x...) addresses are lowercased.
+    """
+    a = (addr or "").strip()
+    return a.lower() if a.lower().startswith("0x") else a
+
+
 def normalize_dexscreener_pair(pair: Dict[str, Any]) -> Dict[str, Any]:
     """Map DexScreener pair JSON into our internal token dict."""
     base_token = pair.get("baseToken") or {}
@@ -46,11 +56,11 @@ def normalize_dexscreener_pair(pair: Dict[str, Any]) -> Dict[str, Any]:
     m5 = txns.get("m5") or {}
 
     return {
-        "address": base_token.get("address", "").lower(),
+        "address": _norm_addr(base_token.get("address", "")),
         "chain": pair.get("chainId", ""),
         "symbol": base_token.get("symbol", ""),
         "name": base_token.get("name", ""),
-        "pair_address": pair.get("pairAddress", "").lower(),
+        "pair_address": _norm_addr(pair.get("pairAddress", "")),
         "dex": pair.get("dexId", ""),
         "price_usd": float(pair.get("priceUsd") or 0),
         "market_cap_usd": float(pair.get("marketCap") or 0) or None,
@@ -194,7 +204,7 @@ class MarketScanner:
                         rels = pool.get("relationships") or {}
                         base_token_rel = rels.get("base_token") or {}
                         base_token_data = base_token_rel.get("data") or {}
-                        base_addr = base_token_data.get("id", "").split("_")[-1].lower()
+                        base_addr = _norm_addr(base_token_data.get("id", "").split("_")[-1])
 
                         if not base_addr:
                             continue
@@ -204,7 +214,7 @@ class MarketScanner:
                             "chain": chain,
                             "symbol": attrs.get("base_token_symbol", ""),
                             "name": "",
-                            "pair_address": attrs.get("address", "").lower(),
+                            "pair_address": _norm_addr(attrs.get("address", "")),
                             "dex": attrs.get("dex_id", ""),
                             "price_usd": float(attrs.get("base_token_price_usd") or 0),
                             "market_cap_usd": None,
@@ -232,7 +242,7 @@ class MarketScanner:
                 for entry in chain_filtered:
                     try:
                         # entry structure: {chain, tokenAddress, ...}
-                        token_addr = entry.get("tokenAddress", "").lower()
+                        token_addr = _norm_addr(entry.get("tokenAddress", ""))
                         if not token_addr:
                             continue
 

@@ -243,7 +243,25 @@ class BudgetManager:
         record["is_stopped"] = True
         record["stop_reason"] = reason
         await self.update_daily_record(record)
+        # Also mark the budget settings inactive so /api/budget/can-trade
+        # returns allowed=false immediately.
+        settings_dict = await self.get_settings()
+        settings_dict["is_active"] = False
+        await self.update_settings(settings_dict)
         logger.warning(f"Trading stopped: {reason}")
+
+    async def start_trading(self) -> None:
+        """Counterpart to stop_trading — clears the daily-stop flag AND
+        marks the budget settings active again. Without this method the
+        /api/budget/start endpoint crashes with AttributeError → HTTP 500."""
+        record = await self.get_daily_record()
+        record["is_stopped"] = False
+        record["stop_reason"] = ""
+        await self.update_daily_record(record)
+        settings_dict = await self.get_settings()
+        settings_dict["is_active"] = True
+        await self.update_settings(settings_dict)
+        logger.info("Trading resumed by user")
 
     async def generate_daily_report(self, date: Optional[str] = None) -> Dict:
         if date is None:

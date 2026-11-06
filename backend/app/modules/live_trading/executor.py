@@ -172,12 +172,66 @@ class LiveTradingExecutor:
                     f"Daily cap {settings.live_daily_cap_sol} SOL would be exceeded "
                     f"(spent {daily['sol_spent']:.4f} SOL)",
                 )
-            if daily["sol_pnl"] <= -settings.live_daily_loss_limit_sol:
+            # V503 FIX: effective daily loss limit = min(absolute SOL limit,
+            # X% of the start-of-day wallet). With a ~0.1 SOL wallet the 0.3 SOL
+            # absolute limit could never trigger, i.e. there was no loss limit.
+            # Also activate the circuit breaker when the limit is reached (was
+            # only rejecting this single trade, so the next cycle would try again).
+            effective_loss_limit = float(settings.live_daily_loss_limit_sol)
+            try:
+                _w = await self.client.get_wallet_balance()
+                # Approximate the start-of-day wallet = current balance + today's losses
+                _start_wallet = float(_w.get("sol", 0.0)) + max(0.0, -float(daily["sol_pnl"]))
+                if _start_wallet > 0:
+                    # V503 default: 30% of the wallet (env-configurable later).
+                    effective_loss_limit = min(
+                        effective_loss_limit,
+                        _start_wallet * 0.30,
+                    )
+            except Exception as _exc:
+                logger.warning(f"Could not read wallet for loss-limit check: {_exc}")
+            if daily["sol_pnl"] <= -effective_loss_limit:
+                # V503: also activate the circuit breaker so the bot stops
+                # trying for the rest of the day (was only rejecting this trade).
+                try:
+                    from ..risk_management.manager import RiskManager
+                    await RiskManager().activate_circuit_breaker(
+                        f"Live daily loss limit reached: {daily['sol_pnl']:.4f} SOL "
+                        f"(limit {effective_loss_limit:.4f} SOL)"
+                    )
+                except Exception as _exc:
+                    logger.warning(f"Could not activate circuit breaker: {_exc}")
                 return self._reject(
                     "daily_loss_limit_reached",
-                    f"Daily loss limit {settings.live_daily_loss_limit_sol} SOL reached "
+                    f"Daily loss limit {effective_loss_limit:.4f} SOL reached "
                     f"(pnl {daily['sol_pnl']:.4f} SOL)",
                 )
+
+            # V503: enforce circuit breaker + cooldown-after-losses in LIVE mode.
+            # Before V503 these gates only ran in the paper-trading path (via
+            # check_can_open_trade) — live trades bypassed them entirely.
+            try:
+                from ..risk_management.manager import RiskManager
+                _rc = await RiskManager().get_state()
+                if _rc.circuit_breaker_active:
+                    return self._reject(
+                        "risk_blocked",
+                        f"Circuit breaker active: {_rc.circuit_breaker_reason}"
+                    )
+                if _rc.cooldown_active:
+                    return self._reject(
+                        "risk_blocked",
+                        f"Cooldown active until {_rc.cooldown_until}"
+                    )
+                if _rc.consecutive_losses >= settings.risk_cooldown_after_losses:
+                    return self._reject(
+                        "risk_blocked",
+                        f"Cooldown after {_rc.consecutive_losses} consecutive losses"
+                    )
+            except Exception as _exc:
+                # Fail closed: if the risk state cannot be read, do not trade.
+                logger.error(f"Live risk check failed — blocking trade: {_exc}")
+                return self._reject("risk_check_failed", f"Risk check failed: {str(_exc)[:150]}")
 
             open_count = await self._count_open_live()
             if open_count >= settings.live_max_open_positions:
@@ -225,10 +279,25 @@ class LiveTradingExecutor:
             confirmed = False
             if result.tx_signature:
                 try:
-                    confirmed = await self.client.confirm_signature(result.tx_signature, timeout=15)
+                    # V503 FIX: kwarg is `timeout_seconds` (was `timeout=` →
+                    # TypeError silently swallowed → confirmation NEVER ran).
+                    # Also the result is a dict {confirmed, error, ...}, not a bool.
+                    conf = await self.client.confirm_signature(result.tx_signature, timeout_seconds=15)
+                    confirmed = bool(conf.get("confirmed"))
+                    conf_err = str(conf.get("error") or "")
+                    if not confirmed and conf_err and not conf_err.startswith("timeout"):
+                        # The tx LANDED on-chain but FAILED (slippage, funds...).
+                        # No tokens were bought → do not record a phantom position.
+                        logger.error(
+                            f"❌ Buy tx {result.tx_signature} for {symbol} failed on-chain: {conf_err}"
+                        )
+                        return self._reject(
+                            "buy_tx_failed_onchain",
+                            f"Buy transaction failed on-chain: {conf_err[:200]}",
+                            {"tx_signature": result.tx_signature},
+                        )
                 except Exception as confirm_exc:
                     logger.warning(f"Buy confirm failed for {symbol}: {confirm_exc}")
-                    # Don't fail — proceed with DB save (P0-4 safety)
             if not confirmed:
                 # Transaction may have failed on-chain.
                 # Log warning but still record — if tokens were received,
@@ -359,12 +428,26 @@ class LiveTradingExecutor:
                 logger.warning(f"Live sell failed for {symbol}: {result.error}")
                 return self._reject("sell_failed", result.error or "PumpPortal rejected the sell")
 
-            # V400 P0-3 FIX: Confirm sell on-chain
+            # V400 P0-3 FIX: Confirm sell on-chain (V503: correct kwarg + dict result)
+            sell_confirmed = False
             if result.tx_signature:
                 try:
-                    sell_confirmed = await self.client.confirm_signature(result.tx_signature, timeout=15)
+                    sconf = await self.client.confirm_signature(result.tx_signature, timeout_seconds=15)
+                    sell_confirmed = bool(sconf.get("confirmed"))
+                    serr = str(sconf.get("error") or "")
+                    if not sell_confirmed and serr and not serr.startswith("timeout"):
+                        # Sell failed on-chain: tokens are still in the wallet.
+                        # Keep the trade OPEN so the next cycle retries the exit.
+                        logger.error(
+                            f"❌ Sell tx {result.tx_signature} for {symbol} failed on-chain: {serr}"
+                        )
+                        return self._reject(
+                            "sell_tx_failed_onchain",
+                            f"Sell transaction failed on-chain: {serr[:200]}",
+                            {"tx_signature": result.tx_signature},
+                        )
                     if not sell_confirmed:
-                        logger.warning(f"⚠️ Sell tx {result.tx_signature} for {symbol} NOT confirmed")
+                        logger.warning(f"⚠️ Sell tx {result.tx_signature} for {symbol} NOT confirmed in 15s")
                 except Exception as confirm_exc:
                     logger.warning(f"Sell confirm failed: {confirm_exc}")
 
