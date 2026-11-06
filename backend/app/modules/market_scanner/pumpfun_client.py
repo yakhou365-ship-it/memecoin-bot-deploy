@@ -306,7 +306,14 @@ class PumpPortalClient:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+            # Ultimate-bot FIX: pump.fun يحمي بـ Cloudflare — نحتاج browser headers
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://pump.fun/",
+                "Origin": "https://pump.fun",
+            }
             self._client = httpx.AsyncClient(timeout=15.0, headers=headers)
         return self._client
 
@@ -343,19 +350,18 @@ class PumpPortalClient:
         return bool(self.api_key and self.wallet_address and self.wallet_private_key)
 
     # ========================================================
-    # DATA API endpoints (no auth required)
+    # DATA API endpoints — Ultimate-bot: pump.fun API + DexScreener fallback
     # ========================================================
     async def get_new_tokens(self, limit: int = 50) -> List[PumpFunToken]:
-        """
-        Get recently launched tokens on Pump.fun.
-        Useful for catching new memecoins in the first few minutes.
+        """Get recently launched tokens on Pump.fun.
+        Ultimate-bot: tries pump.fun API first, falls back to DexScreener search.
         """
         client = await self._get_client()
+        # Try pump.fun API with browser headers
         try:
-            # PumpPortal data API
-            resp = await client.post(
-                f"{self.base_url}/api/data",
-                json={"action": "newTokens", "limit": min(limit, 100)},
+            resp = await client.get(
+                "https://pump.fun/api/coin/new",
+                params={"limit": min(limit, 100)},
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -364,13 +370,52 @@ class PumpPortalClient:
                     token = self._parse_token(item)
                     if token:
                         tokens.append(token)
-                return tokens[:limit]
+                if tokens:
+                    return tokens[:limit]
         except Exception as exc:
-            logger.debug(f"PumpPortal newTokens failed: {exc}")
+            logger.debug(f"pump.fun newTokens failed: {exc}")
+
+        # Fallback: DexScreener search for pump.fun tokens
+        try:
+            resp = await client.get(
+                "https://api.dexscreener.com/latest/dex/search",
+                params={"q": "pump"},
+            )
+            if resp.status_code == 200:
+                pairs = (resp.json() or {}).get("pairs", []) or []
+                # Filter: only pump.fun / pumpswap DEX, only Solana
+                tokens = []
+                seen = set()
+                for p in pairs:
+                    if (p.get("chainId") or "").lower() != "solana":
+                        continue
+                    dex = (p.get("dexId") or "").lower()
+                    if dex not in ("pumpfun", "pump", "pumpswap"):
+                        continue
+                    base = p.get("baseToken", {}) or {}
+                    addr = base.get("address", "")
+                    if not addr or addr in seen:
+                        continue
+                    seen.add(addr)
+                    token = self._parse_token({
+                        "mint": addr,
+                        "symbol": base.get("symbol", ""),
+                        "name": base.get("name", ""),
+                        "market_cap": float(p.get("marketCap", 0) or 0),
+                        "usd_market_cap": float(p.get("marketCap", 0) or 0),
+                    })
+                    if token:
+                        tokens.append(token)
+                if tokens:
+                    return tokens[:limit]
+        except Exception as exc:
+            logger.debug(f"DexScreener new tokens fallback failed: {exc}")
         return []
 
     async def get_trending_tokens(self, limit: int = 50) -> List[PumpFunToken]:
-        """Get trending Pump.fun tokens."""
+        """Get trending Pump.fun tokens.
+        Ultimate-bot: tries pump.fun API first, falls back to DexScreener boosted.
+        """
         client = await self._get_client()
         try:
             resp = await client.get(
@@ -384,9 +429,46 @@ class PumpPortalClient:
                     token = self._parse_token(item)
                     if token:
                         tokens.append(token)
-                return tokens[:limit]
+                if tokens:
+                    return tokens[:limit]
         except Exception as exc:
-            logger.debug(f"PumpPortal trendingTokens failed: {exc}")
+            logger.debug(f"pump.fun trendingTokens failed: {exc}")
+
+        # Fallback: DexScreener boosted tokens (Solana only)
+        try:
+            resp = await client.get("https://api.dexscreener.com/token-boosts/top/v1")
+            if resp.status_code == 200:
+                items = resp.json() or []
+                tokens = []
+                seen = set()
+                for item in items:
+                    if (item.get("chainId") or "").lower() != "solana":
+                        continue
+                    addr = item.get("tokenAddress", "")
+                    if not addr or addr in seen:
+                        continue
+                    seen.add(addr)
+                    # Fetch pair data for this token
+                    pair_resp = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/{addr}")
+                    if pair_resp.status_code == 200:
+                        pairs = (pair_resp.json() or {}).get("pairs", []) or []
+                        if pairs:
+                            base = pairs[0].get("baseToken", {}) or {}
+                            token = self._parse_token({
+                                "mint": addr,
+                                "symbol": base.get("symbol", ""),
+                                "name": base.get("name", ""),
+                                "market_cap": float(pairs[0].get("marketCap", 0) or 0),
+                                "usd_market_cap": float(pairs[0].get("marketCap", 0) or 0),
+                            })
+                            if token:
+                                tokens.append(token)
+                                if len(tokens) >= limit:
+                                    break
+                if tokens:
+                    return tokens[:limit]
+        except Exception as exc:
+            logger.debug(f"DexScreener trending fallback failed: {exc}")
         return []
 
     async def get_token_info(self, mint_address: str) -> Optional[PumpFunToken]:
@@ -423,7 +505,10 @@ class PumpPortalClient:
         return []
 
     async def get_graduated_tokens(self, limit: int = 50) -> List[PumpFunToken]:
-        """Get graduated tokens (moved to Raydium LP)."""
+        """Get graduated tokens (moved to Raydium LP).
+        Ultimate-bot: tries pump.fun API first, falls back to DexScreener search
+        for raydium/pumpswap tokens.
+        """
         client = await self._get_client()
         try:
             resp = await client.get(
@@ -438,9 +523,46 @@ class PumpPortalClient:
                     if token:
                         token.is_graduated = True
                         tokens.append(token)
-                return tokens[:limit]
+                if tokens:
+                    return tokens[:limit]
         except Exception as exc:
-            logger.debug(f"PumpPortal graduatedTokens failed: {exc}")
+            logger.debug(f"pump.fun graduatedTokens failed: {exc}")
+
+        # Fallback: DexScreener search for pumpswap/raydium tokens
+        try:
+            resp = await client.get(
+                "https://api.dexscreener.com/latest/dex/search",
+                params={"q": "pumpswap"},
+            )
+            if resp.status_code == 200:
+                pairs = (resp.json() or {}).get("pairs", []) or []
+                tokens = []
+                seen = set()
+                for p in pairs:
+                    if (p.get("chainId") or "").lower() != "solana":
+                        continue
+                    dex = (p.get("dexId") or "").lower()
+                    if dex not in ("pumpswap", "raydium", "raydium_cpmm"):
+                        continue
+                    base = p.get("baseToken", {}) or {}
+                    addr = base.get("address", "")
+                    if not addr or addr in seen:
+                        continue
+                    seen.add(addr)
+                    token = self._parse_token({
+                        "mint": addr,
+                        "symbol": base.get("symbol", ""),
+                        "name": base.get("name", ""),
+                        "market_cap": float(p.get("marketCap", 0) or 0),
+                        "usd_market_cap": float(p.get("marketCap", 0) or 0),
+                    })
+                    if token:
+                        token.is_graduated = True
+                        tokens.append(token)
+                if tokens:
+                    return tokens[:limit]
+        except Exception as exc:
+            logger.debug(f"DexScreener graduated fallback failed: {exc}")
         return []
 
     async def search_tokens(self, query: str, limit: int = 20) -> List[PumpFunToken]:
