@@ -75,9 +75,7 @@ export default function App() {
           ))}
         </nav>
         <div className="text-xs text-gray-500 px-2 pt-4 border-t border-bg-border">
-          <p className={isLive ? 'text-red-400 mt-1' : 'text-amber-400 mt-1'}>
-            {isLive ? '● LIVE Mode' : '● Paper Mode'}
-          </p>
+          <p className="text-red-400 mt-1">● LIVE Mode</p>
           <p className="text-xs text-gray-600 mt-1">{activeAgents} AI Agents</p>
           <p className="text-xs text-gray-600">{sys?.pumpfun_configured ? 'PumpPortal Ready' : 'PumpPortal Not Set'}</p>
         </div>

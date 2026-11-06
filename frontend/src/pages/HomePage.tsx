@@ -96,9 +96,7 @@ export default function HomePage() {
           {risk?.cooldown_active && (
             <span className="badge badge-warning">⏸️ Cooldown</span>
           )}
-          <span className={`badge ${isLive ? 'badge-danger' : 'badge-warning'}`}>
-            {isLive ? '🔴 LIVE' : '🟡 PAPER'}
-          </span>
+          <span className="badge badge-danger">🔴 LIVE</span>
           {isTrading ? (
             <button onClick={() => stopMutation.mutate()} disabled={stopMutation.isPending} className="btn-danger">
               <Square size={16} className="inline ml-2" />
@@ -116,21 +114,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Live readiness warning */}
-      {!isLive && missing.length > 0 && (
-        <div className="card border-amber-500/40 bg-amber-500/5">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="text-amber-400 mt-0.5" size={18} />
-            <div>
-              <p className="font-medium text-amber-300">التداول الحقيقي غير مفعّل بعد</p>
-              <p className="text-xs text-gray-400 mt-1">
-                المتطلبات الناقصة: <span className="font-mono">{missing.join(' · ')}</span>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
@@ -144,7 +127,7 @@ export default function HomePage() {
           icon={<Activity size={20} />}
           label="صفقات مفتوحة"
           value={status?.open_trades || 0}
-          sub={`${status?.open_live_trades || 0} حقيقية · ${status?.open_paper_trades || 0} افتراضية`}
+          sub={`${status?.open_live_trades || 0} حقيقية`}
         />
         <KpiCard
           icon={<TrendingUp size={20} />}
@@ -190,7 +173,7 @@ export default function HomePage() {
         <div className="card p-4">
           <h3 className="text-sm font-medium text-gray-400 mb-3">حالة التداول الحقيقي</h3>
           <div className="space-y-3 text-sm">
-            <Row label="الوضع" value={isLive ? '🔴 حقيقي (SOL)' : '🟡 افتراضي'} />
+            <Row label="الوضع" value="🔴 حقيقي (SOL)" />
             <Row label="المحفظة" value={wallet?.wallet_configured ? '✅ مربوطة' : '❌ غير مربوطة'} />
             <Row label="عنوان المحفظة" value={
               <span className="font-mono text-xs">
@@ -198,7 +181,7 @@ export default function HomePage() {
               </span>
             } />
             <Row label="PumpPortal API" value={live?.configured ? '✅ جاهز' : '⚠️ غير مكتمل'} />
-            <Row label="صفقات حقيقية مفتوحة" value={`${live?.open_live_positions ?? 0} / ${live?.max_open_positions ?? 5}`} />
+            <Row label="صفقات حقيقية مفتوحة" value={`${live?.open_live_positions ?? 0} / ${live?.max_open_positions ?? 1}`} />
             <Row label="PnL اليوم (SOL)" value={(daily.sol_pnl ?? 0).toFixed(4)} />
             <Row label="Orchestrator" value={status?.orchestrator_enabled ? '🟢 مفعّل' : '🔴 معطّل'} />
           </div>
@@ -278,9 +261,7 @@ export default function HomePage() {
                   <td className="p-2">
                     {(t.strategy_id || '').startsWith('live') ? (
                       <span className="badge badge-danger text-[10px]">🔴 حقيقية</span>
-                    ) : (
-                      <span className="badge badge-neutral text-[10px]">افتراضية</span>
-                    )}
+                    ) : null}
                   </td>
                   <td className="p-2 font-mono text-emerald-400">+{Number(t.pnl_pct || 0).toFixed(2)}%</td>
                   <td className="p-2 font-mono text-emerald-400">+{Number(t.net_pnl_usd || 0).toFixed(2)}</td>

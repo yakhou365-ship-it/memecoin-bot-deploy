@@ -86,7 +86,7 @@ export default function LiveTradingPage() {
           icon={<Rocket size={20} />}
           label="حالة التداول"
           value={live?.configured ? '🟢 مفعّل' : '🔴 متوقف'}
-          sub={live?.trading_mode || 'paper'}
+          sub="LIVE (SOL)"
           color={live?.configured ? 'text-emerald-400' : 'text-red-400'}
         />
         <StatusCard
