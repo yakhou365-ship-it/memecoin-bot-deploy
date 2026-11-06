@@ -379,6 +379,7 @@ class DecisionEngine:
         5. Volume minimum
         6. Risk score maximum
         7. Market regime
+        8. V511 — Single-wallet >30% hard-block (RUG PULL GUARANTEE)
         The FINAL decision is made by AI agent consensus.
         """
         # GATE 1: Critical security flags -> auto-disqualify
@@ -387,6 +388,37 @@ class DecisionEngine:
             result.recommendation = "reject"
             result.rejection_reason = f"مؤشر خطر حرج: {security.disqualify_reason}"
             result.reasons.append(result.rejection_reason)
+            return
+
+        # GATE 1b (V511): Single-wallet 30%+ HARD BLOCK
+        # هذا خط دفاعي مستقل عن SecurityScanner — حتى لو فشل هو، نحن نحظر.
+        # محفظة واحدة تملك 30%+ = يمكنها dump كامل العرض في صفقة واحدة.
+        max_pct = float(getattr(settings, "max_single_holder_pct", 30.0) or 0.0)
+        block_enabled = bool(getattr(settings, "block_single_wallet_over_pct", True))
+        onchain_detail = result.onchain_detail or {}
+        top_holder_pct = float(
+            onchain_detail.get("top_holder_pct")
+            or getattr(security, "top_holder_pct", 0.0)
+            or 0.0
+        )
+        if max_pct > 0 and block_enabled and top_holder_pct >= max_pct:
+            result.qualified = False
+            result.recommendation = "reject"
+            top_addr = (
+                onchain_detail.get("top_holder_address")
+                or getattr(security, "top_holder_address", "")
+                or "unknown"
+            )
+            result.rejection_reason = (
+                f"🔴🔴 محفظة واحدة تملك {top_holder_pct:.2f}% "
+                f"({top_addr[:10]}...) ≥ عتبة الحظر {max_pct:.0f}% — "
+                f"خطر rug pull مؤكد، رفض قاطع"
+            )
+            result.reasons.append(result.rejection_reason)
+            logger.error(
+                f"V511 HARD-BLOCK: {token.symbol} rejected — "
+                f"single wallet {top_holder_pct:.2f}% (>= {max_pct}%)"
+            )
             return
 
         # GATE 2: Data freshness (V31.2: BYPASSED — Pump.fun data may be stale)

@@ -25,6 +25,13 @@ class OnChainResult:
     total_holders: int = 0
     top_10_pct: float = 0.0  # percentage held by top 10 wallets
     top_20_pct: float = 0.0
+    # V511 — CRITICAL: largest SINGLE wallet concentration
+    # هذا الحقل هو خط الدفاع الأول ضد rug pull من محفظة واحدة
+    top_holder_pct: float = 0.0          # نسبة أكبر محفظة مفردة
+    top_holder_address: str = ""         # عنوان أكبر محفظة
+    holders_over_30pct: int = 0          # عدد المحافظ التي تملك 30%+ (يجب أن يكون 0)
+    holders_over_20pct: int = 0          # عدد المحافظ التي تملك 20%+
+    holders_over_10pct: int = 0          # عدد المحافظ التي تملك 10%+
     whale_activity_detected: bool = False
     whale_concentration: str = "low"  # low | moderate | high | extreme
     early_wallet_activity: bool = False  # wallets that bought very early
@@ -37,6 +44,7 @@ class OnChainResult:
     recent_sells_count: int = 0
     suspicious_wallet_count: int = 0
     related_wallet_clusters: int = 0
+    honeypot_probability: float = 0.0  # compatibility field used elsewhere
 
     onchain_score: float = 50.0
     reasons: List[str] = field(default_factory=list)
@@ -91,13 +99,55 @@ class OnChainAnalyzer:
 
             # Top 10 / 20 concentration
             amounts = []
+            holder_addresses = []
             for holder in largest[:20]:
                 amt = float(holder.get("amount", {}).get("amount", "0"))
                 amounts.append(amt)
+                holder_addresses.append(holder.get("address", ""))
 
             if amounts:
                 result.top_10_pct = (sum(amounts[:10]) / supply) * 100
                 result.top_20_pct = (sum(amounts[:20]) / supply) * 100
+
+            # ──────────────────────────────────────────────────────────────
+            # V511 — CRITICAL: Single-wallet concentration audit
+            # نمسح كل محفظة في top 20، نحسب نسبتها بدقة، ونعُدّ كم محفظة
+            # تتجاوز كل عتبة (10% / 20% / 30%). محفظة واحدة >30% = رفض قاطع.
+            # ──────────────────────────────────────────────────────────────
+            all_holder_pcts = []  # list of (pct, address)
+            for amt, addr in zip(amounts, holder_addresses):
+                pct = (amt / supply) * 100
+                all_holder_pcts.append((pct, addr))
+
+            if all_holder_pcts:
+                # أكبر محفظة مفردة + عنوانها
+                top_pct, top_addr = max(all_holder_pcts, key=lambda x: x[0])
+                result.top_holder_pct = round(top_pct, 4)
+                result.top_holder_address = top_addr
+
+                # عدّ المحافظ التي تتجاوز كل عتبة
+                result.holders_over_10pct = sum(1 for p, _ in all_holder_pcts if p >= 10.0)
+                result.holders_over_20pct = sum(1 for p, _ in all_holder_pcts if p >= 20.0)
+                result.holders_over_30pct = sum(1 for p, _ in all_holder_pcts if p >= 30.0)
+
+                # V511 — Halt-the-train warnings (لا تزال "تحذير" هنا؛
+                # الحظر الفعلي يحدث في SecurityScanner و DecisionEngine)
+                if result.top_holder_pct >= 30.0:
+                    result.whale_activity_detected = True
+                    result.reasons.append(
+                        f"🔴 خطر حرج: محفظة واحدة تملك {result.top_holder_pct:.2f}% "
+                        f"({top_addr[:8]}...) — يمكنها dump كامل في صفقة واحدة!"
+                    )
+                    logger.error(
+                        f"SINGLE WALLET OVER 30% detected for {token.symbol}: "
+                        f"{result.top_holder_pct:.2f}% held by {top_addr}"
+                    )
+                elif result.top_holder_pct >= 20.0:
+                    result.whale_activity_detected = True
+                    result.reasons.append(
+                        f"⚠️ محفظة واحدة تملك {result.top_holder_pct:.2f}% "
+                        f"({top_addr[:8]}...) — مخاطرة dump"
+                    )
 
             # Whale concentration classification
             if result.top_10_pct > 80:
@@ -112,10 +162,11 @@ class OnChainAnalyzer:
                 result.whale_concentration = "low"
                 result.reasons.append(f"توزيع جيد: أعلى 10 محافظ تملك {result.top_10_pct:.1f}%")
 
-            # Detect very large single wallet (>20%)
+            # Detect very large single wallet — LEGACY BLOCK superseded by V511 audit above
+            # (kept for backward compatibility — already covered by all_holder_pcts loop)
             for amt in amounts[:5]:
                 pct = (amt / supply) * 100
-                if pct > 20:
+                if pct > 20 and not result.whale_activity_detected:
                     result.whale_activity_detected = True
                     result.reasons.append(f"محفظة واحدة تملك {pct:.1f}% - مخاطرة dump")
                     break
@@ -259,6 +310,19 @@ class OnChainAnalyzer:
 
     def _score(self, r: OnChainResult) -> None:
         score = 50.0
+
+        # V511 — CRITICAL HARD PENALTY: single wallet > 30%
+        # هذا أهم بوابة — قبل أي شيء آخر
+        if r.top_holder_pct >= 30.0:
+            score -= 50  # يجعل النتيجة قريبة من 0
+            r.reasons.append(
+                f"🔴🔴 محفظة واحدة تملك {r.top_holder_pct:.2f}% — يجب رفض العملة فوراً"
+            )
+        elif r.top_holder_pct >= 20.0:
+            score -= 25
+            r.reasons.append(
+                f"⚠️ محفظة واحدة تملك {r.top_holder_pct:.2f}% — مخاطرة عالية"
+            )
 
         # Holder concentration (lower is better)
         if r.top_10_pct < 30:

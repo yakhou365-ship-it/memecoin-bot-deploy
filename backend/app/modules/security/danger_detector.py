@@ -67,6 +67,8 @@ class DangerousPatternDetector:
         results.append(self.detect_token_bundling(onchain_data))
         results.append(self.detect_liquidity_migration(onchain_data))
         results.append(self.detect_smart_contract_exploit(onchain_data))
+        # V511 — single-wallet concentration (CRITICAL)
+        results.append(self.detect_single_wallet_concentration(onchain_data))
 
         # === Volume/Trading dangers ===
         results.append(self.detect_wash_trading(df, token))
@@ -225,6 +227,82 @@ class DangerousPatternDetector:
             "العقد مشابه لعقود احتيالية معروفة",
             {"similar_to_scam": similar_to_scam, "dangerous_changes": dangerous_changes},
             "AVOID" if detected else "SAFE"
+        )
+
+    # =====================================================================
+    # V511 — Single-wallet concentration
+    # =====================================================================
+
+    def detect_single_wallet_concentration(self, onchain: Dict) -> DangerDetection:
+        """Single wallet owning a large fraction of supply = guaranteed dump risk.
+
+        Thresholds (configurable via settings.max_single_holder_pct, default 30):
+          - >= 30%  → critical, AVOID (hard-block in SecurityScanner & DecisionEngine)
+          - >= 20%  → high, AVOID
+          - >= 10%  → medium, CAUTION
+          - <  10%  → low, SAFE
+        """
+        if not onchain:
+            return DangerDetection("single_wallet_concentration", False)
+
+        top_holder_pct = float(onchain.get("top_holder_pct", 0) or 0)
+        top_holder_address = onchain.get("top_holder_address", "")
+        holders_over_30 = int(onchain.get("holders_over_30pct", 0) or 0)
+        holders_over_20 = int(onchain.get("holders_over_20pct", 0) or 0)
+        holders_over_10 = int(onchain.get("holders_over_10pct", 0) or 0)
+
+        # Default thresholds (kept in sync with settings.max_single_holder_pct)
+        try:
+            from ...core.config import settings as _settings
+            crit_threshold = float(getattr(_settings, "max_single_holder_pct", 30.0) or 30.0)
+        except Exception:
+            crit_threshold = 30.0
+
+        if top_holder_pct >= crit_threshold:
+            severity = "critical"
+            detected = True
+            # عند مستوى الحظر: الثقة عالية جداً (ليس هناك شك في الخطر)
+            confidence = min(1.0, 0.6 + (top_holder_pct - crit_threshold) / 100.0 + 0.35)
+            recommendation = "AVOID"
+            desc = (
+                f"🔴🔴 محفظة واحدة تملك {top_holder_pct:.2f}% من العرض "
+                f"({(top_holder_address or 'unknown')[:10]}...) — "
+                f"يمكنها dump كامل في صفقة واحدة"
+            )
+        elif top_holder_pct >= 20.0:
+            severity = "high"
+            detected = True
+            confidence = 0.85
+            recommendation = "AVOID"
+            desc = f"محفظة واحدة تملك {top_holder_pct:.2f}% — مخاطرة dump عالية"
+        elif top_holder_pct >= 10.0:
+            severity = "medium"
+            detected = True
+            confidence = 0.6
+            recommendation = "CAUTION"
+            desc = f"محفظة واحدة تملك {top_holder_pct:.2f}% — رصد مستمر مطلوب"
+        else:
+            severity = "low"
+            detected = False
+            confidence = 0.2
+            recommendation = "SAFE"
+            desc = f"أكبر محفظة تملك {top_holder_pct:.2f}% — توزيع صحي"
+
+        return DangerDetection(
+            "single_wallet_concentration",
+            detected,
+            severity,
+            confidence,
+            desc,
+            {
+                "top_holder_pct": top_holder_pct,
+                "top_holder_address": top_holder_address,
+                "holders_over_30pct": holders_over_30,
+                "holders_over_20pct": holders_over_20,
+                "holders_over_10pct": holders_over_10,
+                "critical_threshold_pct": crit_threshold,
+            },
+            recommendation
         )
 
     # =====================================================================

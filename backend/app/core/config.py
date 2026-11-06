@@ -94,6 +94,15 @@ class Settings(BaseSettings):
     # --- On-chain ---
     onchain_top_holders: int = 20
     onchain_min_holder_balance_pct: float = 1.0
+    # V511 — CRITICAL rug-pull protection:
+    # Hard-block any token where a SINGLE wallet owns more than this fraction
+    # of total supply. Default 30%: a wallet owning >30% can dump the price
+    # to ~0 in a single swap. Set to 0 to disable this gate (NOT recommended).
+    max_single_holder_pct: float = 30.0
+    # Same gate but as a HARD reject (not just warning). When true, the
+    # SecurityScanner adds SINGLE_WALLET_OVER_30PCT to critical_flags and
+    # auto-disqualifies the token. Keep true at all times for memecoin trading.
+    block_single_wallet_over_pct: bool = True
 
     # --- Pump.fun / PumpPortal ---
     # Accept both spellings: the historical typo PUMPORTAL_API_KEY and the

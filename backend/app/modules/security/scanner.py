@@ -12,6 +12,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional
 
+from ...core.config import settings
+from ...core.logger import logger
+
 
 @dataclass
 class SecurityResult:
@@ -24,6 +27,13 @@ class SecurityResult:
     liquidity_locked: Optional[bool] = None
     liquidity_removal_risk: float = 0.0
     owner_concentration_risk: float = 0.0
+    # V511 — single-wallet hard-block fields
+    top_holder_pct: float = 0.0
+    top_holder_address: str = ""
+    holders_over_30pct: int = 0
+    holders_over_20pct: int = 0
+    holders_over_10pct: int = 0
+    single_wallet_blocked: bool = False  # True = violates 30% rule
     suspicious_wallets: int = 0
     contract_similar_to_known_scam: bool = False
     abnormal_volume_detected: bool = False
@@ -62,6 +72,13 @@ class SecurityScanner:
             result.mint_authority_enabled = onchain_result.mint_authority_enabled
             result.freeze_authority_enabled = onchain_result.freeze_authority_enabled
             result.liquidity_locked = onchain_result.liquidity_locked
+            # V511 — single-wallet concentration (CRITICAL)
+            result.top_holder_pct = getattr(onchain_result, "top_holder_pct", 0.0) or 0.0
+            result.top_holder_address = getattr(onchain_result, "top_holder_address", "") or ""
+            result.holders_over_30pct = getattr(onchain_result, "holders_over_30pct", 0) or 0
+            result.holders_over_20pct = getattr(onchain_result, "holders_over_20pct", 0) or 0
+            result.holders_over_10pct = getattr(onchain_result, "holders_over_10pct", 0) or 0
+
             if onchain_result.top_10_pct > 80:
                 result.owner_concentration_risk = 0.9
             elif onchain_result.top_10_pct > 60:
@@ -121,6 +138,35 @@ class SecurityScanner:
             result.critical_flags.append("EXTREME_OWNER_CONCENTRATION")
         if result.suspicious_wallets >= 5:
             result.critical_flags.append("MULTIPLE_SUSPICIOUS_WALLETS")
+
+        # ──────────────────────────────────────────────────────────────────
+        # V511 — CRITICAL: SINGLE-WALLET 30% HARD BLOCK
+        # أي محفظة تملك 30%+ من العرض = خطر rug pull مؤكد.
+        # لا يمكن للـ AI تجاوز هذا الحظر، ولا يمكن للـ win_prob تجاوزه.
+        # هذا الخط الدفاعي الأهم بعد mint/freeze authority.
+        # ──────────────────────────────────────────────────────────────────
+        max_pct = float(getattr(settings, "max_single_holder_pct", 30.0) or 0.0)
+        block_enabled = bool(getattr(settings, "block_single_wallet_over_pct", True))
+        if max_pct > 0 and block_enabled and result.top_holder_pct >= max_pct:
+            flag = f"SINGLE_WALLET_OVER_{int(max_pct)}PCT"
+            if flag not in result.critical_flags:
+                result.critical_flags.append(flag)
+            result.single_wallet_blocked = True
+            short_addr = (result.top_holder_address or "")[:10] or "unknown"
+            result.warnings.append(
+                f"🔴🔴 الحظر الصارم: محفظة واحدة ({short_addr}...) تملك "
+                f"{result.top_holder_pct:.2f}% ≥ {max_pct:.0f}% — مرفوض تلقائياً"
+            )
+            logger.error(
+                f"BLOCKED token: single wallet holds {result.top_holder_pct:.2f}% "
+                f"(threshold {max_pct}%) at {result.top_holder_address}"
+            )
+        elif max_pct > 0 and result.top_holder_pct >= max_pct * 0.7:
+            # تحذير مبكر عند 70% من العتبة (21% إذا كانت العتبة 30%)
+            result.warnings.append(
+                f"⚠️ محفظة واحدة تملك {result.top_holder_pct:.2f}% "
+                f"(قريبة من عتبة الحظر {max_pct:.0f}%)"
+            )
 
         # Auto-disqualify on any critical flag
         if result.critical_flags:
