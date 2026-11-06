@@ -9,9 +9,10 @@ export default function TradesPage() {
   const [filter, setFilter] = useState<'all' | 'open' | 'closed'>('all')
   const qc = useQueryClient()
 
-  const { data: trades, isLoading } = useQuery({
+  const { data: trades, isLoading, isError, error } = useQuery({
     queryKey: ['trades', filter],
     queryFn: () => api.get(endpoints.trades, { params: { limit: 200, status: filter === 'all' ? undefined : filter } }).then(r => r.data as Trade[]),
+    retry: false,
   })
 
   const closeMutation = useMutation({
@@ -20,7 +21,18 @@ export default function TradesPage() {
       toast.success(data?.live ? `تم البيع على السلسلة: ${data.tx_signature?.slice(0, 10)}...` : 'تم إغلاق الصفقة')
       qc.invalidateQueries({ queryKey: ['trades'] })
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل الإغلاق'),
+    onError: (e: any) => {
+      // V508: distinguish 401 (auth) from 400 (real failure) so the user knows what to fix.
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || e?.message || 'خطأ غير معروف'
+      if (status === 401) {
+        toast.error('🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.')
+      } else if (status === 400) {
+        toast.error(`فشل الإغلاق: ${detail}`)
+      } else {
+        toast.error(`فشل الإغلاق (${status || '؟'}): ${detail}`)
+      }
+    },
   })
 
   // V500: Exit All mutation
@@ -29,10 +41,22 @@ export default function TradesPage() {
     onSuccess: (data: any) => {
       const closed = data?.total_closed || 0
       const pnl = data?.total_pnl || 0
-      toast.success(`🚪 تم إغلاق ${closed} صفقة — PnL: $${pnl.toFixed(2)}`)
+      if (closed === 0 && data?.status === 'no_open_trades') {
+        toast.info('لا توجد صفقات مفتوحة لإغلاقها')
+      } else {
+        toast.success(`🚪 تم إغلاق ${closed} صفقة — PnL: $${pnl.toFixed(2)}`)
+      }
       qc.invalidateQueries({ queryKey: ['trades'] })
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل الإغلاق الجماعي'),
+    onError: (e: any) => {
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || 'فشل الإغلاق الجماعي'
+      if (status === 401) {
+        toast.error('🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.')
+      } else {
+        toast.error(`فشل الإغلاق الجماعي: ${detail}`)
+      }
+    },
   })
 
   return (
@@ -90,7 +114,16 @@ export default function TradesPage() {
               {isLoading && (
                 <tr><td colSpan={14} className="text-center p-8 text-gray-500">جاري التحميل...</td></tr>
               )}
-              {!isLoading && trades?.length === 0 && (
+              {isError && (
+                <tr>
+                  <td colSpan={14} className="text-center p-8 text-red-400">
+                    {(error as any)?.response?.status === 401
+                      ? '🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.'
+                      : `⚠️ فشل تحميل الصفقات: ${(error as any)?.response?.data?.detail || (error as any)?.message || 'خطأ غير معروف'}`}
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !isError && trades?.length === 0 && (
                 <tr><td colSpan={14} className="text-center p-8 text-gray-500">لا توجد صفقات</td></tr>
               )}
               {trades?.map((t) => (

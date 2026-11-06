@@ -45,11 +45,22 @@ export default function TokensPage() {
       if (data.success) {
         toast.success(`✅ تم الشراء! TX: ${data.tx_signature?.slice(0, 12)}...`)
       } else {
-        toast.error(`فشل الشراء: ${data.error}`)
+        toast.error(`فشل الشراء: ${data.error || 'سبب غير معروف'}`)
       }
       qc.invalidateQueries({ queryKey: ['pumpfun-wallet'] })
     },
-    onError: (e: any) => toast.error(`خطأ: ${e?.response?.data?.detail || e.message}`),
+    onError: (e: any) => {
+      // V508: distinguish 401 from 400/500 so the user knows what's wrong.
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || e?.message || 'خطأ غير معروف'
+      if (status === 401) {
+        toast.error('🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.')
+      } else if (status === 400) {
+        toast.error(`فشل الشراء: ${detail}`)
+      } else {
+        toast.error(`خطأ في الشراء (${status || '؟'}): ${detail}`)
+      }
+    },
   })
 
   const filtered = (pumpfunTokens || []).filter((t: any) => {

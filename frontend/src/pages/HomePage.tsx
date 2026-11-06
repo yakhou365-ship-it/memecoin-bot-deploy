@@ -10,10 +10,11 @@ import { fmtUsd, fmtPct } from '../lib/format'
 export default function HomePage() {
   const qc = useQueryClient()
 
-  const { data: status } = useQuery({
+  const { data: status, isError: statusError, error: statusErr } = useQuery({
     queryKey: ['system-status'],
     queryFn: () => api.get(endpoints.systemStatus).then(r => r.data),
     refetchInterval: 1_500,
+    retry: false,
   })
 
   const { data: tradingState } = useQuery({
@@ -58,7 +59,15 @@ export default function HomePage() {
       qc.invalidateQueries({ queryKey: ['trading-state'] })
       qc.invalidateQueries({ queryKey: ['system-status'] })
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل بدء التداول'),
+    onError: (e: any) => {
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || 'فشل بدء التداول'
+      if (status === 401) {
+        toast.error('🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.')
+      } else {
+        toast.error(detail)
+      }
+    },
   })
 
   const stopMutation = useMutation({
@@ -68,7 +77,15 @@ export default function HomePage() {
       qc.invalidateQueries({ queryKey: ['trading-state'] })
       qc.invalidateQueries({ queryKey: ['system-status'] })
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل إيقاف التداول'),
+    onError: (e: any) => {
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || 'فشل إيقاف التداول'
+      if (status === 401) {
+        toast.error('🔒 مفتاح API خاطئ. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح.')
+      } else {
+        toast.error(detail)
+      }
+    },
   })
 
   const isTrading = tradingState?.is_active ?? false
@@ -78,6 +95,33 @@ export default function HomePage() {
   const usdValue = Number(wallet?.usd_value || 0)
   const missing: string[] = tradingState?.live_requirements_missing || []
   const daily = live?.daily || {}
+
+  // V508: explicit error state when the core /system/status call fails (usually 401).
+  if (statusError) {
+    const st = (statusErr as any)?.response?.status
+    const detail = (statusErr as any)?.response?.data?.detail || (statusErr as any)?.message || 'خطأ غير معروف'
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-2xl font-bold">لوحة التحكم</h1>
+        <div className="card border-red-500/40 bg-red-500/5 p-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-red-400 mt-0.5" size={20} />
+            <div className="flex-1">
+              <p className="font-medium text-red-300">
+                {st === 401 ? '🔒 مفتاح API خاطئ أو غير مُدخل' : `⚠️ فشل تحميل البيانات (HTTP ${st})`}
+              </p>
+              <p className="text-xs text-gray-400 mt-1 font-mono break-all">{detail}</p>
+              {st === 401 && (
+                <p className="text-xs text-amber-300 mt-2">
+                  افتح الرابط مع <span className="font-mono">#resetkey</span> في النهاية لإدخال المفتاح الصحيح من Railway Variables (API_AUTH_KEY).
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">

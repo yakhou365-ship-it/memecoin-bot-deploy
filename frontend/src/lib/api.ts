@@ -25,6 +25,30 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// V508: global 401 handler — when the API key is wrong/expired, show a toast
+// AND clear localStorage so the page re-prompts for the key on next load.
+// Without this the user sees "فشل التحميل" forever with no clue why.
+let _toastShown = false
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401 && typeof window !== 'undefined') {
+      // Avoid toast spam — only show once per session.
+      if (!_toastShown) {
+        _toastShown = true
+        // Lazy import to avoid circular dep.
+        import('sonner').then(({ toast }) => {
+          toast.error(
+            '🔒 مفتاح API خاطئ أو منتهي. افتح الرابط مع #resetkey لإدخال المفتاح الصحيح من Railway Variables (API_AUTH_KEY).',
+            { duration: 10000 }
+          )
+        })
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 export const endpoints = {
   // Core
   account: '/account',
