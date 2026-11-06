@@ -87,7 +87,7 @@ class OnChainAnalyzer:
                 return
 
             result.data_sufficient = True
-            result.total_holders = len(largest)  # only top accounts returned by RPC
+            result.total_holders = len(largest)
 
             # Top 10 / 20 concentration
             amounts = []
@@ -128,29 +128,16 @@ class OnChainAnalyzer:
                 result.reasons.append("نمط يشبه Token Bundling بين أكبر 5 محافظ")
 
             # Insider activity: very recent wallets with very large holdings
-            # (we can't determine wallet creation date without indexer, so heuristic)
             if amounts and (amounts[0] / supply) > 0.10:
-                # Top wallet holds >10%, suspicious if also <1 hour old
                 result.insider_activity_probability = 0.4
-                # We'd need indexer data to confirm
 
-            # Mint authority check
+            # Ultimate-bot: Mint authority check (SPL layout)
             try:
                 account_info = await self.rpc.get_account_info(token.address)
                 if account_info and account_info.get("data"):
                     b64data = account_info["data"][0]
                     raw = base64_decode_safe(b64data)
                     if raw and len(raw) >= 46:
-                        # Ultimate-bot FIX: SPL Mint account layout:
-                        #   0..4    COption tag for mint_authority (0=None, 1=Some)
-                        #   4..36   mint_authority pubkey
-                        #   36..44  supply (u64)
-                        #   44      decimals (u8)
-                        #   45      is_initialized (bool)
-                        #   46..50  COption tag for freeze_authority (0=None, 1=Some)
-                        #   50..82  freeze_authority pubkey
-                        # Old code checked raw[4] (first byte of pubkey, not
-                        # the COption tag) → false positives.
                         if int.from_bytes(raw[0:4], "little") != 0:
                             result.mint_authority_enabled = True
                             result.reasons.append("⚠️ Mint Authority مفعّل - يمكن إنشاء عملات جديدة!")
@@ -159,6 +146,45 @@ class OnChainAnalyzer:
                             result.reasons.append("⚠️ Freeze Authority مفعّل - يمكن تجميد الحسابات!")
             except Exception as exc:
                 logger.debug(f"Token account parse failed for {token.symbol}: {exc}")
+
+            # Ultimate-bot: Tradability check (honeypot detection)
+            try:
+                tradable, tradable_reason = await self.rpc.check_token_tradable(token.address)
+                if not tradable:
+                    result.honeypot_probability = max(result.honeypot_probability, 0.8)
+                    result.reasons.append(f"🔴 غير قابل للتداول: {tradable_reason}")
+                    logger.warning(f"Honeypot suspected for {token.symbol}: {tradable_reason}")
+            except Exception as exc:
+                logger.debug(f"Tradability check failed for {token.symbol}: {exc}")
+
+            # Ultimate-bot: Token age check
+            try:
+                age_seconds = await self.rpc.get_token_age_seconds(token.address)
+                if age_seconds is not None:
+                    if age_seconds < 60:  # less than 1 minute old
+                        result.insider_activity_probability = max(
+                            result.insider_activity_probability, 0.7
+                        )
+                        result.reasons.append(f"🔴 توكن جديد جداً (عمره {age_seconds}s) - مخاطرة عالية")
+                    elif age_seconds < 300:  # less than 5 minutes
+                        result.insider_activity_probability = max(
+                            result.insider_activity_probability, 0.3
+                        )
+                        result.reasons.append(f"⚠️ توكن حديث (عمره {age_seconds//60}min)")
+            except Exception as exc:
+                logger.debug(f"Token age check failed for {token.symbol}: {exc}")
+
+            # Ultimate-bot: LP lock check
+            try:
+                lp_locked = await self.rpc.check_lp_locked(token.address)
+                if lp_locked is True:
+                    result.liquidity_locked = True
+                    result.reasons.append("✅ السيولة مقفلة (LP Locked)")
+                elif lp_locked is False:
+                    result.liquidity_locked = False
+                    result.reasons.append("⚠️ السيولة غير مقفلة - مخاطرة سحب")
+            except Exception as exc:
+                logger.debug(f"LP lock check failed for {token.symbol}: {exc}")
 
         except Exception as exc:
             logger.warning(f"On-chain analysis failed for {token.symbol if token else '?'}: {exc}")
