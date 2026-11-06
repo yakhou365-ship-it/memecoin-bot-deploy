@@ -123,8 +123,12 @@ class PaperTradingEngine:
                 open_value = sum(t.entry_size_usd or 0 for t in open_trades)
 
                 # Rebuild account
+                # Ultimate-bot FIX: subtract entry_fee_usd too (was ignored,
+                # inflating cash balance after restart by ~0.25% per open trade).
                 self.account.cash_balance = (
-                    settings.paper_capital_usd + total_realized_pnl - open_value
+                    settings.paper_capital_usd + total_realized_pnl
+                    - open_value
+                    - sum(t.entry_fee_usd or 0 for t in open_trades)
                 )
                 self.account.realized_pnl = total_realized_pnl
                 self.account.open_positions_count = len(open_trades)
@@ -272,8 +276,10 @@ class PaperTradingEngine:
         fee_usd = position_size_usd * settings.paper_fee_pct / 100
         slippage_cost_usd = position_size_usd * slippage_pct / 100
 
-        # Total cost
-        total_cost = position_size_usd + fee_usd + slippage_cost_usd
+        # Ultimate-bot FIX: Total cash outflow = notional + fee ONLY.
+        # Slippage is already reflected in actual_entry_price (fewer tokens
+        # for the same USD), so adding slippage_cost_usd here would double-count.
+        total_cost = position_size_usd + fee_usd
         if total_cost > self.account.cash_balance:
             logger.info("Trade rejected: total cost exceeds cash")
             return None
@@ -373,14 +379,16 @@ class PaperTradingEngine:
             exit_fee_usd = position_value * settings.paper_fee_pct / 100
             exit_slip_usd = position_value * slippage_pct / 100
 
-            # Compute PnL
+            # Ultimate-bot FIX: net_pnl = gross - fees ONLY.
+            # Slippage is already baked into actual_exit_price (lower exit
+            # price = less SOL received), so subtracting exit_slip_usd again
+            # would double-count. Same for entry_slippage_usd — it was
+            # already reflected in actual_entry_price at open time.
             gross_pnl = (actual_exit_price - trade.entry_price) * trade.entry_quantity
             net_pnl = (
                 gross_pnl
                 - trade.entry_fee_usd
                 - exit_fee_usd
-                - trade.entry_slippage_usd
-                - exit_slip_usd
             )
             pnl_pct = (net_pnl / trade.entry_size_usd * 100) if trade.entry_size_usd else 0
 
