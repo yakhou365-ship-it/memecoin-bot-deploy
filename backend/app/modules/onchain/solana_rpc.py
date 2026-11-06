@@ -69,12 +69,91 @@ class SolanaRPC:
         self, address: str, limit: int = 20
     ) -> List[Dict[str, Any]]:
         """Get recent transaction signatures for an address.
-        Ultimate-bot: used to estimate token age (first signature = creation).
+        Ultimate-bot: used to estimate token age + wallet funding time.
         """
         result = await self._call(
             "getSignaturesForAddress", [address, {"limit": limit}]
         )
         return result or []
+
+    async def check_wallet_funding_times(self, mint: str) -> Optional[Dict[str, Any]]:
+        """Ultimate-bot: check if top holders funded at the same time (rug pull signal).
+
+        Returns:
+          {"simultaneous_count": int, "total_checked": int, "is_suspicious": bool}
+          or None if we can't determine it.
+
+        If 3+ top holders have their first transaction within 60 seconds of
+        each other, they were likely created by the same person for a bundle
+        dump. This is the 'Time-Linked Funding' and 'Funding Time' attack
+        from the security checklist.
+        """
+        try:
+            # Get top 10 token holders
+            largest = await self.get_token_largest_accounts(mint)
+            if not largest or len(largest) < 3:
+                return None
+
+            # For each top holder, get their first transaction (oldest signature)
+            holder_first_tx_times: List[Optional[int]] = []
+            for holder in largest[:10]:
+                holder_addr = holder.get("address", "")
+                if not holder_addr:
+                    holder_first_tx_times.append(None)
+                    continue
+
+                # Fetch signatures for this holder wallet
+                sigs = await self.get_signatures_for_address(holder_addr, limit=50)
+                if not sigs:
+                    holder_first_tx_times.append(None)
+                    continue
+
+                # Find the oldest signature with a blockTime
+                oldest_ts = None
+                for sig in reversed(sigs):  # RPC returns newest first, oldest last
+                    ts = sig.get("blockTime")
+                    if ts:
+                        oldest_ts = int(ts)
+                        break
+
+                holder_first_tx_times.append(oldest_ts)
+
+            # Analyze funding times
+            valid_times = [t for t in holder_first_tx_times if t is not None]
+            if len(valid_times) < 3:
+                return {"simultaneous_count": 0, "total_checked": len(valid_times), "is_suspicious": False}
+
+            # Sort by time
+            valid_times.sort()
+
+            # Check how many wallets were funded within 60 seconds of each other
+            simultaneous_count = 0
+            max_cluster = 1
+            for i in range(len(valid_times) - 1):
+                if valid_times[i + 1] - valid_times[i] <= 60:  # within 60 seconds
+                    simultaneous_count += 1
+                    max_cluster += 1
+                else:
+                    max_cluster = 1
+
+            # If 3+ wallets funded within 60s of each other, suspicious
+            is_suspicious = simultaneous_count >= 3 or max_cluster >= 4
+
+            logger.debug(
+                f"Wallet funding check for {mint[:12]}...: "
+                f"{simultaneous_count} simultaneous, max_cluster={max_cluster}, "
+                f"suspicious={is_suspicious}"
+            )
+
+            return {
+                "simultaneous_count": simultaneous_count,
+                "total_checked": len(valid_times),
+                "max_cluster": max_cluster,
+                "is_suspicious": is_suspicious,
+            }
+        except Exception as exc:
+            logger.debug(f"Wallet funding time check failed for {mint}: {exc}")
+            return None
 
     async def get_token_age_seconds(self, mint: str) -> Optional[int]:
         """Ultimate-bot: estimate token age by fetching the oldest signature.

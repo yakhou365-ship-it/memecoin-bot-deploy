@@ -186,6 +186,29 @@ class OnChainAnalyzer:
             except Exception as exc:
                 logger.debug(f"LP lock check failed for {token.symbol}: {exc}")
 
+            # Ultimate-bot: Wallet Funding Time check (Time-Linked Funding attack)
+            # Detects if top holders were funded at the same time (bundle/rug signal)
+            try:
+                funding = await self.rpc.check_wallet_funding_times(token.address)
+                if funding and funding.get("is_suspicious"):
+                    result.insider_activity_probability = max(
+                        result.insider_activity_probability, 0.8
+                    )
+                    result.token_bundling_probability = max(
+                        result.token_bundling_probability, 0.8
+                    )
+                    result.reasons.append(
+                        f"🔴 تمويل متزامن: {funding.get('simultaneous_count')} محفظة "
+                        f"أُنشئت في نفس الوقت — مخاطرة rug pull عالية!"
+                    )
+                    logger.warning(
+                        f"Time-linked funding detected for {token.symbol}: "
+                        f"{funding.get('simultaneous_count')}/{funding.get('total_checked')} "
+                        f"wallets funded simultaneously"
+                    )
+            except Exception as exc:
+                logger.debug(f"Wallet funding check failed for {token.symbol}: {exc}")
+
         except Exception as exc:
             logger.warning(f"On-chain analysis failed for {token.symbol if token else '?'}: {exc}")
             result.data_sufficient = False
