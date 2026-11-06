@@ -301,8 +301,21 @@ async def exit_all_trades():
 
     Closes both paper and live trades. For live trades, sells on-chain
     via PumpPortal. Returns summary of closed positions.
+
+    V509 FIX: previously this returned HTTP 200 with total_closed counting
+    EVERY entry in the live list — even when the sell had actually FAILED
+    on-chain (e.g. PumpPortal returned 403 'invalid API key', or slippage
+    exceeded). The frontend would show '✅ تم إغلاق 1 صفقة' to the user while
+    the position was still open. Now we distinguish succeeded from failed.
     """
-    results = {"paper": [], "live": [], "total_closed": 0, "total_pnl": 0.0}
+    results = {
+        "paper": [],
+        "live": [],
+        "live_failed": [],   # V509: closed entries that actually failed
+        "total_closed": 0,
+        "total_failed": 0,   # V509
+        "total_pnl": 0.0,
+    }
     from ..modules.live_trading.executor import LiveTradingExecutor, is_live_trade
 
     # Get all open trades
@@ -329,10 +342,14 @@ async def exit_all_trades():
                     })
                     results["total_pnl"] += result.get("net_pnl_usd", 0)
                 else:
-                    results["live"].append({
+                    # V509: sell failed — record separately so the frontend
+                    # can show 'فشل إغلاق 1 من 1' instead of misleading 'success'.
+                    results["live_failed"].append({
                         "trade_id": trade.id,
                         "error": result.get("error", "Unknown"),
+                        "code": result.get("code", "close_failed"),
                     })
+                    results["total_failed"] += 1
             else:
                 # Paper: close in engine
                 engine = PaperTradingEngine()
@@ -343,12 +360,27 @@ async def exit_all_trades():
                         "pnl": closed.net_pnl_usd or 0,
                     })
                     results["total_pnl"] += closed.net_pnl_usd or 0
+                else:
+                    results["live_failed"].append({
+                        "trade_id": trade.id,
+                        "error": "Paper engine could not close",
+                        "code": "close_failed",
+                    })
+                    results["total_failed"] += 1
         except Exception as exc:
             logger.exception(f"Exit-all failed for trade {trade.id}: {exc}")
-            results["paper"].append({"trade_id": trade.id, "error": str(exc)[:100]})
+            results["live_failed"].append({
+                "trade_id": trade.id,
+                "error": str(exc)[:100],
+                "code": "exception",
+            })
+            results["total_failed"] += 1
 
     results["total_closed"] = len(results["paper"]) + len(results["live"])
-    logger.info(f"🚪 EXIT ALL: closed {results['total_closed']} trades, PnL=${results['total_pnl']:.2f}")
+    logger.info(
+        f"🚪 EXIT ALL: closed {results['total_closed']}, "
+        f"failed {results['total_failed']}, PnL=${results['total_pnl']:.2f}"
+    )
     return results
 
 
@@ -415,9 +447,28 @@ async def list_learnings(limit: int = Query(50, le=200)):
 # =========================================================================
 @router.get("/risk/state")
 async def get_risk_state():
-    rm = RiskManager()
-    state = await rm.get_state()
-    return state.to_dict()
+    """V509: defensive — never return 500 even if RiskManager fails (e.g.
+    corrupt SystemState JSON). Return a default empty state with the error
+    in `reason` instead."""
+    try:
+        rm = RiskManager()
+        state = await rm.get_state()
+        return state.to_dict()
+    except Exception as exc:
+        logger.exception(f"get_risk_state failed: {exc}")
+        return {
+            "daily_pnl_usd": 0.0, "weekly_pnl_usd": 0.0,
+            "daily_pnl_pct": 0.0, "weekly_pnl_pct": 0.0,
+            "max_drawdown_pct": 0.0,
+            "open_positions_count": 0,
+            "consecutive_losses": 0,
+            "cooldown_active": False, "cooldown_until": None,
+            "circuit_breaker_active": False,
+            "circuit_breaker_reason": f"error: {str(exc)[:100]}",
+            "last_trade_at": None, "last_loss_at": None,
+            "can_open": False,
+            "reason": f"risk state error: {str(exc)[:150]}",
+        }
 
 
 @router.post("/risk/reset-circuit-breaker")
@@ -764,43 +815,72 @@ async def get_research(token_id: str):
 # =========================================================================
 @router.get("/system/status")
 async def system_status():
-    """Get overall system status."""
-    rm = RiskManager()
-    risk_state = await rm.get_state()
+    """Get overall system status.
 
-    async with get_session() as s:
-        tokens_count = (await s.execute(
-            select(func.count(Token.id)).where(Token.active == True)
-        )).scalar() or 0
-        open_paper = (await s.execute(
-            select(func.count(Trade.id)).where(
-                Trade.status == "open",
-                or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
-            )
-        )).scalar() or 0
-        open_live = (await s.execute(
-            select(func.count(Trade.id)).where(
-                Trade.status == "open",
-                Trade.strategy_id.startswith("live"),
-            )
-        )).scalar() or 0
-        closed_trades = (await s.execute(
-            select(func.count(Trade.id)).where(Trade.status == "closed")
-        )).scalar() or 0
-        last_alert = (await s.execute(
-            select(Alert).order_by(desc(Alert.created_at)).limit(1)
-        )).scalar_one_or_none()
-        trading_state = await s.get(TradingState, 1)
+    V509: wrap each subsystem in try/except so a single failure (e.g. corrupt
+    SystemState JSON in the DB) doesn't take down the whole endpoint with
+    HTTP 500 — the dashboard depends on this endpoint and if it fails the
+    entire UI shows 'فشل تحميل البيانات' which is unhelpful. Each piece now
+    degrades gracefully and the response always returns 200.
+    """
+    # V509: defensive — risk state can fail on corrupt SystemState JSON
+    try:
+        rm = RiskManager()
+        risk_state = await rm.get_state()
+        risk_dict = risk_state.to_dict()
+        circuit_breaker_active = risk_state.circuit_breaker_active
+        cooldown_active = risk_state.cooldown_active
+    except Exception as exc:
+        logger.exception(f"system_status: risk state failed: {exc}")
+        risk_dict = {
+            "daily_pnl_pct": 0.0, "weekly_pnl_pct": 0.0, "max_drawdown_pct": 0.0,
+            "open_positions_count": 0, "consecutive_losses": 0,
+            "cooldown_active": False, "circuit_breaker_active": False,
+            "circuit_breaker_reason": f"error: {str(exc)[:100]}",
+            "can_open": False, "reason": f"risk state error: {str(exc)[:100]}",
+        }
+        circuit_breaker_active = False
+        cooldown_active = False
+
+    try:
+        async with get_session() as s:
+            tokens_count = (await s.execute(
+                select(func.count(Token.id)).where(Token.active == True)
+            )).scalar() or 0
+            open_paper = (await s.execute(
+                select(func.count(Trade.id)).where(
+                    Trade.status == "open",
+                    or_(Trade.strategy_id.is_(None), ~Trade.strategy_id.startswith("live")),
+                )
+            )).scalar() or 0
+            open_live = (await s.execute(
+                select(func.count(Trade.id)).where(
+                    Trade.status == "open",
+                    Trade.strategy_id.startswith("live"),
+                )
+            )).scalar() or 0
+            closed_trades = (await s.execute(
+                select(func.count(Trade.id)).where(Trade.status == "closed")
+            )).scalar() or 0
+            last_alert = (await s.execute(
+                select(Alert).order_by(desc(Alert.created_at)).limit(1)
+            )).scalar_one_or_none()
+            trading_state = await s.get(TradingState, 1)
+    except Exception as exc:
+        logger.exception(f"system_status: DB query failed: {exc}")
+        tokens_count = open_paper = open_live = closed_trades = 0
+        last_alert = None
+        trading_state = None
 
     return {
-        "risk_state": risk_state.to_dict(),
+        "risk_state": risk_dict,
         "tokens_active": tokens_count,
         "open_trades": open_paper + open_live,
         "open_paper_trades": open_paper,
         "open_live_trades": open_live,
         "closed_trades": closed_trades,
-        "circuit_breaker_active": risk_state.circuit_breaker_active,
-        "cooldown_active": risk_state.cooldown_active,
+        "circuit_breaker_active": circuit_breaker_active,
+        "cooldown_active": cooldown_active,
         "last_alert": last_alert.created_at.isoformat() if last_alert else None,
         "version": "0.3.0",
         "trading_mode": settings.trading_mode,
@@ -2583,17 +2663,46 @@ async def pumpfun_wallet_balance():
         }
     except Exception as exc:
         logger.exception(f"Wallet balance failed: {exc}")
-        raise HTTPException(500, f"Wallet error: {str(exc)[:200]}")
+        # V509: degrade gracefully instead of HTTP 500. The dashboard relies
+        # on this endpoint — if it 500s the whole LiveTradingPage breaks.
+        return {
+            "wallet_configured": bool(settings.solana_wallet_address),
+            "wallet_address": settings.solana_wallet_address,
+            "sol_balance": 0.0,
+            "sol_price_usd": 0.0,
+            "usd_value": 0.0,
+            "token_accounts": [],
+            "token_accounts_count": 0,
+            "error": str(exc)[:200],
+        }
 
 
 @router.get("/live/status")
 async def live_status():
-    """Full live-trading readiness report (wallet, caps, daily usage)."""
+    """Full live-trading readiness report (wallet, caps, daily usage).
+
+    V509: never return 500 — degrade gracefully so the dashboard can still
+    show the rest of the page.
+    """
     try:
         return await LiveTradingExecutor().status()
     except Exception as exc:
         logger.exception(f"Live status failed: {exc}")
-        raise HTTPException(500, f"Live status error: {str(exc)[:200]}")
+        return {
+            "configured": False,
+            "missing_requirements": ["internal_error"],
+            "trading_mode": settings.trading_mode,
+            "wallet_address": settings.solana_wallet_address,
+            "wallet_sol": 0.0,
+            "max_trade_sol": settings.pump_max_trade_sol,
+            "daily_cap_sol": settings.live_daily_cap_sol,
+            "daily_loss_limit_sol": settings.live_daily_loss_limit_sol,
+            "max_open_positions": settings.live_max_open_positions,
+            "open_live_positions": 0,
+            "daily": {"date": "", "sol_spent": 0.0, "sol_pnl": 0.0, "trades_opened": 0, "trades_closed": 0},
+            "can_open": False,
+            "error": str(exc)[:200],
+        }
 
 
 @router.get("/fomo/status")

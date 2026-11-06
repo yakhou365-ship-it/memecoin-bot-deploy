@@ -40,9 +40,17 @@ export default function TradesPage() {
     mutationFn: () => api.post(endpoints.exitAll).then(r => r.data),
     onSuccess: (data: any) => {
       const closed = data?.total_closed || 0
+      const failed = data?.total_failed || 0  // V509
       const pnl = data?.total_pnl || 0
-      if (closed === 0 && data?.status === 'no_open_trades') {
+      if (closed === 0 && failed === 0 && data?.status === 'no_open_trades') {
         toast.info('لا توجد صفقات مفتوحة لإغلاقها')
+      } else if (failed > 0 && closed === 0) {
+        // All failed
+        const firstErr = data?.live_failed?.[0]?.error || 'سبب غير معروف'
+        toast.error(`❌ فشل إغلاق ${failed} صفقة. السبب: ${firstErr}`)
+      } else if (failed > 0) {
+        // Some failed
+        toast.warning(`⚠️ تم إغلاق ${closed} لكن فشل ${failed} صفقة. تحقق من السجلات.`)
       } else {
         toast.success(`🚪 تم إغلاق ${closed} صفقة — PnL: $${pnl.toFixed(2)}`)
       }
