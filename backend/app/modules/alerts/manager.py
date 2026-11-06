@@ -80,14 +80,19 @@ class AlertManager:
         )
         async with get_session() as s:
             s.add(alert)
+            await s.flush()  # get alert.id without committing
+            alert_id = alert.id
 
         # Telegram
         if send_telegram and self.telegram_token and self.telegram_chat_id:
             try:
                 await self._send_telegram(alert_type, severity, title, message)
-                alert.sent_telegram = True
+                # V511 FIX: was s.add(alert) on a detached object → duplicate row.
+                # Now update the existing row by id.
                 async with get_session() as s:
-                    s.add(alert)
+                    db_alert = await s.get(Alert, alert_id)
+                    if db_alert:
+                        db_alert.sent_telegram = True
             except Exception as exc:
                 logger.warning(f"Telegram send failed: {exc}")
 
