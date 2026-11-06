@@ -473,6 +473,8 @@ class PaperTradingEngine:
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
 
             # V500: Variable trailing (wider for bigger gains = let mega pumps run)
+            # V510 FIX: trail_pct was set to 0.40 even when peak_gain < 30%,
+            # which armed the trailing stop from entry. Now None until +30%.
             if peak_gain_pct >= 5.0:  # +500%
                 trail_pct = 0.45
             elif peak_gain_pct >= 1.0:  # +100%
@@ -480,29 +482,31 @@ class PaperTradingEngine:
             elif peak_gain_pct >= 0.30:  # +30%
                 trail_pct = 0.25
             else:
-                trail_pct = 0.40  # before significant gain (was V57 default)
+                trail_pct = None  # V510: trailing not armed yet
 
-            trailing_level = peak_price * (1 - trail_pct)
+            drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
+            trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
             trailing_hit = (
-                peak_gain_pct >= 0.30  # V500: activate at +30% (was +20%)
+                trail_pct is not None
                 and current_price < trailing_level
             )
 
-            # V500: Sudden dump detection (25%+ drop in 5 min)
-            # We approximate 5 min as ~5 candles of polling
+            # V500: Sudden dump detection (25%+ drop from peak while in profit)
+            # V510 FIX: only triggers BEFORE the trailing is armed (otherwise
+            # it would re-trigger at every trailing tier and make them dead code).
             sudden_dump = False
-            if peak_gain_pct >= 0.10:  # only if was in profit
-                drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
+            if trail_pct is None and peak_gain_pct >= 0.10:
                 if drop_from_peak >= 0.25:  # 25%+ drop from recent peak
                     sudden_dump = True
 
-            # V500: Stagnation exit (price stuck ±5% for 4 hours)
-            # Approximated: if current price is within ±5% of entry for 240+ minutes
+            # V500: Stagnation exit (held 4h+ with small gain, never above +5%)
+            # V510 FIX: original condition was contradictory (gain>5% AND within 5%).
             stagnation_hit = False
-            if trade.entry_timestamp and current_gain > 5:
+            if trade.entry_timestamp:
                 elapsed_min = (datetime.utcnow() - trade.entry_timestamp).total_seconds() / 60
                 if elapsed_min >= 240:  # 4 hours
-                    if abs(current_price - trade.entry_price) / trade.entry_price < 0.05:
+                    # Stagnation = held 4h, in small profit (0-5%), never above 5%
+                    if 0 < current_gain <= 5 and peak_gain_pct < 0.05:
                         stagnation_hit = True
 
             # Determine exit reason (V500 priority order)

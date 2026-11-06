@@ -598,26 +598,46 @@ class LiveTradingExecutor:
 
                 peak_price = trade.max_unrealized_profit_usd
                 # V500: Smart Exit Strategy — Variable trailing
+                # V510 FIX: trail_pct was set to 0.40 even when peak_gain < 30%,
+                # which meant the trailing stop was armed from entry (price 0.6×
+                # peak triggers an immediate exit). This is wrong — the trailing
+                # stop should only arm after a meaningful gain.
                 peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
                 if peak_gain_pct >= 5.0: trail_pct = 0.45  # +500%
                 elif peak_gain_pct >= 1.0: trail_pct = 0.35  # +100%
                 elif peak_gain_pct >= 0.30: trail_pct = 0.25  # +30%
-                else: trail_pct = 0.40
-                trailing_level = peak_price * (1 - trail_pct)
-                trailing_hit = peak_gain_pct >= 0.30 and price < trailing_level
-                # V500: Sudden dump (25%+ from peak while in profit)
-                sudden_dump = peak_gain_pct >= 0.10 and (peak_price - price) / peak_price >= 0.25 if peak_price > 0 else False
-                # V500: Stagnation (±5% for 4h while in profit)
+                else: trail_pct = None  # V510: trailing not armed yet
+                drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
+                trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
+                # V500: Sudden dump (25%+ from peak while in profit, before trailing arms)
+                sudden_dump = (
+                    trail_pct is None
+                    and peak_gain_pct >= 0.10
+                    and drop_from_peak >= 0.25
+                ) if peak_price > 0 else False
+                # V500: Stagnation (held 4h+ with ±5% gain while never going above +5%)
                 stagnation_hit = False
                 if trade.entry_timestamp:
                     elapsed_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
                     if elapsed_min >= 240:
-                        current_gain = (price / trade.entry_price - 1) * 100
-                        if current_gain > 5 and abs(price - trade.entry_price) / trade.entry_price < 0.05:
+                        current_gain = (price / trade.entry_price - 1) if trade.entry_price > 0 else 0
+                        # V510 FIX: original condition was contradictory (gain>5% AND within 5%).
+                        # Correct: stagnation = held 4h, in small profit (0-5%), never above 5%.
+                        if 0 < current_gain <= 0.05 and peak_gain_pct < 0.05:
                             stagnation_hit = True
 
+                # V510: circuit breaker active → liquidate everything.
+                circuit_breaker_on = False
+                try:
+                    from ..risk_management.manager import RiskManager
+                    _st = (await RiskManager().get_state()).to_dict()
+                    circuit_breaker_on = bool(_st.get("circuit_breaker_active", False))
+                except Exception as exc:
+                    logger.warning(f"Could not read circuit breaker state: {exc}")
+
                 reason = None
-                if sudden_dump: reason = "sudden_dump"
+                if circuit_breaker_on: reason = "circuit_breaker"
+                elif sudden_dump: reason = "sudden_dump"
                 elif trade.stop_loss_price and price <= trade.stop_loss_price: reason = "stop_loss"
                 elif trade.take_profit_price and price >= trade.take_profit_price: reason = "mega_tp"
                 elif trailing_hit: reason = "smart_trailing"
