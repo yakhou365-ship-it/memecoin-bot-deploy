@@ -816,6 +816,157 @@ async def system_status():
             "risk": settings.ai_agent_risk_enabled,
         },
         "pumpfun_configured": bool(settings.solana_private_key and settings.solana_wallet_address),
+        # V506: surface the resolved DATABASE_URL so the operator can verify
+        # the Railway Volume is actually being used. Path will contain
+        # "/app/data/" if the Volume is mounted correctly.
+        "database_url_resolved": settings.database_url,
+        "railway_volume_mounted": bool(os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")),
+    }
+
+
+@router.post("/system/prep-live-trading")
+async def prep_live_trading():
+    """V506: one-shot pre-flight check before starting live trading.
+
+    Returns a structured GO / NO-GO verdict by checking:
+      - All live_requirements satisfied (mode, keys, confirm phrase)
+      - Wallet has SOL (>= 0.005 SOL minimum for one trade)
+      - SOL price fetch works (multi-source fallback healthy)
+      - Risk state is clean (no circuit breaker, no cooldown)
+      - TradingState.is_active is False (so the operator starts manually)
+      - DB is on a persistent Volume (RAILWAY_VOLUME_MOUNT_PATH env var)
+      - API_AUTH_KEY is set (so the dashboard is protected)
+    """
+    import os
+    checks = []
+    overall_go = True
+
+    # 1. Live requirements
+    missing = settings.live_requirements
+    checks.append({
+        "name": "live_requirements",
+        "ok": not missing,
+        "detail": f"missing: {missing}" if missing else "all live-trading env vars set",
+    })
+    if missing:
+        overall_go = False
+
+    # 2. Wallet SOL balance (only if live trading is configured)
+    wallet_sol = 0.0
+    sol_price = 0.0
+    if settings.is_live_trading:
+        try:
+            from ..modules.live_trading.executor import LiveTradingExecutor
+            exec_ = LiveTradingExecutor()
+            wallet = await exec_.client.get_wallet_balance()
+            wallet_sol = float(wallet.get("sol", 0.0) or 0.0)
+            sol_price = await exec_.client._fetch_sol_price() or 0.0
+            min_sol = settings.pump_max_trade_sol + 0.005  # trade + priority fee + ATA rent
+            checks.append({
+                "name": "wallet_sol",
+                "ok": wallet_sol >= min_sol,
+                "detail": f"wallet={wallet_sol:.4f} SOL (~${wallet_sol*sol_price:.2f}), needed >= {min_sol:.4f} SOL",
+            })
+            if wallet_sol < min_sol:
+                overall_go = False
+            checks.append({
+                "name": "sol_price_fetch",
+                "ok": sol_price > 0,
+                "detail": f"sol_price=${sol_price:.2f}" if sol_price > 0 else "ALL SOL price sources failed",
+            })
+            if sol_price <= 0:
+                overall_go = False
+        except Exception as exc:
+            checks.append({
+                "name": "wallet_sol",
+                "ok": False,
+                "detail": f"wallet/SOL-price check failed: {str(exc)[:150]}",
+            })
+            overall_go = False
+
+    # 3. Risk state clean
+    try:
+        rm = RiskManager()
+        rs = await rm.get_state()
+        checks.append({
+            "name": "circuit_breaker",
+            "ok": not rs.circuit_breaker_active,
+            "detail": f"active: {rs.circuit_breaker_reason}" if rs.circuit_breaker_active else "inactive",
+        })
+        checks.append({
+            "name": "cooldown",
+            "ok": not rs.cooldown_active,
+            "detail": f"active until {rs.cooldown_until}" if rs.cooldown_active else "inactive",
+        })
+        checks.append({
+            "name": "consecutive_losses",
+            "ok": rs.consecutive_losses < settings.risk_cooldown_after_losses,
+            "detail": f"{rs.consecutive_losses}/{settings.risk_cooldown_after_losses} (cooldown arms at {settings.risk_cooldown_after_losses})",
+        })
+        if rs.circuit_breaker_active or rs.cooldown_active:
+            overall_go = False
+    except Exception as exc:
+        checks.append({
+            "name": "risk_state",
+            "ok": False,
+            "detail": f"RiskManager.get_state() failed: {str(exc)[:150]}",
+        })
+        overall_go = False
+
+    # 4. TradingState.is_active must be False (so operator starts manually)
+    try:
+        async with get_session() as s:
+            ts = await s.get(TradingState, 1)
+            ts_active = bool(ts.is_active) if ts else False
+        checks.append({
+            "name": "trading_state_inactive",
+            "ok": not ts_active,
+            "detail": "is_active=False — operator must press ابدأ" if not ts_active else "is_active=True (auto-trading already enabled)",
+        })
+    except Exception as exc:
+        checks.append({
+            "name": "trading_state",
+            "ok": False,
+            "detail": f"TradingState read failed: {str(exc)[:150]}",
+        })
+
+    # 5. Persistent Volume mounted (Railway)
+    vol_mounted = bool(os.environ.get("RAILWAY_VOLUME_MOUNT_PATH"))
+    checks.append({
+        "name": "railway_volume",
+        "ok": vol_mounted,
+        "detail": f"RAILWAY_VOLUME_MOUNT_PATH={os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')}" if vol_mounted else "NO Volume — SQLite will be wiped on every redeploy",
+    })
+    if not vol_mounted:
+        # Soft warning — bot can still trade but data is ephemeral
+        pass
+
+    # 6. API auth (so dashboard is protected)
+    auth_set = bool(settings.api_auth_key.strip())
+    checks.append({
+        "name": "api_auth_key",
+        "ok": auth_set,
+        "detail": "set" if auth_set else "EMPTY — anyone with the URL can call trade endpoints",
+    })
+    if not auth_set:
+        overall_go = False
+
+    # 7. DB path on Volume
+    db_url = settings.database_url
+    db_on_volume = "/app/data/" in db_url or "/data/" in db_url
+    checks.append({
+        "name": "db_on_volume",
+        "ok": db_on_volume,
+        "detail": f"DATABASE_URL={db_url}",
+    })
+
+    return {
+        "go": overall_go,
+        "checks": checks,
+        "summary": "✅ READY for live trading" if overall_go else "❌ NOT READY — fix the failed checks first",
+        "wallet_sol": wallet_sol,
+        "sol_price_usd": sol_price,
+        "wallet_usd": wallet_sol * sol_price if sol_price > 0 else 0.0,
     }
 
 

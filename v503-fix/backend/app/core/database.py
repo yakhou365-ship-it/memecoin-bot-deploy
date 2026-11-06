@@ -63,6 +63,19 @@ async def init_db() -> None:
     from .models import Base  # noqa
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # V506: best-effort column migration for existing SQLite DBs. SQLAlchemy's
+    # create_all doesn't ALTER existing tables, so for already-deployed bots
+    # the new peak_price column would be missing. We try to add it and ignore
+    # the "duplicate column" error if it already exists.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE trades ADD COLUMN peak_price FLOAT"
+                )
+            )
+    except Exception:
+        pass  # column already exists, or non-SQLite backend — non-fatal
 
 
 async def close_db() -> None:

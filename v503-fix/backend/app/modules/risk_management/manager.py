@@ -251,9 +251,18 @@ class RiskManager:
             )
 
         # Gate 6: Max open positions
-        if state.open_positions_count >= settings.paper_max_open_positions:
+        # V506 FIX: was reading paper_max_open_positions (=10) even in live mode,
+        # so the gate never tripped in live (executor's own check on
+        # live_max_open_positions=3 was the only effective limit). Now picks
+        # the right ceiling based on the trading mode.
+        max_open = (
+            settings.live_max_open_positions
+            if settings.is_live_trading
+            else settings.paper_max_open_positions
+        )
+        if state.open_positions_count >= max_open:
             return RiskCheckResult(
-                False, f"Max open positions ({settings.paper_max_open_positions})"
+                False, f"Max open positions ({max_open})"
             )
 
         # Gate 7: Cooldown after N consecutive losses

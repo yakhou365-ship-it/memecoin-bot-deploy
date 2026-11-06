@@ -200,6 +200,11 @@ class Trade(Base):
     # Extrema during the trade
     max_unrealized_profit_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_unrealized_loss_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # V506: dedicated peak_price column (was previously overloaded onto
+    # max_unrealized_profit_usd — that field is supposed to track max USD PnL,
+    # not max price). Now persisted correctly so trailing tiers compute from
+    # the actual peak price even across restarts.
+    peak_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(String(16), default="open", index=True)

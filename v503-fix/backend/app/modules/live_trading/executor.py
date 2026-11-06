@@ -596,7 +596,8 @@ class LiveTradingExecutor:
                 slippage_total_usd=entry_slippage_usd,  # V400 P1-3
                 entry_reasons_json=reasons,
                 status="open",
-                max_unrealized_profit_usd=fill_price,  # V400 P0-1: init peak = entry
+                max_unrealized_profit_usd=fill_price,  # V400 P0-1: init peak = entry (legacy field)
+                peak_price=fill_price,  # V506: dedicated peak_price column
             )
             # V400 P0-4 FIX: DB save with retry + compensation logic.
             # If DB save fails after on-chain buy, we log the tx_signature
@@ -900,52 +901,63 @@ class LiveTradingExecutor:
                 if price is None or price <= 0:
                     continue
 
-                # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
-                # Use max_unrealized_profit_usd as a proxy to store peak_price:
-                # we encode peak_price in this field (it's normally a PnL value,
-                # but for open trades it's the best available DB column).
-                # If None, initialize to max(entry, current).
-                if trade.max_unrealized_profit_usd is None:
-                    trade.max_unrealized_profit_usd = max(trade.entry_price, price)
+                # V506: trailing stop with PERSISTED peak_price (was overloaded
+                # onto max_unrealized_profit_usd — wrong field semantically and
+                # meant max USD PnL, not max price). Now uses the dedicated
+                # peak_price column. Falls back to max_unrealized_profit_usd
+                # for trades opened before V506 (legacy compatibility).
+                legacy_peak = float(trade.max_unrealized_profit_usd or 0)
+                current_peak = float(trade.peak_price or 0)
+                # Migrate legacy values on first read
+                if current_peak <= 0 and legacy_peak > 0:
+                    current_peak = legacy_peak
+                if current_peak <= 0:
+                    current_peak = max(float(trade.entry_price or 0), price)
                 # Update peak if current price is higher
-                if price > trade.max_unrealized_profit_usd:
-                    trade.max_unrealized_profit_usd = price
-                    # Persist the updated peak to DB
+                if price > current_peak:
+                    current_peak = price
                     try:
                         async with get_session() as s2:
                             db_trade = await s2.get(Trade, trade.id)
                             if db_trade and db_trade.status == "open":
-                                db_trade.max_unrealized_profit_usd = price
+                                db_trade.peak_price = price
                                 await s2.commit()
                     except Exception:
                         pass  # non-critical, will retry next cycle
 
-                peak_price = trade.max_unrealized_profit_usd
-                # V502: Smart exit — variable trailing by peak-gain tier.
+                peak_price = current_peak
+                # V506: Smart exit — TIGHTER variable trailing tiers.
+                # V502 had 25/35/45% which gave back too much profit on memecoins
+                # (a "winning" trailing exit could be -10% net after 8% round-trip
+                # slippage). V506 tightens to 15/20/30% so we lock more profit.
                 peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
                 if peak_gain_pct >= 5.0:
-                    trail_pct = 0.45   # +500%: very wide, ride mega pumps
+                    trail_pct = 0.30   # +500%: ride mega pumps but lock 70% of gain
                 elif peak_gain_pct >= 1.0:
-                    trail_pct = 0.35   # +100%: wide
-                elif peak_gain_pct >= 0.30:
-                    trail_pct = 0.25   # +30%: tight, lock profit
+                    trail_pct = 0.20   # +100%: lock 80% of gain
+                elif peak_gain_pct >= 0.15:
+                    trail_pct = 0.15   # +15%: tight, lock small wins early
                 else:
-                    trail_pct = None   # trailing not armed yet
+                    trail_pct = None   # trailing not armed yet (below +15%)
                 drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
                 trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
-                # V502 FIX: the 25% sudden-dump rule only applies BEFORE the
-                # trailing tiers are armed (+10%..+30% peak). Previously it ran
-                # first at every tier and made the 35%/45% trails dead code.
+                # V506: sudden-dump rule — escape an obvious rug-pull in the
+                # +10%..+15% pre-trailing zone. When peak_gain >= +10% but price
+                # has now dropped -20% from that peak (e.g. peak +15% → now -8%
+                # from entry, still above SL of -15%), we exit early to lock
+                # small wins and avoid the SL taking a -15% loss.
                 sudden_dump = (
-                    trail_pct is None and peak_gain_pct >= 0.10 and drop_from_peak >= 0.25
+                    trail_pct is None and peak_gain_pct >= 0.10 and drop_from_peak >= 0.20
                 )
                 # V502 FIX: stagnation was impossible (gain>5% AND within 5%).
-                # Now: held >=4h, still in profit, but never rose above +5%.
+                # V506: lowered stagnation wait from 4h to 3h (memecoins move
+                # fast — if a position hasn't moved in 3h, it's likely dead).
+                # Still requires: held >=3h, in profit, never above +5%.
                 stagnation_hit = False
                 age_min = 0.0
                 if trade.entry_timestamp:
                     age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
-                    if age_min >= 240 and trade.entry_price > 0:
+                    if age_min >= 180 and trade.entry_price > 0:
                         current_gain = price / trade.entry_price - 1
                         if 0 < current_gain <= 0.05 and peak_gain_pct < 0.05:
                             stagnation_hit = True

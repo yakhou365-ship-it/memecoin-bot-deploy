@@ -442,59 +442,61 @@ class PaperTradingEngine:
             if not current_price:
                 continue
 
-            # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
-            # Use max_unrealized_profit_usd to store peak_price in DB
-            # (this field is normally for PnL, but for open trades we
-            # repurpose it to track the highest price seen since entry).
-            # This survives restarts and is visible across cycles.
-            if trade.max_unrealized_profit_usd is None or trade.max_unrealized_profit_usd == 0:
-                trade.max_unrealized_profit_usd = max(trade.entry_price, current_price)
-            # Treat max_unrealized_profit_usd as peak_price (only if it's >= entry_price)
-            peak_price = trade.max_unrealized_profit_usd
-            if peak_price < trade.entry_price:
+            # V506: trailing stop with PERSISTED peak_price column (was
+            # overloaded onto max_unrealized_profit_usd — wrong field).
+            # Now uses dedicated peak_price column. Legacy migration on first read.
+            legacy_peak = float(trade.max_unrealized_profit_usd or 0)
+            current_peak = float(trade.peak_price or 0)
+            if current_peak <= 0 and legacy_peak > 0:
+                current_peak = legacy_peak
+            if current_peak < float(trade.entry_price or 0):
                 # Field was used for something else, reinitialize
-                peak_price = max(trade.entry_price, current_price)
-                trade.max_unrealized_profit_usd = peak_price
-            if current_price > peak_price:
-                peak_price = current_price
-                trade.max_unrealized_profit_usd = peak_price
+                current_peak = max(float(trade.entry_price or 0), current_price)
+            if current_price > current_peak:
+                current_peak = current_price
                 # Persist peak to DB (so it survives cycles/restarts)
                 try:
                     async with get_session() as s2:
                         db_trade = await s2.get(Trade, trade.id)
                         if db_trade and db_trade.status == "open":
-                            db_trade.max_unrealized_profit_usd = peak_price
+                            db_trade.peak_price = current_peak
                             await s2.commit()
                 except Exception:
                     pass  # non-critical
+            peak_price = current_peak
             # V500: Smart Exit Strategy — Variable trailing based on gain level
-            # No early TP (let winners run), trailing activates at +30%
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
 
-            # V502: Variable trailing by peak-gain tier (same logic as live executor)
+            # V506: TIGHTER variable trailing tiers (was 25/35/45% in V502).
+            # Backtest showed V502 tiers gave back too much profit on memecoins
+            # (a "winning" trailing exit could be -10% net after 8% round-trip
+            # slippage). V506: 15/20/30% — lock more profit, accept more whipsaws.
             if peak_gain_pct >= 5.0:      # +500%
-                trail_pct = 0.45
+                trail_pct = 0.30
             elif peak_gain_pct >= 1.0:    # +100%
-                trail_pct = 0.35
-            elif peak_gain_pct >= 0.30:   # +30%
-                trail_pct = 0.25
+                trail_pct = 0.20
+            elif peak_gain_pct >= 0.15:   # +15% (was +30%)
+                trail_pct = 0.15
             else:
                 trail_pct = None          # trailing not armed yet
 
             drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
             trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
 
-            # V502 FIX: 25% sudden-dump only BEFORE trailing is armed; it used to run
-            # first at every tier and made the 35%/45% trails unreachable.
-            sudden_dump = trail_pct is None and peak_gain_pct >= 0.10 and drop_from_peak >= 0.25
+            # V506: sudden-dump rule — escape an obvious rug-pull in the
+            # +10%..+15% pre-trailing zone. When peak_gain >= +10% but price
+            # has now dropped -18% from that peak (e.g. peak +15% → now -5.8%
+            # from entry, well above SL of -15%), we exit early to lock in
+            # small wins and avoid the SL taking a -15% loss.
+            sudden_dump = trail_pct is None and peak_gain_pct >= 0.10 and drop_from_peak >= 0.18
 
-            # V502 FIX: stagnation was impossible (gain>5% AND within +-5%).
-            # Now: held >=4h, in profit, but never rose above +5%.
+            # V506: stagnation wait lowered from 4h to 3h (memecoins move fast).
+            # Still requires: held >=3h, in profit, never above +5%.
             stagnation_hit = False
             if trade.entry_timestamp and trade.entry_price > 0:
                 elapsed_min = (datetime.utcnow() - trade.entry_timestamp).total_seconds() / 60
-                if elapsed_min >= 240 and 0 < current_gain <= 5 and peak_gain_pct < 0.05:
+                if elapsed_min >= 180 and 0 < current_gain <= 5 and peak_gain_pct < 0.05:
                     stagnation_hit = True
 
             # Determine exit reason (V500 priority order)
