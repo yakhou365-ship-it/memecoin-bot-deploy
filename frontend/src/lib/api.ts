@@ -15,7 +15,9 @@ export const api = axios.create({
 // window.__API_KEY__.  Without this header every /api call returns 401 when
 // authentication is enabled.
 api.interceptors.request.use((config) => {
-  const key = typeof window !== 'undefined' ? window.__API_KEY__ : ''
+  const key = typeof window !== 'undefined'
+    ? (window.__API_KEY__ || localStorage.getItem('bot_api_key') || '')
+    : ''
   if (key) {
     config.headers = config.headers || {}
     config.headers['X-API-Key'] = key

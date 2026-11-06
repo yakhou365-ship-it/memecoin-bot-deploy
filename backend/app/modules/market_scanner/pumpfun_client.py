@@ -301,8 +301,14 @@ class PumpPortalClient:
         self.priority_fee_sol = getattr(settings, "pump_priority_fee_sol", 0.0001)
         self.default_pool = getattr(settings, "pump_default_pool", "auto") or "auto"
         self._client: Optional[httpx.AsyncClient] = None
-        self._sol_price_usd: float = SOL_PRICE_USD_FALLBACK
+        # V504 FIX: None means "no valid price fetched yet" — callers MUST skip
+        # the trade (not fall back to SOL_PRICE_USD_FALLBACK = $200) because a
+        # stale $200 number produces wildly wrong PnL / position-size math.
+        # SOL_PRICE_USD_FALLBACK is still used by _parse_token() for non-critical
+        # market-cap DISPLAY when no real price is available yet.
+        self._sol_price_usd: Optional[float] = None
         self._sol_price_last_fetch: float = 0.0
+        self._sol_price_last_success: float = 0.0  # V504: when we last got a real price
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -310,32 +316,139 @@ class PumpPortalClient:
             self._client = httpx.AsyncClient(timeout=15.0, headers=headers)
         return self._client
 
-    async def _fetch_sol_price(self) -> float:
-        """Fetch current SOL price in USD (cached for 60s)."""
+    async def _fetch_sol_price(self) -> Optional[float]:
+        """Fetch current SOL price in USD (cached for 60s).
+
+        V504 FIX: returns None (instead of the $200 fallback) when no real
+        price is available, so callers MUST skip the trade rather than size a
+        position with a wildly wrong constant.  Sources tried in order:
+        Jupiter → Binance → Coinbase → DexScreener.  A stale cache is reused
+        only if it is less than 5 minutes old; older stale values are dropped.
+        """
         now = time.time()
-        if now - self._sol_price_last_fetch < 60:
+        if now - self._sol_price_last_fetch < 60 and self._sol_price_usd:
             return self._sol_price_usd
 
+        self._sol_price_last_fetch = now
         client = await self._get_client()
+
+        # Source 1: Jupiter price API (current primary)
+        price = await self._try_jupiter_price(client)
+
+        # Source 2: Binance public ticker (no auth, very reliable)
+        if not price or price <= 0:
+            price = await self._try_binance_sol_price(client)
+
+        # Source 3: Coinbase public spot price
+        if not price or price <= 0:
+            price = await self._try_coinbase_sol_price(client)
+
+        # Source 4: DexScreener SOL/USDC pair on Solana
+        if not price or price <= 0:
+            price = await self._try_dexscreener_sol_price(client)
+
+        if price and price > 0:
+            self._sol_price_usd = float(price)
+            self._sol_price_last_success = now
+            return self._sol_price_usd
+
+        # All sources failed.  Use stale cache only if recent enough.
+        if (
+            self._sol_price_usd
+            and self._sol_price_last_success > 0
+            and now - self._sol_price_last_success < 300  # 5 min staleness window
+        ):
+            logger.warning(
+                f"SOL price fetch failed from all sources; using stale cache "
+                f"${self._sol_price_usd:.2f} (age={int(now - self._sol_price_last_success)}s)"
+            )
+            return self._sol_price_usd
+
+        # No valid price available anywhere — caller MUST skip the trade.
+        logger.error(
+            "SOL price unavailable from all sources (Jupiter, Binance, "
+            "Coinbase, DexScreener). Skipping trade — refusing to fall back to $200."
+        )
+        return None
+
+    async def _try_jupiter_price(self, client: httpx.AsyncClient) -> Optional[float]:
         try:
-            # Jupiter price API
             resp = await client.get(
                 "https://lite-api.jup.ag/price/v2",
                 params={"ids": "So11111111111111111111111111111111111111112"},
+                timeout=5.0,
             )
             if resp.status_code == 200:
                 data = resp.json()
-                price = data.get("data", {}).get(
-                    "So11111111111111111111111111111111111111112", {}
-                ).get("price")
+                price = (
+                    data.get("data", {})
+                    .get("So11111111111111111111111111111111111111112", {})
+                    .get("price")
+                )
                 if price and float(price) > 0:
-                    self._sol_price_usd = float(price)
-                    self._sol_price_last_fetch = now
-                    return self._sol_price_usd
+                    return float(price)
         except Exception as exc:
-            logger.debug(f"SOL price fetch failed: {exc}")
+            logger.debug(f"Jupiter SOL price fetch failed: {str(exc)[:150]}")
+        return None
 
-        return self._sol_price_usd
+    async def _try_binance_sol_price(self, client: httpx.AsyncClient) -> Optional[float]:
+        try:
+            resp = await client.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": "SOLUSDT"},
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                price = float(resp.json().get("price", 0) or 0)
+                if price > 0:
+                    return price
+        except Exception as exc:
+            logger.debug(f"Binance SOL price fetch failed: {str(exc)[:150]}")
+        return None
+
+    async def _try_coinbase_sol_price(self, client: httpx.AsyncClient) -> Optional[float]:
+        try:
+            resp = await client.get(
+                "https://api.coinbase.com/v2/prices/SOL-USD/spot",
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                payload = resp.json() or {}
+                price = float(
+                    (payload.get("data") or {}).get("amount", 0) or 0
+                )
+                if price > 0:
+                    return price
+        except Exception as exc:
+            logger.debug(f"Coinbase SOL price fetch failed: {str(exc)[:150]}")
+        return None
+
+    async def _try_dexscreener_sol_price(self, client: httpx.AsyncClient) -> Optional[float]:
+        try:
+            # Wrapped SOL mint on Solana; DexScreener returns its pairs.
+            resp = await client.get(
+                "https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112",
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                pairs = (resp.json() or {}).get("pairs", []) or []
+                # Prefer a Solana / USDC pair with healthy liquidity.
+                for p in pairs:
+                    if p.get("chainId") != "solana":
+                        continue
+                    if (p.get("quoteToken") or {}).get("symbol", "").upper() != "USDC":
+                        continue
+                    price = float(p.get("priceUsd", 0) or 0)
+                    if price > 0:
+                        return price
+                # Fall back to the first pair that has any price.
+                for p in pairs:
+                    price = float(p.get("priceUsd", 0) or 0)
+                    if price > 0:
+                        return price
+        except Exception as exc:
+            logger.debug(f"DexScreener SOL price fetch failed: {str(exc)[:150]}")
+        return None
 
     @property
     def is_configured_for_trading(self) -> bool:
@@ -838,7 +951,7 @@ class PumpPortalClient:
             return None
 
         try:
-            sol_price = self._sol_price_usd
+            sol_price = self._sol_price_usd or SOL_PRICE_USD_FALLBACK
             real_sol = float(data.get("sol_reserves", 0) or 0)
             real_tokens = float(data.get("token_reserves", 0) or 0)
 

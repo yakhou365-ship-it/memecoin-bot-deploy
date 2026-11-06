@@ -263,6 +263,19 @@ class MainOrchestrator:
                             )
                             decision.reasons.append(decision.rejection_reason)
                             logger.info(f"🛑 AI VETO (agent): {token.symbol}")
+                        elif not decision.qualified and consensus.approved and not (
+                            (token.liquidity_usd or 0) >= settings.min_liquidity_usd
+                            and (token.volume_24h_usd or 0) >= settings.min_volume_24h_usd
+                            and decision.risk_score <= settings.max_risk_score
+                        ):
+                            # V502 FIX: agents may NOT override the hard
+                            # liquidity / volume / risk gates (4, 5, 6).
+                            decision.qualified = False
+                            decision.recommendation = "reject"
+                            logger.info(
+                                f"🔒 {token.symbol}: AI override blocked — hard gate "
+                                f"(liq/vol/risk) not satisfied: {decision.rejection_reason}"
+                            )
                         elif not decision.qualified and consensus.approved:
                             # AI agents approved! Override the decision.
                             # V31.4: cap at 5% (matches RiskAgent hard cap).
@@ -288,9 +301,9 @@ class MainOrchestrator:
                                 decision.suggested_stop_loss = token_price * 0.92
                             if not decision.suggested_take_profit or decision.suggested_take_profit <= 0:
                                 # V57: +50% TP (ATR fallback)
-                                decision.suggested_take_profit = token_price * 1.50
+                                decision.suggested_take_profit = token_price * 11.0  # V502: 10x cap (was 1.50)
                             if not decision.suggested_holding_period_minutes:
-                                decision.suggested_holding_period_minutes = 3600  # V57 60h
+                                decision.suggested_holding_period_minutes = 7200  # V502: 5 days
                             decision.reasons.append(
                                 f"AI consensus: {consensus.approvals_count}/"
                                 f"{consensus.total_agents} approved"
@@ -335,8 +348,10 @@ class MainOrchestrator:
                 token.latest_risk_score = decision.risk_score
                 token.latest_win_probability = decision.win_probability
                 # V407 P1-2: use merge instead of add (detached object fix)
+                # V504 FIX: AsyncSession.merge is a coroutine — must be awaited,
+                # otherwise the latest_* scores are silently never persisted.
                 async with get_session() as s:
-                    s.merge(token)
+                    await s.merge(token)
 
                 summary["analyzed"] += 1
 

@@ -168,6 +168,17 @@ function TokenCard({ token, onBuy, buying, canBuy, maxSol }: { token: any; onBuy
           <p className="font-mono">{fmtCompact(token.volume_24h_usd)}</p>
         </div>
         <div>
+          <p className="text-xs text-gray-500">التغير 24h</p>
+          {(() => {
+            const ch = Number(token.price_change_24h_pct ?? token.price_change_24h ?? 0)
+            return (
+              <p className={`font-mono ${ch > 0 ? 'text-emerald-400' : ch < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                {ch > 0 ? '+' : ''}{ch.toFixed(1)}%
+              </p>
+            )
+          })()}
+        </div>
+        <div>
           <p className="text-xs text-gray-500">الحاملون</p>
           <p className="font-mono">{token.holder_count || '—'}</p>
         </div>

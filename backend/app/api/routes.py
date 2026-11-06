@@ -2159,7 +2159,7 @@ async def _geckoterminal_trending_tokens(limit: int) -> List[Dict[str, Any]]:
     return tokens
 
 
-async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
+async def _dexscreener_solana_tokens_uncached(limit: int) -> Dict[str, Any]:
     """V406: Complete token discovery — maximum coverage, zero duplicates.
 
     Sources:
@@ -2225,6 +2225,37 @@ async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
     )[:limit]
 
     return {"source": source, "total": len(tokens), "tokens": tokens, "fallback": True}
+
+
+_DISCOVERY_CACHE: Dict[str, Any] = {"ts": 0.0, "limit": 0, "data": None}
+_DISCOVERY_TTL_SECONDS = 60.0
+_DISCOVERY_LOCK = None
+
+
+async def _dexscreener_solana_tokens(limit: int) -> Dict[str, Any]:
+    """V503: cached wrapper (60s). Discovery makes ~22 outbound requests; the UI
+    polling and the bot scanner would otherwise hit DexScreener rate limits."""
+    import asyncio, time
+    global _DISCOVERY_LOCK
+    if _DISCOVERY_LOCK is None:
+        _DISCOVERY_LOCK = asyncio.Lock()
+    async with _DISCOVERY_LOCK:
+        c = _DISCOVERY_CACHE
+        now = time.monotonic()
+        if c["data"] and now - c["ts"] < _DISCOVERY_TTL_SECONDS and c["limit"] >= limit:
+            d = dict(c["data"])
+            d["tokens"] = list(d["tokens"])[:limit]
+            d["total"] = len(d["tokens"])
+            d["cached"] = True
+            return d
+        fetch_limit = max(limit, 100)
+        data = await _dexscreener_solana_tokens_uncached(fetch_limit)
+        if data.get("tokens"):
+            c.update(ts=now, limit=fetch_limit, data=data)
+        d = dict(data)
+        d["tokens"] = list(d.get("tokens", []))[:limit]
+        d["total"] = len(d["tokens"])
+        return d
 
 
 def _estimate_pump_bonding_progress(market_cap_usd: float | None) -> float | None:

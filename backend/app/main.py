@@ -138,9 +138,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def _inject_api_key(html: str) -> str:
-    """Inject the shared API key so the dashboard can authenticate itself."""
-    key = settings.api_auth_key.strip()
-    script = f"<script>window.__API_KEY__={json.dumps(key)};</script>"
+    """SECURITY FIX: never embed the server API key in public HTML.
+
+    Previously the key was written into the page for every visitor, so anyone
+    who opened the URL could call trade/exit endpoints. Now the page only
+    contains a tiny script that asks the operator for the key once and keeps it
+    in this browser's localStorage. Open the site with #resetkey to clear it.
+    """
+    if not settings.api_auth_key.strip():
+        return html  # auth disabled: nothing to inject
+    script = (
+        "<script>(function(){try{"
+        "if(location.hash==='#resetkey'){localStorage.removeItem('bot_api_key');location.hash='';}"
+        "var k=localStorage.getItem('bot_api_key');"
+        "if(!k){k=window.prompt('API key:')||'';if(k){localStorage.setItem('bot_api_key',k.trim());}}"
+        "window.__API_KEY__=(k||'').trim();"
+        "}catch(e){window.__API_KEY__='';}})();</script>"
+    )
     if "</head>" in html:
         return html.replace("</head>", script + "</head>", 1)
     return script + html

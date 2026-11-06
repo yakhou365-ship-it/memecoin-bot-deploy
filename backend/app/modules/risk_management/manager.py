@@ -59,10 +59,46 @@ class RiskManager:
     """Enforces risk limits. Single source of truth for whether a trade can open."""
 
     STATE_KEY = "risk_manager_state"
+    # V504: live_capital_base row written by LiveTradingExecutor on the first
+    # trade of each UTC day. Contains {"date": "YYYY-MM-DD", "usd": float, ...}.
+    LIVE_CAPITAL_KEY = "live_capital_base"
+
+    async def _get_capital_base_usd(self) -> float:
+        """USD capital base for %-based risk calculations.
+
+        V504 FIX: previously every %-based gate (daily loss, weekly loss, max
+        drawdown) divided by ``settings.paper_capital_usd`` (default 10000) no
+        matter what mode the bot was in.  For a $20 live wallet a $5 loss
+        showed as 0.05% (instead of 25%), so the 5% daily-loss gate could
+        NEVER trigger on a live wallet — it could lose everything.
+
+        Now: when the live executor has recorded a start-of-day wallet USD
+        value in SystemState (today's date), use it.  Otherwise fall back to
+        ``paper_capital_usd`` (correct for paper trading, sensible default
+        when no live data exists yet).
+        """
+        try:
+            async with get_session() as session:
+                row = await session.get(SystemState, self.LIVE_CAPITAL_KEY)
+                if row:
+                    v = row.value_json or {}
+                    today = datetime.utcnow().date().isoformat()
+                    if v.get("date") == today:
+                        base = float(v.get("usd", 0.0) or 0.0)
+                        if base > 0:
+                            return base
+        except Exception as exc:
+            logger.debug(f"Could not read live capital base, using paper_capital_usd: {exc}")
+        return float(settings.paper_capital_usd)
 
     async def get_state(self) -> RiskState:
         """Compute current risk state from DB + system state."""
         state = RiskState()
+
+        # V504: fetch the capital base FIRST so all %-based calcs below use it.
+        # Returns live wallet USD when the executor has recorded one for today,
+        # otherwise falls back to settings.paper_capital_usd (paper mode default).
+        capital_base_usd = await self._get_capital_base_usd()
 
         # Load persistent state
         async with get_session() as session:
@@ -94,9 +130,13 @@ class RiskManager:
             result = await session.execute(stmt)
             daily_trades = list(result.scalars().all())
             state.daily_pnl_usd = sum(t.net_pnl_usd or 0 for t in daily_trades)
-            # V400 P2-9 FIX: use actual capital (wallet balance) if available,
-            # fall back to paper_capital. This makes daily_pnl_pct meaningful.
-            state.daily_pnl_pct = state.daily_pnl_usd / settings.paper_capital_usd * 100
+            # V504 FIX: divide by the REAL capital base (live wallet USD when
+            # available) instead of always paper_capital_usd = $10000.
+            # For a $20 live wallet, a $5 loss is now correctly 25% (was 0.05%).
+            state.daily_pnl_pct = (
+                state.daily_pnl_usd / capital_base_usd * 100
+                if capital_base_usd > 0 else 0.0
+            )
 
             # Weekly PnL
             stmt = select(Trade).where(
@@ -105,7 +145,10 @@ class RiskManager:
             result = await session.execute(stmt)
             weekly_trades = list(result.scalars().all())
             state.weekly_pnl_usd = sum(t.net_pnl_usd or 0 for t in weekly_trades)
-            state.weekly_pnl_pct = state.weekly_pnl_usd / settings.paper_capital_usd * 100
+            state.weekly_pnl_pct = (
+                state.weekly_pnl_usd / capital_base_usd * 100
+                if capital_base_usd > 0 else 0.0
+            )
 
             # Open positions count
             open_stmt = select(Trade).where(Trade.status == "open")
@@ -119,8 +162,10 @@ class RiskManager:
             all_time_pnl = sum(t.net_pnl_usd or 0 for t in all_time_trades)
 
             # V400: peak_equity is cumulative (max of starting_capital + cumulative_pnl)
-            peak = sys_state.value_json.get("peak_equity", settings.paper_capital_usd) if sys_state else settings.paper_capital_usd
-            current_equity = settings.paper_capital_usd + all_time_pnl
+            # V504: use capital_base_usd (live wallet USD when available) so peak
+            # tracking and drawdown are measured against the real account size.
+            peak = sys_state.value_json.get("peak_equity", capital_base_usd) if sys_state else capital_base_usd
+            current_equity = capital_base_usd + all_time_pnl
             if current_equity > peak:
                 peak = current_equity
                 # Will be persisted by _persist_state later
@@ -136,6 +181,30 @@ class RiskManager:
                 await self._persist_state(state)
 
         return state
+
+    async def check_live_can_open(self) -> RiskCheckResult:
+        """V503+V504: risk gates for LIVE trading.
+
+        Enforces circuit breaker + cooldown-after-N-losses (V503). The
+        %-based loss limits are now (V504) computed against the live wallet
+        USD capital base instead of paper_capital_usd = $10000, so they
+        trigger correctly for small live wallets too. The executor still
+        enforces its own wallet-relative daily loss limit as a backstop.
+        """
+        state = await self.get_state()
+        if state.circuit_breaker_active:
+            return RiskCheckResult(False, f"Circuit breaker active: {state.circuit_breaker_reason}")
+        if state.cooldown_active:
+            return RiskCheckResult(False, f"Cooldown active until {state.cooldown_until}")
+        if state.consecutive_losses >= settings.risk_cooldown_after_losses:
+            streak = state.consecutive_losses
+            state.cooldown_active = True
+            state.cooldown_until = datetime.utcnow() + timedelta(hours=2)
+            state.consecutive_losses = 0
+            await self._persist_state(state)
+            logger.warning(f"⚠️ Live cooldown (2h) after {streak} consecutive losses")
+            return RiskCheckResult(False, f"Cooldown after {streak} consecutive losses")
+        return RiskCheckResult(True)
 
     async def check_can_open_trade(self) -> RiskCheckResult:
         """The main pre-trade gate. Returns can_open=True only if ALL limits are within bounds."""
@@ -192,13 +261,18 @@ class RiskManager:
             cooldown_until = datetime.utcnow() + timedelta(hours=2)
             state.cooldown_active = True
             state.cooldown_until = cooldown_until
+            streak = state.consecutive_losses
+            # V503 FIX: reset the streak when arming the cooldown. Before, the
+            # counter only reset on a WIN, so after the 2h pause the cooldown
+            # re-armed forever (no trade could ever be placed to win again).
+            state.consecutive_losses = 0
             await self._persist_state(state)
             logger.warning(
-                f"⚠️ Cooldown activated: {state.consecutive_losses} consecutive losses"
+                f"⚠️ Cooldown activated: {streak} consecutive losses"
             )
             return RiskCheckResult(
                 False,
-                f"Cooldown after {state.consecutive_losses} consecutive losses"
+                f"Cooldown after {streak} consecutive losses"
             )
 
         # V200: Removed V101's 24h adaptive bear pause.
@@ -210,6 +284,9 @@ class RiskManager:
     async def record_trade_result(self, winning: bool, pnl_usd: float) -> None:
         """Called after a trade closes to update risk state."""
         from sqlalchemy.orm.attributes import flag_modified
+        # V504: fetch the capital base BEFORE opening the inner session to avoid
+        # nested sessions (each get_session() opens a new connection from pool).
+        capital_base_usd = await self._get_capital_base_usd()
         async with get_session() as session:
             sys_state = await session.get(SystemState, self.STATE_KEY)
             if not sys_state:
@@ -231,9 +308,12 @@ class RiskManager:
             all_time_stmt = select(Trade).where(Trade.status == "closed")
             all_time_trades = list((await session.execute(all_time_stmt)).scalars().all())
             all_time_pnl = sum(t.net_pnl_usd or 0 for t in all_time_trades)
-            current_peak = v.get("peak_equity", settings.paper_capital_usd)
+            # V504: use the real capital base (live wallet USD when available)
+            # instead of always paper_capital_usd, so peak tracking and
+            # drawdown reflect the live account size.
+            current_peak = v.get("peak_equity", capital_base_usd)
             # V400: equity = starting_capital + all_time_pnl (cumulative)
-            approx_equity = settings.paper_capital_usd + all_time_pnl
+            approx_equity = capital_base_usd + all_time_pnl
             if approx_equity > current_peak:
                 v["peak_equity"] = approx_equity
 

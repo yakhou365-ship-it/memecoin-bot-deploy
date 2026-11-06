@@ -31,6 +31,16 @@ from .fomo_client import FomoClient
 # =========================================================================
 # Data normalizer: convert DexScreener pair -> our Token schema
 # =========================================================================
+def _norm_addr(addr: Any) -> str:
+    """V503 FIX: keep Solana (base58) addresses case-exact.
+
+    Base58 mints/pairs are case-sensitive; lowercasing them produced invalid
+    mints for PumpPortal buy/sell. Only EVM (0x...) addresses are lowercased.
+    """
+    a = (addr or "").strip()
+    return a.lower() if a.lower().startswith("0x") else a
+
+
 def normalize_dexscreener_pair(pair: Dict[str, Any]) -> Dict[str, Any]:
     """Map DexScreener pair JSON into our internal token dict."""
     base_token = pair.get("baseToken") or {}
@@ -46,11 +56,11 @@ def normalize_dexscreener_pair(pair: Dict[str, Any]) -> Dict[str, Any]:
     m5 = txns.get("m5") or {}
 
     return {
-        "address": base_token.get("address", "").lower(),
+        "address": _norm_addr(base_token.get("address", "")),
         "chain": pair.get("chainId", ""),
         "symbol": base_token.get("symbol", ""),
         "name": base_token.get("name", ""),
-        "pair_address": pair.get("pairAddress", "").lower(),
+        "pair_address": _norm_addr(pair.get("pairAddress", "")),
         "dex": pair.get("dexId", ""),
         "price_usd": float(pair.get("priceUsd") or 0),
         "market_cap_usd": float(pair.get("marketCap") or 0) or None,
@@ -194,7 +204,7 @@ class MarketScanner:
                         rels = pool.get("relationships") or {}
                         base_token_rel = rels.get("base_token") or {}
                         base_token_data = base_token_rel.get("data") or {}
-                        base_addr = base_token_data.get("id", "").split("_")[-1].lower()
+                        base_addr = _norm_addr(base_token_data.get("id", "").split("_")[-1])
 
                         if not base_addr:
                             continue
@@ -204,7 +214,7 @@ class MarketScanner:
                             "chain": chain,
                             "symbol": attrs.get("base_token_symbol", ""),
                             "name": "",
-                            "pair_address": attrs.get("address", "").lower(),
+                            "pair_address": _norm_addr(attrs.get("address", "")),
                             "dex": attrs.get("dex_id", ""),
                             "price_usd": float(attrs.get("base_token_price_usd") or 0),
                             "market_cap_usd": None,
@@ -232,7 +242,7 @@ class MarketScanner:
                 for entry in chain_filtered:
                     try:
                         # entry structure: {chain, tokenAddress, ...}
-                        token_addr = entry.get("tokenAddress", "").lower()
+                        token_addr = _norm_addr(entry.get("tokenAddress", ""))
                         if not token_addr:
                             continue
 
@@ -261,6 +271,45 @@ class MarketScanner:
                         errors += 1
                         error_log.append(f"ds:{str(exc)[:200]}")
                         continue
+
+            # 1b. V503: full discovery (20 search terms + boosted + GeckoTerminal),
+            # so the BOT trades from the same universe the dashboard shows
+            # (previously the bot only saw DexScreener boosted/paid tokens).
+            if chain == "solana":
+                try:
+                    from ...api.routes import _dexscreener_solana_tokens
+                    disc = await _dexscreener_solana_tokens(100)
+                    for t in disc.get("tokens", []):
+                        try:
+                            if not t.get("address") or float(t.get("price_usd") or 0) <= 0:
+                                continue
+                            data = {
+                                "address": _norm_addr(t["address"]),
+                                "chain": chain,
+                                "symbol": t.get("symbol", ""),
+                                "name": t.get("name", ""),
+                                "pair_address": _norm_addr(t.get("pair_address", "")) or None,
+                                "dex": t.get("dex") or None,
+                                "price_usd": float(t.get("price_usd") or 0),
+                                "market_cap_usd": float(t.get("market_cap_usd") or 0) or None,
+                                "liquidity_usd": float(t.get("liquidity_usd") or 0),
+                                "volume_24h_usd": float(t.get("volume_24h_usd") or 0),
+                                "volume_5m_usd": float(t.get("volume_5m_usd") or 0),
+                                "price_change_24h_pct": float(t.get("price_change_24h_pct") or 0),
+                                "price_change_5m_pct": float(t.get("price_change_5m_pct") or 0),
+                            }
+                            async with get_session() as s:
+                                tok = await upsert_token(s, data)
+                                if tok:
+                                    if tok.created_at == tok.updated_at:
+                                        discovered += 1
+                                    else:
+                                        updated += 1
+                        except Exception as exc:
+                            errors += 1
+                            error_log.append(f"disc:{str(exc)[:200]}")
+                except Exception as exc:
+                    logger.warning(f"[Scanner:{chain}] full discovery failed: {exc}")
 
             # 2. Mark dead tokens: not seen in last 6h
             cutoff = datetime.utcnow() - timedelta(hours=6)

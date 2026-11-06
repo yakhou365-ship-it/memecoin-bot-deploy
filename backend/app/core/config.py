@@ -135,6 +135,8 @@ class Settings(BaseSettings):
     live_max_open_positions: int = 3
     live_daily_cap_sol: float = 1.5
     live_daily_loss_limit_sol: float = 0.3
+    # V503: also cap the daily loss as % of the wallet (0.3 SOL is unreachable for a ~0.1 SOL wallet)
+    live_daily_loss_limit_pct_of_wallet: float = 30.0
     live_cycle_timeout_seconds: int = 300
 
     # --- Orchestrator ---

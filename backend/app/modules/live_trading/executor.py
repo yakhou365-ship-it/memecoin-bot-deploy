@@ -34,6 +34,11 @@ from ..market_scanner.pumpfun_client import PumpPortalClient
 
 LIVE_STRATEGY_ID = "live_pumpfun"
 DAILY_STATE_KEY = "live_daily_state"
+# V504: shared with RiskManager — start-of-day wallet USD value used for
+# %-based daily-loss / weekly-loss / drawdown gates. Without this the risk
+# manager falls back to paper_capital_usd = $10000 (a small live wallet
+# could lose 100% without ever tripping a 5% daily-loss limit).
+LIVE_CAPITAL_KEY = "live_capital_base"
 # PumpPortal Lightning fee is 1% of notional, charged on each side.
 PUMPPORTAL_FEE_PCT = 0.01
 
@@ -57,6 +62,7 @@ class LiveTradingExecutor:
     def __init__(self, client: Optional[PumpPortalClient] = None):
         self.client = client or PumpPortalClient()
         self._lock = asyncio.Lock()
+        self._sold_pending_db: set = set()  # V503: sold on-chain but DB close failed
 
     # ------------------------------------------------------------------
     # Configuration / status
@@ -133,6 +139,61 @@ class LiveTradingExecutor:
                 session.add(row)
             await session.commit()
 
+    async def _record_live_capital_base(
+        self, wallet_sol: float, sol_price_usd: float
+    ) -> None:
+        """V504: persist start-of-day wallet USD for the RiskManager.
+
+        The RiskManager's %-based daily-loss / weekly-loss / max-drawdown gates
+        need a capital base to divide by.  Without this row they fall back to
+        settings.paper_capital_usd = $10000, so a small live wallet ($20) could
+        lose everything without ever tripping a 5% daily-loss limit.
+
+        We record once per UTC day (or refresh if the price has moved >20% —
+        e.g. a deposit / withdrawal / large PnL swing).  This is best-effort:
+        any failure just logs a warning and the RiskManager keeps using the
+        previous value or paper_capital_usd.
+        """
+        if wallet_sol <= 0 or sol_price_usd <= 0:
+            return
+        try:
+            from sqlalchemy.orm.attributes import flag_modified
+            today = _today()
+            capital_usd = float(wallet_sol) * float(sol_price_usd)
+            async with get_session() as session:
+                row = await session.get(SystemState, LIVE_CAPITAL_KEY)
+                v = dict(row.value_json) if row else {}
+                needs_update = (
+                    not v
+                    or v.get("date") != today
+                    or not v.get("usd")
+                    # Refresh if recorded value has drifted > 20% from current
+                    # (covers deposits / withdrawals / large PnL swings).
+                    or abs(float(v.get("usd", 0)) - capital_usd) / max(capital_usd, 1e-9) > 0.20
+                )
+                if not needs_update:
+                    return
+                v = {
+                    "date": today,
+                    "usd": capital_usd,
+                    "wallet_sol": float(wallet_sol),
+                    "sol_price_usd": float(sol_price_usd),
+                    "recorded_at": _utcnow().isoformat(),
+                }
+                if row is None:
+                    row = SystemState(key=LIVE_CAPITAL_KEY, value_json=v)
+                    session.add(row)
+                else:
+                    row.value_json = v
+                    flag_modified(row, "value_json")
+                await session.commit()
+                logger.info(
+                    f"V504: live capital base recorded: ${capital_usd:.2f} "
+                    f"(wallet {wallet_sol:.4f} SOL × ${sol_price_usd:.2f})"
+                )
+        except Exception as exc:
+            logger.warning(f"Could not record live capital base: {exc}")
+
     # ------------------------------------------------------------------
     # Open
     # ------------------------------------------------------------------
@@ -172,12 +233,45 @@ class LiveTradingExecutor:
                     f"Daily cap {settings.live_daily_cap_sol} SOL would be exceeded "
                     f"(spent {daily['sol_spent']:.4f} SOL)",
                 )
-            if daily["sol_pnl"] <= -settings.live_daily_loss_limit_sol:
+            # V503 FIX: effective daily loss limit = min(absolute SOL limit,
+            # X% of the start-of-day wallet). With a ~0.1 SOL wallet the 0.3 SOL
+            # absolute limit could never trigger, i.e. there was no loss limit.
+            effective_loss_limit = float(settings.live_daily_loss_limit_sol)
+            try:
+                _w = await self.client.get_wallet_balance()
+                _start_wallet = float(_w.get("sol", 0.0)) + max(0.0, -float(daily["sol_pnl"]))
+                if _start_wallet > 0:
+                    effective_loss_limit = min(
+                        effective_loss_limit,
+                        _start_wallet * settings.live_daily_loss_limit_pct_of_wallet / 100.0,
+                    )
+            except Exception as _exc:
+                logger.warning(f"Could not read wallet for loss-limit check: {_exc}")
+            if daily["sol_pnl"] <= -effective_loss_limit:
+                try:
+                    from ..risk_management.manager import RiskManager
+                    await RiskManager().activate_circuit_breaker(
+                        f"Live daily loss limit reached: {daily['sol_pnl']:.4f} SOL "
+                        f"(limit {effective_loss_limit:.4f} SOL)"
+                    )
+                except Exception as _exc:
+                    logger.warning(f"Could not activate circuit breaker: {_exc}")
                 return self._reject(
                     "daily_loss_limit_reached",
-                    f"Daily loss limit {settings.live_daily_loss_limit_sol} SOL reached "
+                    f"Daily loss limit {effective_loss_limit:.4f} SOL reached "
                     f"(pnl {daily['sol_pnl']:.4f} SOL)",
                 )
+
+            # V503: enforce circuit breaker + cooldown-after-losses in LIVE mode
+            try:
+                from ..risk_management.manager import RiskManager
+                _rc = await RiskManager().check_live_can_open()
+                if not _rc.can_open:
+                    return self._reject("risk_blocked", _rc.reason or "Risk manager blocked the trade")
+            except Exception as _exc:
+                # Fail closed: if the risk state cannot be read, do not trade.
+                logger.error(f"Live risk check failed — blocking trade: {_exc}")
+                return self._reject("risk_check_failed", f"Risk check failed: {str(_exc)[:150]}")
 
             open_count = await self._count_open_live()
             if open_count >= settings.live_max_open_positions:
@@ -213,6 +307,21 @@ class LiveTradingExecutor:
                 )
 
             sol_price_usd = await self.client._fetch_sol_price()
+            # V504 FIX: skip the trade if no real SOL price is available.
+            # Previously this fell back to a $200 constant, producing wildly
+            # wrong notional/PnL math (a $20 wallet would look like a $200 trade).
+            if not sol_price_usd or sol_price_usd <= 0:
+                return self._reject(
+                    "sol_price_unavailable",
+                    "SOL price unavailable from all sources (Jupiter, Binance, "
+                    "Coinbase, DexScreener); cannot size the position safely.",
+                )
+
+            # V504: record the start-of-day live capital base for the RiskManager
+            # so %-based daily-loss / weekly-loss / drawdown gates use the real
+            # wallet USD value (not paper_capital_usd = $10000).
+            await self._record_live_capital_base(sol_balance, sol_price_usd)
+
             result = await self.client.buy_token(mint_address=mint, amount_sol=amount, pool=pool)
             if not result.success:
                 logger.warning(f"Live buy failed for {symbol}: {result.error}")
@@ -225,17 +334,30 @@ class LiveTradingExecutor:
             confirmed = False
             if result.tx_signature:
                 try:
-                    confirmed = await self.client.confirm_signature(result.tx_signature, timeout=15)
+                    # V503 FIX: kwarg is timeout_seconds (was `timeout=` -> TypeError,
+                    # silently swallowed, so confirmation NEVER ran) and the result
+                    # is a dict, not a bool.
+                    conf = await self.client.confirm_signature(result.tx_signature, timeout_seconds=15)
+                    confirmed = bool(conf.get("confirmed"))
+                    conf_err = str(conf.get("error") or "")
+                    if not confirmed and conf_err and not conf_err.startswith("timeout"):
+                        # The tx LANDED on-chain but FAILED (slippage, funds...).
+                        # No tokens were bought -> do not record a phantom position.
+                        logger.error(
+                            f"❌ Buy tx {result.tx_signature} for {symbol} failed on-chain: {conf_err}"
+                        )
+                        return self._reject(
+                            "buy_tx_failed_onchain",
+                            f"Buy transaction failed on-chain: {conf_err[:200]}",
+                            {"tx_signature": result.tx_signature},
+                        )
                 except Exception as confirm_exc:
                     logger.warning(f"Buy confirm failed for {symbol}: {confirm_exc}")
-                    # Don't fail — proceed with DB save (P0-4 safety)
             if not confirmed:
-                # Transaction may have failed on-chain.
-                # Log warning but still record — if tokens were received,
-                # we need to track them. If not, the position will be closed
-                # by manage_open_positions when price = 0.
+                # Status unknown (timeout / RPC trouble): PumpPortal accepted the
+                # order, so keep tracking it but flag it for the operator.
                 logger.warning(
-                    f"⚠️ Buy tx {result.tx_signature} for {symbol} NOT confirmed on-chain. "
+                    f"⚠️ Buy tx {result.tx_signature} for {symbol} NOT confirmed within 15s. "
                     f"Recording anyway — monitor for stuck position."
                 )
 
@@ -359,16 +481,41 @@ class LiveTradingExecutor:
                 logger.warning(f"Live sell failed for {symbol}: {result.error}")
                 return self._reject("sell_failed", result.error or "PumpPortal rejected the sell")
 
-            # V400 P0-3 FIX: Confirm sell on-chain
+            # V400 P0-3 FIX: Confirm sell on-chain (V503: correct kwarg + dict result)
+            sell_confirmed = False
             if result.tx_signature:
                 try:
-                    sell_confirmed = await self.client.confirm_signature(result.tx_signature, timeout=15)
+                    sconf = await self.client.confirm_signature(result.tx_signature, timeout_seconds=15)
+                    sell_confirmed = bool(sconf.get("confirmed"))
+                    serr = str(sconf.get("error") or "")
+                    if not sell_confirmed and serr and not serr.startswith("timeout"):
+                        # Sell failed on-chain: tokens are still in the wallet.
+                        # Keep the trade OPEN so the next cycle retries the exit.
+                        logger.error(
+                            f"❌ Sell tx {result.tx_signature} for {symbol} failed on-chain: {serr}"
+                        )
+                        return self._reject(
+                            "sell_tx_failed_onchain",
+                            f"Sell transaction failed on-chain: {serr[:200]}",
+                            {"tx_signature": result.tx_signature},
+                        )
                     if not sell_confirmed:
-                        logger.warning(f"⚠️ Sell tx {result.tx_signature} for {symbol} NOT confirmed")
+                        logger.warning(f"⚠️ Sell tx {result.tx_signature} for {symbol} NOT confirmed in 15s")
                 except Exception as confirm_exc:
                     logger.warning(f"Sell confirm failed: {confirm_exc}")
 
             sol_price_usd = await self.client._fetch_sol_price()
+            # V504 FIX: if SOL price is unavailable, still close the position
+            # (it may be hitting stop-loss / circuit breaker — urgent liquidation),
+            # but skip the SOL-denominated pnl tracking this cycle to avoid
+            # corrupting the daily PnL counter with a $0 / fallback value.
+            if not sol_price_usd or sol_price_usd <= 0:
+                logger.warning(
+                    f"SOL price unavailable during close of trade {trade_id} "
+                    f"({symbol}); closing anyway (urgent exit), SOL-denominated "
+                    f"daily pnl tracking will be skipped this cycle."
+                )
+                sol_price_usd = 0.0
             # V400 P1-2 FIX: Apply slippage to exit_price (was missing!)
             # Estimate 5% slippage on sell (memecoins have thin liquidity)
             estimated_exit_slippage_pct = 5.0
@@ -439,6 +586,15 @@ class LiveTradingExecutor:
                 except Exception as db_exc2:
                     logger.error(f"DB save retry also failed: {db_exc2}")
 
+            if not db_save_success:
+                # V503: tokens are sold but the DB still says "open". Remember it so
+                # manage_open_positions does not try to sell it again every cycle.
+                self._sold_pending_db.add(trade_id)
+                logger.critical(
+                    f"🚨 Trade {trade_id} SOLD on-chain (tx={result.tx_signature}) but DB close "
+                    f"failed twice. Excluded from auto-exit; fix the DB row manually."
+                )
+
             daily = await self._load_daily()
             daily["sol_pnl"] = round(
                 float(daily["sol_pnl"]) + (net_pnl / sol_price_usd if sol_price_usd else 0.0),
@@ -474,7 +630,7 @@ class LiveTradingExecutor:
     # Manage open live positions (SL / TP / trailing / time exit)
     # ------------------------------------------------------------------
     async def manage_open_positions(self) -> Dict[str, int]:
-        closed = {"stop_loss": 0, "sudden_dump": 0, "mega_tp": 0, "smart_trailing": 0, "stagnation": 0, "time_exit": 0, "exit_all": 0}
+        closed = {"stop_loss": 0, "sudden_dump": 0, "mega_tp": 0, "smart_trailing": 0, "stagnation": 0, "time_exit": 0, "exit_all": 0, "circuit_breaker": 0}
         async with get_session() as session:
             trades = (
                 await session.execute(
@@ -485,7 +641,18 @@ class LiveTradingExecutor:
                 )
             ).scalars().all()
 
+        # V502: circuit breaker active -> liquidate everything.
+        circuit_breaker_on = False
+        try:
+            from ..risk_management.manager import RiskManager
+            _st = (await RiskManager().get_state()).to_dict()
+            circuit_breaker_on = bool(_st.get("circuit_breaker_active", False))
+        except Exception as exc:
+            logger.warning(f"Could not read circuit breaker state: {exc}")
+
         for trade in trades:
+            if trade.id in self._sold_pending_db:
+                continue
             try:
                 async with get_session() as session:
                     token = await session.get(Token, trade.token_id)
@@ -514,33 +681,43 @@ class LiveTradingExecutor:
                         pass  # non-critical, will retry next cycle
 
                 peak_price = trade.max_unrealized_profit_usd
-                # V500: Smart Exit Strategy — Variable trailing
+                # V502: Smart exit — variable trailing by peak-gain tier.
                 peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
-                if peak_gain_pct >= 5.0: trail_pct = 0.45  # +500%
-                elif peak_gain_pct >= 1.0: trail_pct = 0.35  # +100%
-                elif peak_gain_pct >= 0.30: trail_pct = 0.25  # +30%
-                else: trail_pct = 0.40
-                trailing_level = peak_price * (1 - trail_pct)
-                trailing_hit = peak_gain_pct >= 0.30 and price < trailing_level
-                # V500: Sudden dump (25%+ from peak while in profit)
-                sudden_dump = peak_gain_pct >= 0.10 and (peak_price - price) / peak_price >= 0.25 if peak_price > 0 else False
-                # V500: Stagnation (±5% for 4h while in profit)
+                if peak_gain_pct >= 5.0:
+                    trail_pct = 0.45   # +500%: very wide, ride mega pumps
+                elif peak_gain_pct >= 1.0:
+                    trail_pct = 0.35   # +100%: wide
+                elif peak_gain_pct >= 0.30:
+                    trail_pct = 0.25   # +30%: tight, lock profit
+                else:
+                    trail_pct = None   # trailing not armed yet
+                drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
+                trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
+                # V502 FIX: the 25% sudden-dump rule only applies BEFORE the
+                # trailing tiers are armed (+10%..+30% peak). Previously it ran
+                # first at every tier and made the 35%/45% trails dead code.
+                sudden_dump = (
+                    trail_pct is None and peak_gain_pct >= 0.10 and drop_from_peak >= 0.25
+                )
+                # V502 FIX: stagnation was impossible (gain>5% AND within 5%).
+                # Now: held >=4h, still in profit, but never rose above +5%.
                 stagnation_hit = False
+                age_min = 0.0
                 if trade.entry_timestamp:
-                    elapsed_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
-                    if elapsed_min >= 240:
-                        current_gain = (price / trade.entry_price - 1) * 100
-                        if current_gain > 5 and abs(price - trade.entry_price) / trade.entry_price < 0.05:
+                    age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
+                    if age_min >= 240 and trade.entry_price > 0:
+                        current_gain = price / trade.entry_price - 1
+                        if 0 < current_gain <= 0.05 and peak_gain_pct < 0.05:
                             stagnation_hit = True
 
                 reason = None
-                if sudden_dump: reason = "sudden_dump"
+                if circuit_breaker_on: reason = "circuit_breaker"
+                elif sudden_dump: reason = "sudden_dump"
                 elif trade.stop_loss_price and price <= trade.stop_loss_price: reason = "stop_loss"
                 elif trade.take_profit_price and price >= trade.take_profit_price: reason = "mega_tp"
                 elif trailing_hit: reason = "smart_trailing"
                 elif stagnation_hit: reason = "stagnation"
                 elif trade.planned_holding_period_minutes and trade.entry_timestamp:
-                    age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
                     if age_min >= trade.planned_holding_period_minutes:
                         reason = "time_exit"
 
