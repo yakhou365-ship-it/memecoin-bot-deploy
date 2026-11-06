@@ -1,0 +1,32 @@
+[
+  {
+    "ts": "2026-11-06T11:46:53.338785+00:00",
+    "bot_status": "ok",
+    "trading_mode": "live",
+    "live_trading": true,
+    "trading_active": null,
+    "risk_state_error": {
+      "_http_error": 401,
+      "_body": "{\"detail\":\"Unauthorized: missing or invalid API key\"}"
+    },
+    "tokens_discovered": null,
+    "trades_total": null,
+    "wallet_sol": null,
+    "sol_price_usd": null
+  },
+  {
+    "ts": "2026-11-06T11:47:25.921287+00:00",
+    "bot_status": "ok",
+    "trading_mode": "live",
+    "live_trading": true,
+    "trading_active": null,
+    "risk_state_error": {
+      "_http_error": 401,
+      "_body": "{\"detail\":\"Unauthorized: missing or invalid API key\"}"
+    },
+    "tokens_discovered": null,
+    "trades_total": null,
+    "wallet_sol": null,
+    "sol_price_usd": null
+  }
+]

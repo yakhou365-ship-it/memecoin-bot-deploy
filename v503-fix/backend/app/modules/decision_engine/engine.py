@@ -571,18 +571,37 @@ class DecisionEngine:
         """
         result.suggested_entry = float(token.price_usd or 0)
 
-        # V57: ATR-based with asymmetric R:R (1:5)
+        # V57: ATR-based with asymmetric R:R (1:5).
+        # V505 FIX: the previous "1.8 × ATR" SL was too tight on volatile
+        # memecoins (especially new launches on Pump.fun) — it triggered
+        # repeatedly on normal 1-candle noise. Now we use:
+        #   - When ATR is available: 3.0 × ATR (vs the previous 1.8) AND we
+        #     apply a HARD FLOOR of -10% on memecoins. The previous 1.8 × ATR
+        #     could be -2% on quiet tokens, which is unrealistically tight.
+        #   - When no OHLCV (typical for fresh launches): -15% (was -8%).
+        #     Pump.fun tokens routinely swing 10-20% in minutes; an -8% SL
+        #     turns into "stop out → cooldown → repeat", which is a slow
+        #     bleed even if no single loss is catastrophic.
+        #   - HARD FLOOR: SL never tighter than -10% on memecoins
+        #     (Pump.fun / PumpSwap / Raydium low-liquidity pools).
+        #   - HARD CEILING: SL never wider than -25% (avoid bag-holding).
         if ta.atr > 0 and result.suggested_entry > 0:
-            sl_distance = 1.8 * ta.atr  # tight SL
-            result.suggested_stop_loss = max(0.0001, result.suggested_entry - sl_distance)
+            sl_distance = 3.0 * ta.atr  # V505: was 1.8 (too tight for memecoins)
+            sl_atr_pct = sl_distance / result.suggested_entry  # e.g. 0.05 = 5%
+            # Apply the hard floor (-10%) and ceiling (-25%) for memecoins.
+            sl_pct_final = max(0.10, min(0.25, sl_atr_pct))
+            result.suggested_stop_loss = max(0.0001, result.suggested_entry * (1 - sl_pct_final))
             # V501: TP cap at 10x (was 9×ATR) — let winners run via trailing
             result.suggested_take_profit = result.suggested_entry * 11.0  # 10x cap
             # V501: 5 days holding (was 60h)
             result.suggested_holding_period_minutes = 7200  # 5 days
         else:
             # Fallback for tokens without OHLCV (new memecoins):
-            # V501: -8% SL, +1000% TP cap (was +50%)
-            result.suggested_stop_loss = result.suggested_entry * 0.92  # -8% SL
+            # V505: -15% SL (was -8% — too tight for memecoins that swing
+            # 10-20% in a single minute). Pump.fun tokens commonly dip 10%
+            # right after entry due to bonding-curve pressure; an -8% SL
+            # would stop them out before the trade has any chance.
+            result.suggested_stop_loss = result.suggested_entry * 0.85  # -15% SL
             result.suggested_take_profit = result.suggested_entry * 11.0  # V501: 10x cap
             result.suggested_holding_period_minutes = 7200  # V501: 5 days
 

@@ -297,8 +297,9 @@ class MainOrchestrator:
                             if not decision.suggested_entry or decision.suggested_entry <= 0:
                                 decision.suggested_entry = token_price
                             if not decision.suggested_stop_loss or decision.suggested_stop_loss <= 0:
-                                # V57: -8% SL (ATR fallback)
-                                decision.suggested_stop_loss = token_price * 0.92
+                                # V505: -15% SL (was -8% — too tight for memecoins;
+                                # see DecisionEngine._suggest_trade_params for rationale).
+                                decision.suggested_stop_loss = token_price * 0.85
                             if not decision.suggested_take_profit or decision.suggested_take_profit <= 0:
                                 # V57: +50% TP (ATR fallback)
                                 decision.suggested_take_profit = token_price * 11.0  # V502: 10x cap (was 1.50)

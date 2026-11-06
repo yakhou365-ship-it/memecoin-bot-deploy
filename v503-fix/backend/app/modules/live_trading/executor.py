@@ -139,6 +139,154 @@ class LiveTradingExecutor:
                 session.add(row)
             await session.commit()
 
+    # ------------------------------------------------------------------
+    # V505: real-slippage measurement from wallet balance diff.
+    # PumpPortal doesn't return fill details, so we measure the actual
+    # SOL spent / tokens received by snapshotting the wallet before and
+    # after each trade. This replaces the 3% buy / 5% sell estimates
+    # with the true on-chain cost, which is essential for accurate PnL.
+    # ------------------------------------------------------------------
+    async def _snapshot_wallet(self, mint: Optional[str] = None) -> Dict[str, Any]:
+        """Capture SOL balance + token balance for ``mint`` (if provided).
+
+        Returns ``{"sol": float, "token_balance": float, "ts": datetime}``.
+        Best-effort: on RPC failure returns the SOL balance (or 0.0) with
+        token_balance = None so the caller can decide whether to proceed.
+        """
+        snap: Dict[str, Any] = {"sol": 0.0, "token_balance": None, "ts": _utcnow()}
+        if not self.client.wallet_address:
+            return snap
+        try:
+            wallet = await self.client.get_wallet_balance()
+            snap["sol"] = float(wallet.get("sol", 0.0) or 0.0)
+        except Exception as exc:
+            logger.debug(f"snapshot: SOL balance read failed: {exc}")
+        if mint:
+            try:
+                token_bal = await self._get_token_balance(mint)
+                snap["token_balance"] = token_bal
+            except Exception as exc:
+                logger.debug(f"snapshot: token balance read failed for {mint}: {exc}")
+        return snap
+
+    async def _get_token_balance(self, mint: str) -> Optional[float]:
+        """Return the wallet's SPL token balance for ``mint`` (raw units), or None."""
+        if not self.client.wallet_address or not mint:
+            return None
+        client = await self.client._get_client()
+        try:
+            resp = await client.post(
+                settings.solana_rpc_url,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getTokenAccountsByOwner",
+                    "params": [
+                        self.client.wallet_address,
+                        {"mint": mint},
+                        {"encoding": "jsonParsed"},
+                    ],
+                },
+                timeout=5.0,
+            )
+            if resp.status_code != 200:
+                return None
+            accounts = (resp.json() or {}).get("result", {}).get("value", [])
+            if not accounts:
+                return 0.0
+            # Sum across all ATAs (rare to have >1, but possible).
+            total = 0.0
+            for acc in accounts:
+                info = (
+                    acc.get("account", {})
+                    .get("data", {})
+                    .get("parsed", {})
+                    .get("info", {})
+                )
+                amount_str = info.get("tokenAmount", {}).get("uiAmountString") or "0"
+                try:
+                    total += float(amount_str)
+                except (TypeError, ValueError):
+                    pass
+            return total
+        except Exception as exc:
+            logger.debug(f"get_token_balance failed for {mint}: {exc}")
+            return None
+
+    def _compute_actual_slippage(
+        self,
+        before: Dict[str, Any],
+        after: Dict[str, Any],
+        notional_usd: float,
+        sol_price_usd: float,
+        side: str,  # "buy" | "sell"
+        market_price_usd: Optional[float] = None,
+        token_quantity: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Compute actual fill price + slippage from wallet diff.
+
+        For BUY: sol_spent = before.sol - after.sol; tokens_received = after.token_balance - before.token_balance
+        For SELL: tokens_sold = before.token_balance - after.token_balance; sol_received = after.sol - before.sol
+
+        Returns dict with ``actual_slippage_pct``, ``actual_fill_price``, ``actual_fee_and_slippage_sol``,
+        or empty values when the data isn't usable (RPC issues, ATA rent eating the diff, etc.).
+        """
+        out: Dict[str, Any] = {
+            "actual_slippage_pct": None,
+            "actual_fill_price": None,
+            "actual_cost_sol": None,
+            "measured": False,
+            "reason": "",
+        }
+        if not sol_price_usd or sol_price_usd <= 0:
+            out["reason"] = "no sol price"
+            return out
+        try:
+            sol_diff = float(before.get("sol", 0.0)) - float(after.get("sol", 0.0))
+            tok_before = before.get("token_balance")
+            tok_after = after.get("token_balance")
+            if side == "buy":
+                sol_spent = sol_diff  # positive = spent
+                if tok_before is None or tok_after is None:
+                    out["reason"] = "token balance unavailable"
+                    return out
+                tokens_received = float(tok_after) - float(tok_before)
+                if sol_spent <= 0 or tokens_received <= 0:
+                    out["reason"] = f"invalid diff: sol_spent={sol_spent}, tokens={tokens_received}"
+                    return out
+                actual_fill_price = (sol_spent * sol_price_usd) / tokens_received
+                actual_cost_sol = sol_spent
+                if market_price_usd and market_price_usd > 0:
+                    actual_slippage_pct = (actual_fill_price - market_price_usd) / market_price_usd * 100
+                else:
+                    actual_slippage_pct = None
+            elif side == "sell":
+                sol_received = -sol_diff  # before - after is negative on sell
+                if tok_before is None or tok_after is None:
+                    out["reason"] = "token balance unavailable"
+                    return out
+                tokens_sold = float(tok_before) - float(tok_after)
+                if sol_received <= 0 or tokens_sold <= 0:
+                    out["reason"] = f"invalid diff: sol_received={sol_received}, tokens={tokens_sold}"
+                    return out
+                actual_fill_price = (sol_received * sol_price_usd) / tokens_sold
+                actual_cost_sol = sol_received
+                if market_price_usd and market_price_usd > 0:
+                    actual_slippage_pct = (market_price_usd - actual_fill_price) / market_price_usd * 100
+                else:
+                    actual_slippage_pct = None
+            else:
+                out["reason"] = f"unknown side: {side}"
+                return out
+            out["actual_fill_price"] = actual_fill_price
+            out["actual_slippage_pct"] = actual_slippage_pct
+            out["actual_cost_sol"] = actual_cost_sol
+            out["measured"] = True
+            return out
+        except Exception as exc:
+            out["reason"] = f"compute error: {exc}"
+            return out
+
     async def _record_live_capital_base(
         self, wallet_sol: float, sol_price_usd: float
     ) -> None:
@@ -322,6 +470,12 @@ class LiveTradingExecutor:
             # wallet USD value (not paper_capital_usd = $10000).
             await self._record_live_capital_base(sol_balance, sol_price_usd)
 
+            # V505: snapshot wallet BEFORE the buy so we can compute actual
+            # slippage from the on-chain balance diff after the trade lands.
+            # (PumpPortal doesn't return fill details; this is the only way to
+            # know the true fill price + cost.)
+            wallet_before = await self._snapshot_wallet(mint=mint)
+
             result = await self.client.buy_token(mint_address=mint, amount_sol=amount, pool=pool)
             if not result.success:
                 logger.warning(f"Live buy failed for {symbol}: {result.error}")
@@ -361,25 +515,69 @@ class LiveTradingExecutor:
                     f"Recording anyway — monitor for stuck position."
                 )
 
-            # V400 P1-2/P1-3 FIX: Estimate fill price with slippage.
-            # PumpPortal doesn't return fill details, so we estimate:
-            # assume 3% slippage on buy (conservative).
-            estimated_slippage_pct = 3.0
+            # V505: REAL slippage measurement — snapshot the wallet AFTER the
+            # buy lands and compute the actual fill price + slippage from the
+            # SOL spent vs tokens received. Falls back to the V400 estimate
+            # (3% slippage) only when the wallet diff isn't usable (RPC issues,
+            # brand-new ATA, etc.). This is the only accurate way to know what
+            # we actually paid — PumpPortal Lightning API returns no fill details.
+            wallet_after = await self._snapshot_wallet(mint=mint)
             notional_usd = amount * sol_price_usd
-            # V400: if price_usd is valid, use it + slippage estimate
-            if price_usd and price_usd > 0:
-                fill_price = price_usd * (1 + estimated_slippage_pct / 100)
+            market_price_for_slip = float(price_usd) if price_usd and price_usd > 0 else None
+            real_slip = self._compute_actual_slippage(
+                wallet_before, wallet_after, notional_usd,
+                sol_price_usd, side="buy",
+                market_price_usd=market_price_for_slip,
+            )
+            if real_slip["measured"] and real_slip["actual_fill_price"]:
+                fill_price = float(real_slip["actual_fill_price"])
+                # tokens_received is implied by wallet diff (don't use the
+                # estimated 3% slippage path).
+                if wallet_before.get("token_balance") is not None and wallet_after.get("token_balance") is not None:
+                    quantity = float(wallet_after["token_balance"]) - float(wallet_before["token_balance"])
+                else:
+                    quantity = notional_usd / fill_price if fill_price > 0 else 0.0
+                # entry slippage = (fill_price - market) * qty — fees are
+                # reported separately (PumpPortal fee = 1% of notional).
+                actual_slip_pct = real_slip.get("actual_slippage_pct") or 0.0
+                entry_slippage_usd = notional_usd * max(0.0, actual_slip_pct) / 100
+                # Recompute fee from actual notional (it's still 1% of intended).
+                entry_fee_usd = notional_usd * PUMPPORTAL_FEE_PCT
+                actual_cost_sol = real_slip.get("actual_cost_sol")
+                logger.info(
+                    f"📐 V505 real buy slippage: {actual_slip_pct:+.2f}% "
+                    f"(fill=${fill_price:.10f}, market=${market_price_for_slip or 0:.10f}, "
+                    f"sol_spent={actual_cost_sol:.6f}, tokens={quantity:.2f})"
+                )
+                reasons = list(entry_reasons or [])
+                reasons.append(f"LIVE buy {amount} SOL via PumpPortal")
+                reasons.append(f"tx:{result.tx_signature}")
+                reasons.append(
+                    f"V505 measured slippage {actual_slip_pct:+.2f}% "
+                    f"(fill=${fill_price:.10f})"
+                )
+                if not confirmed:
+                    reasons.append("⚠️ tx not confirmed on-chain")
             else:
-                fill_price = notional_usd  # fallback (quantity = 1.0)
-            quantity = notional_usd / fill_price if fill_price > 0 else 0.0
-            entry_fee_usd = notional_usd * PUMPPORTAL_FEE_PCT
-            entry_slippage_usd = notional_usd * estimated_slippage_pct / 100  # V400 P1-3
-
-            reasons = list(entry_reasons or [])
-            reasons.append(f"LIVE buy {amount} SOL via PumpPortal")
-            reasons.append(f"tx:{result.tx_signature}")
-            if not confirmed:
-                reasons.append("⚠️ tx not confirmed on-chain")
+                # V400 P1-2/P1-3 fallback: 3% slippage estimate when wallet
+                # diff isn't usable (rare — usually means RPC failed).
+                estimated_slippage_pct = 3.0
+                if price_usd and price_usd > 0:
+                    fill_price = price_usd * (1 + estimated_slippage_pct / 100)
+                else:
+                    fill_price = notional_usd  # fallback (quantity = 1.0)
+                quantity = notional_usd / fill_price if fill_price > 0 else 0.0
+                entry_fee_usd = notional_usd * PUMPPORTAL_FEE_PCT
+                entry_slippage_usd = notional_usd * estimated_slippage_pct / 100
+                reasons = list(entry_reasons or [])
+                reasons.append(f"LIVE buy {amount} SOL via PumpPortal")
+                reasons.append(f"tx:{result.tx_signature}")
+                reasons.append(
+                    f"V505 slippage estimate {estimated_slippage_pct}% "
+                    f"(wallet-diff measurement failed: {real_slip.get('reason', 'unknown')})"
+                )
+                if not confirmed:
+                    reasons.append("⚠️ tx not confirmed on-chain")
 
             trade = Trade(
                 token_id=token_id,
@@ -476,6 +674,10 @@ class LiveTradingExecutor:
             if not mint:
                 return self._reject("missing_mint", "Cannot sell: token mint unknown")
 
+            # V505: snapshot wallet BEFORE sell so we can compute the actual
+            # exit price from the SOL received vs tokens sold.
+            wallet_before_sell = await self._snapshot_wallet(mint=mint)
+
             result = await self.client.sell_token(mint_address=mint, amount_tokens="100%", pool=pool)
             if not result.success:
                 logger.warning(f"Live sell failed for {symbol}: {result.error}")
@@ -516,13 +718,51 @@ class LiveTradingExecutor:
                     f"daily pnl tracking will be skipped this cycle."
                 )
                 sol_price_usd = 0.0
-            # V400 P1-2 FIX: Apply slippage to exit_price (was missing!)
-            # Estimate 5% slippage on sell (memecoins have thin liquidity)
-            estimated_exit_slippage_pct = 5.0
-            actual_exit_price = exit_price * (1 - estimated_exit_slippage_pct / 100)
-            proceeds_usd = trade.entry_quantity * actual_exit_price  # V400: use actual price
-            exit_fee_usd = proceeds_usd * PUMPPORTAL_FEE_PCT
-            exit_slippage_usd = trade.entry_quantity * exit_price * estimated_exit_slippage_pct / 100
+            # V505: REAL exit-slippage measurement — snapshot AFTER sell and
+            # compute actual exit price from SOL received vs tokens sold.
+            # Falls back to the 5% estimate only when the wallet diff fails.
+            wallet_after_sell = await self._snapshot_wallet(mint=mint)
+            exit_market_price = float(exit_price) if exit_price else None
+            real_sell_slip = self._compute_actual_slippage(
+                wallet_before_sell, wallet_after_sell,
+                0.0,  # notional not used for sell
+                sol_price_usd, side="sell",
+                market_price_usd=exit_market_price,
+            )
+            if real_sell_slip["measured"] and real_sell_slip["actual_fill_price"]:
+                actual_exit_price = float(real_sell_slip["actual_fill_price"])
+                actual_exit_slip_pct = real_sell_slip.get("actual_slippage_pct") or 0.0
+                # tokens actually sold — use wallet diff if both snapshots have it
+                if (
+                    wallet_before_sell.get("token_balance") is not None
+                    and wallet_after_sell.get("token_balance") is not None
+                ):
+                    tokens_sold = float(wallet_before_sell["token_balance"]) - float(wallet_after_sell["token_balance"])
+                else:
+                    tokens_sold = float(trade.entry_quantity or 0.0)
+                proceeds_usd = tokens_sold * actual_exit_price
+                exit_fee_usd = proceeds_usd * PUMPPORTAL_FEE_PCT
+                exit_slippage_usd = tokens_sold * exit_price * max(0.0, actual_exit_slip_pct) / 100
+                logger.info(
+                    f"📐 V505 real sell slippage: {actual_exit_slip_pct:+.2f}% "
+                    f"(exit=${actual_exit_price:.10f}, market=${exit_market_price or 0:.10f}, "
+                    f"tokens_sold={tokens_sold:.2f}, sol_received={real_sell_slip.get('actual_cost_sol'):.6f})"
+                )
+                # Update exit_price variable used downstream in the log line.
+                exit_price = actual_exit_price
+            else:
+                # V400 P1-2 fallback: 5% slippage estimate when wallet diff
+                # isn't usable (rare — usually means RPC failed).
+                estimated_exit_slippage_pct = 5.0
+                actual_exit_price = exit_price * (1 - estimated_exit_slippage_pct / 100)
+                tokens_sold = float(trade.entry_quantity or 0.0)
+                proceeds_usd = tokens_sold * actual_exit_price
+                exit_fee_usd = proceeds_usd * PUMPPORTAL_FEE_PCT
+                exit_slippage_usd = tokens_sold * exit_price * estimated_exit_slippage_pct / 100
+                logger.warning(
+                    f"V505 sell slippage estimate 5% (wallet-diff measurement failed: "
+                    f"{real_sell_slip.get('reason', 'unknown')})"
+                )
             gross_pnl = (actual_exit_price - float(trade.entry_price)) * float(trade.entry_quantity)
             # V400 P1-2: Include exit slippage in net PnL (was missing!)
             net_pnl = (gross_pnl

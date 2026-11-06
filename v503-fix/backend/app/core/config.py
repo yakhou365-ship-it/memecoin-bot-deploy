@@ -37,7 +37,27 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = "*"
 
     # --- Database ---
-    database_url: str = "sqlite+aiosqlite:///./data/memecoin_bot.db"
+    # V505: support Railway Volume mounts for SQLite persistence.
+    # Order of preference:
+    #   1. DATABASE_URL env var (explicit, set by the operator)
+    #   2. RAILWAY_VOLUME_MOUNT_PATH/data/memecoin_bot.db (Railway persistent volume)
+    #   3. /app/data/memecoin_bot.db (Docker absolute path)
+    #   4. ./data/memecoin_bot.db (local development default)
+    # Without a Volume on Railway every redeploy wipes the SQLite file, which
+    # means open trades + risk state + peak_equity all disappear mid-trade.
+    # See README-V505.md for the Volume setup procedure.
+    def _resolve_database_url() -> str:
+        explicit = os.environ.get("DATABASE_URL")
+        if explicit:
+            return explicit
+        volume_path = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+        if volume_path:
+            return f"sqlite+aiosqlite:///{volume_path.rstrip('/')}/data/memecoin_bot.db"
+        if os.path.isdir("/app/data"):
+            return "sqlite+aiosqlite:////app/data/memecoin_bot.db"
+        return "sqlite+aiosqlite:///./data/memecoin_bot.db"
+
+    database_url: str = Field(default_factory=_resolve_database_url)
     data_dir: str = "./data"
 
     # --- Redis ---
