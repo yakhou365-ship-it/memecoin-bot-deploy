@@ -1,51 +1,59 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Wallet, Save, Play, Square, TrendingUp, AlertTriangle, DollarSign } from 'lucide-react'
+import { Wallet, Save, Play, Square, TrendingUp, AlertTriangle, DollarSign, RefreshCw } from 'lucide-react'
 import { api, endpoints } from '../lib/api'
 
 export default function BudgetPage() {
   const qc = useQueryClient()
   const [settings, setSettings] = useState<any>(null)
 
-  const { data: budget, isLoading } = useQuery({
+  const { data: budget, isLoading: budgetLoading, isError: budgetError, error: budgetErr } = useQuery({
     queryKey: ['budget-settings'],
     queryFn: () => api.get(endpoints.budgetSettings).then(r => r.data),
     refetchInterval: 5000,
+    retry: false,  // V508: don't retry on 401 — show error immediately
   })
 
   const { data: dailyRecord } = useQuery({
     queryKey: ['budget-daily'],
     queryFn: () => api.get(endpoints.budgetDailyRecord).then(r => r.data),
     refetchInterval: 5000,
+    retry: false,
   })
 
+  // V508: fix query params — /api/budget/can-trade takes required_capital + risk_amount
   const { data: canTrade } = useQuery({
     queryKey: ['budget-can-trade'],
-    queryFn: () => api.get(endpoints.budgetCanTrade).then(r => r.data),
+    queryFn: () => api.get(endpoints.budgetCanTrade, { params: { required_capital: 5, risk_amount: 1 } }).then(r => r.data),
     refetchInterval: 3000,
+    retry: false,
   })
 
-  // Live SOL price (for USD → SOL conversion). Falls back to $200 if unavailable.
+  // Live SOL price (for USD → SOL conversion)
   const { data: wallet } = useQuery({
     queryKey: ['budget-sol-price'],
     queryFn: () => api.get(endpoints.pumpfunWalletBalance).then(r => r.data),
     refetchInterval: 60000,
+    retry: false,
   })
   const solPrice = Number(wallet?.sol_price_usd || 0) || 200
 
-  // Initialize settings from budget data
-  if (budget && !settings) {
-    setSettings({
-      daily_trading_budget: budget.daily_trading_budget || 1000,
-      max_capital_per_trade: budget.max_capital_per_trade || 100,
-      max_daily_trades: budget.max_daily_trades || 20,
-      max_simultaneous_positions: budget.max_simultaneous_positions || 5,
-      max_daily_loss: budget.max_daily_loss || 50,
-      max_daily_drawdown_pct: budget.max_daily_drawdown_pct || 5,
-      daily_risk_exposure_limit: budget.daily_risk_exposure_limit || 200,
-    })
-  }
+  // V508: use useEffect to initialize settings (avoids setState-during-render warning
+  // and ensures settings update when budget data refreshes).
+  useEffect(() => {
+    if (budget && !settings) {
+      setSettings({
+        daily_trading_budget: budget.daily_trading_budget || 1000,
+        max_capital_per_trade: budget.max_capital_per_trade || 100,
+        max_daily_trades: budget.max_daily_trades || 20,
+        max_simultaneous_positions: budget.max_simultaneous_positions || 5,
+        max_daily_loss: budget.max_daily_loss || 50,
+        max_daily_drawdown_pct: budget.max_daily_drawdown_pct || 5,
+        daily_risk_exposure_limit: budget.daily_risk_exposure_limit || 200,
+      })
+    }
+  }, [budget, settings])
 
   const saveMutation = useMutation({
     mutationFn: (data: any) => api.post(endpoints.budgetSettings, data).then(r => r.data),
@@ -53,7 +61,7 @@ export default function BudgetPage() {
       toast.success('✅ تم حفظ إعدادات الميزانية')
       qc.invalidateQueries({ queryKey: ['budget-settings'] })
     },
-    onError: () => toast.error('فشل حفظ الإعدادات'),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل حفظ الإعدادات'),
   })
 
   const stopMutation = useMutation({
@@ -62,7 +70,7 @@ export default function BudgetPage() {
       toast.success('⏸️ تم إيقاف التداول')
       qc.invalidateQueries({ queryKey: ['budget-can-trade'] })
     },
-    onError: () => toast.error('فشل الإيقاف'),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل الإيقاف'),
   })
 
   const startMutation = useMutation({
@@ -71,7 +79,7 @@ export default function BudgetPage() {
       toast.success('▶️ تم استئناف التداول')
       qc.invalidateQueries({ queryKey: ['budget-can-trade'] })
     },
-    onError: () => toast.error('فشل الاستئناف'),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || 'فشل الاستئناف'),
   })
 
   const handleSave = () => {
@@ -82,9 +90,46 @@ export default function BudgetPage() {
     setSettings({ ...settings, [field]: value })
   }
 
-  if (isLoading || !settings) return <div className="p-6">جاري التحميل...</div>
+  // V508: explicit error state — instead of infinite "جاري التحميل..." when API fails.
+  // Show the actual error (401 = auth failure, 500 = server error) with a retry button.
+  if (budgetError) {
+    const status = (budgetErr as any)?.response?.status
+    const detail = (budgetErr as any)?.response?.data?.detail || (budgetErr as any)?.message || 'خطأ غير معروف'
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-2xl font-bold">إدارة الميزانية والمخاطر</h1>
+        <div className="card border-red-500/40 bg-red-500/5 p-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-red-400 mt-0.5" size={20} />
+            <div className="flex-1">
+              <p className="font-medium text-red-300">
+                {status === 401 ? '🔒 مفتاح API خاطئ أو غير مُدخل' : `⚠️ فشل تحميل البيانات (HTTP ${status})`}
+              </p>
+              <p className="text-xs text-gray-400 mt-1 font-mono break-all">{detail}</p>
+              {status === 401 && (
+                <p className="text-xs text-amber-300 mt-2">
+                  افتح الرابط مع <span className="font-mono">#resetkey</span> في النهاية لإدخال المفتاح الصحيح من Railway Variables (API_AUTH_KEY).
+                </p>
+              )}
+              <button
+                onClick={() => qc.invalidateQueries({ queryKey: ['budget-settings'] })}
+                className="btn-primary mt-3 px-3 py-1 text-sm"
+              >
+                <RefreshCw size={14} className="inline ml-1" />
+                إعادة المحاولة
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-  const isTrading = canTrade?.can_trade ?? budget?.is_active ?? false
+  if (budgetLoading || !settings) return <div className="p-6">جاري التحميل...</div>
+
+  // V508: API returns {"allowed": true, "reason": ""} — NOT can_trade.
+  // Old code checked canTrade?.can_trade which was always undefined.
+  const isTrading = canTrade?.allowed ?? budget?.is_active ?? false
 
   return (
     <div className="p-6 space-y-6">
