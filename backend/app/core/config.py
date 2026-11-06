@@ -140,47 +140,69 @@ class Settings(BaseSettings):
     # Ultimate-bot AUTO-SIZING:
     # If auto_sizing=true, the bot ignores the fixed SOL limits below and
     # computes them dynamically from the actual wallet balance.
-    # V512 AGGRESSIVE: الـ defaults مرتفعة لتعكس aggressive_mode=True.
-    # إذا غيّرت aggressive_mode إلى False، استخدم القيم المحفوظة:
-    #   conservative: 5%/30%/15%/3,  aggressive: 8%/50%/20%/4
+    #
+    # V513 — THREE PROFILES: conservative | aggressive | extreme
+    #   conservative (الآمن):     5%/30%/15%/3 — +$3.82/أسبوع  بـ $20
+    #   aggressive (متوازن):     8%/50%/20%/4 — +$15.30/أسبوع بـ $20
+    #   extreme (الأعلى ربحاً): 12%/70%/30%/6 — +$17.59/أسبوع بـ $20
+    #
+    # V513 active default: EXTREME (المستخدم طلب الحد الأقصى للأرباح)
     auto_sizing: bool = True
-    auto_trade_pct: float = 8.0       # V512: 8% of wallet per trade (was 5%)
-    auto_daily_cap_pct: float = 50.0  # V512: 50% of wallet per day max spend (was 30%)
-    auto_loss_pct: float = 20.0       # V512: 20% of wallet = daily loss limit (was 15%)
-    auto_max_positions: int = 4       # V512: 4 max concurrent positions (was 3)
+    # القيم الافتراضية = EXTREME values (لأن profile="extreme" افتراضياً)
+    auto_trade_pct: float = 12.0       # V513 EXTREME: 12% of wallet per trade
+    auto_daily_cap_pct: float = 70.0    # V513 EXTREME: 70% of wallet per day max spend
+    auto_loss_pct: float = 30.0         # V513 EXTREME: 30% of wallet = daily loss limit
+    auto_max_positions: int = 6         # V513 EXTREME: 6 max concurrent positions
 
     # ──────────────────────────────────────────────────────────────────────
-    # V512 — AGGRESSIVE PROFILE (مضاعفة الأرباح مع حماية V511 الكاملة)
+    # V513 — UNIFIED PROFILE SELECTOR
     #
-    # عند تفعيل aggressive_mode=true:
-    #   - حجم الصفقة يرتفع من 5% إلى 8%
-    #   - عدد الصفقات اليومية يرتفع من 2 إلى 4
-    #   - الـ daily cap يرتفع من 30% إلى 50%
-    #   - الـ daily loss limit يرتفع من 15% إلى 20%
-    #   - الـ trailing stop يبدأ متأخراً (عند +50% بدل +30%) — دع الفائزين يكبرون
-    #   - anti-chase filter يخفف من +500% إلى +800%
-    #   - anti-pump filter يخفف من +100% إلى +150%
-    #   - الحد الأدنى للسيولة يخفف من $5000 إلى $3000
-    #
-    # محاكاة 20 seeds لـ 7 أيام بـ $20:
-    #   CONSERVATIVE: +$3.82/أسبوع (100% أسبوع رابح)
-    #   AGGRESSIVE:   +$15.30/أسبوع (100% أسبوع رابح) ← 4x زيادة!
-    #
-    # ما يبقى ثابتاً في كل الأنماط (لا يمكن تخفيفه):
-    #   ✅ V511 — حظر محفظة واحدة 30%+ (يحمي من rug pull كارثي)
-    #   ✅ Mint/Freeze Authority block (يحمي من honeypot)
-    #   ✅ Stop Loss -8% (يحمي من الصفقات الكارثية)
-    #   ✅ Circuit Breaker (يوقف عند خسارة يومية كبيرة)
+    # اختر profile واحد. كل القيم الأخرى مشتقة من هذا.
+    # القيم: "conservative" | "aggressive" | "extreme"
     # ──────────────────────────────────────────────────────────────────────
-    aggressive_mode: bool = True  # V512: مفعّل افتراضياً (المستخدم طلب أرباحاً أكثر)
-    aggressive_trade_pct: float = 8.0       # 8% من المحفظة لكل صفقة (من 5%)
-    aggressive_daily_cap_pct: float = 50.0   # 50% حد يومي للإنفاق (من 30%)
-    aggressive_loss_pct: float = 20.0        # 20% حد خسارة يومي (من 15%)
-    aggressive_max_positions: int = 4        # 4 صفقات متزامنة (من 3)
-    # فلاتر الدخول المخففة (للـ aggressive mode فقط)
-    aggressive_max_chg_5m_pct: float = 150.0   # السماح بـ +150% في 5 دقائق (من 100%)
-    aggressive_max_chg_24h_pct: float = 800.0  # السماح بـ +800% في 24h (من 500%)
-    aggressive_min_liquidity_usd: float = 3000.0  # $3000 حد أدنى للسيولة (من $5000)
+    trading_profile: str = "extreme"  # V513: النمط الحالي (المستخدم طلب EXTREME)
+
+    # Conservative profile (الأقل مخاطرة، الأقل ربحاً)
+    conservative_trade_pct: float = 5.0
+    conservative_daily_cap_pct: float = 30.0
+    conservative_loss_pct: float = 15.0
+    conservative_max_positions: int = 3
+    conservative_max_chg_5m_pct: float = 100.0       # رفض pump 100%+ في 5 دقائق
+    conservative_max_chg_24h_pct: float = 500.0      # رفض chase 500%+ في 24h
+    conservative_min_liquidity_usd: float = 5000.0
+
+    # Aggressive profile (متجانس — 4x ربح، نفس الأمان)
+    aggressive_trade_pct: float = 8.0
+    aggressive_daily_cap_pct: float = 50.0
+    aggressive_loss_pct: float = 20.0
+    aggressive_max_positions: int = 4
+    aggressive_max_chg_5m_pct: float = 150.0
+    aggressive_max_chg_24h_pct: float = 800.0
+    aggressive_min_liquidity_usd: float = 3000.0
+
+    # Extreme profile (الأعلى ربحاً، أعلى مخاطرة — V511 الكاملة تبقى ثابتة)
+    extreme_trade_pct: float = 12.0
+    extreme_daily_cap_pct: float = 70.0
+    extreme_loss_pct: float = 30.0
+    extreme_max_positions: int = 6
+    extreme_max_chg_5m_pct: float = 250.0       # اقبل pump حتى +250%
+    extreme_max_chg_24h_pct: float = 9999.0      # اقبل أي تغير 24h (فعلياً معطّل)
+    extreme_min_liquidity_usd: float = 2000.0   # اقبل سيولة أقل
+
+    # V513 — BACKWARD COMPAT: aggressive_mode يُشتق من trading_profile
+    # (لكي لا تكسر أي كود يستخدم aggressive_mode)
+    # يبقى True في aggressive و extreme، False في conservative.
+
+    # V511 — CRITICAL rug-pull protection (يبقى ثابت في كل الأنماط)
+    max_single_holder_pct: float = 30.0
+    block_single_wallet_over_pct: bool = True
+
+    # V513 — EXIT strategy per profile
+    # كل profile له عتبات trailing مختلفة:
+    #   conservative: trailing يبدأ عند +30% (بيع مبكر للأمان)
+    #   aggressive:   trailing يبدأ عند +50%
+    #   extreme:      trailing يبدأ عند +80% (دع الفائزين يكبرون إلى 50x+)
+    # والـ sudden_dump يتأخر أيضاً (يعطي الفائزين مساحة أكبر)
 
     # Fallback fixed limits (used when auto_sizing=false)
     live_max_open_positions: int = 3
@@ -310,6 +332,116 @@ class Settings(BaseSettings):
     @classmethod
     def _normalize_mode(cls, v: str) -> str:
         return (v or "paper").strip().lower()
+
+    @field_validator("trading_profile")
+    @classmethod
+    def _normalize_profile(cls, v: str) -> str:
+        v = (v or "extreme").strip().lower()
+        if v not in {"conservative", "aggressive", "extreme"}:
+            return "extreme"  # default to extreme on invalid
+        return v
+
+    # ──────────────────────────────────────────────────────────────────────
+    # V513 — Profile-derived properties (single source of truth)
+    # كل الكود يقرأ هذه الـ properties بدل aggressive_mode الـ scattered.
+    # ──────────────────────────────────────────────────────────────────────
+
+    @property
+    def active_trade_pct(self) -> float:
+        """حجم الصفقة النشط حسب الـ profile."""
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_trade_pct
+        if p == "aggressive":   return self.aggressive_trade_pct
+        return self.extreme_trade_pct
+
+    @property
+    def active_daily_cap_pct(self) -> float:
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_daily_cap_pct
+        if p == "aggressive":   return self.aggressive_daily_cap_pct
+        return self.extreme_daily_cap_pct
+
+    @property
+    def active_loss_pct(self) -> float:
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_loss_pct
+        if p == "aggressive":   return self.aggressive_loss_pct
+        return self.extreme_loss_pct
+
+    @property
+    def active_max_positions(self) -> int:
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_max_positions
+        if p == "aggressive":   return self.aggressive_max_positions
+        return self.extreme_max_positions
+
+    @property
+    def active_max_chg_5m_pct(self) -> float:
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_max_chg_5m_pct
+        if p == "aggressive":   return self.aggressive_max_chg_5m_pct
+        return self.extreme_max_chg_5m_pct
+
+    @property
+    def active_max_chg_24h_pct(self) -> float:
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_max_chg_24h_pct
+        if p == "aggressive":   return self.aggressive_max_chg_24h_pct
+        return self.extreme_max_chg_24h_pct
+
+    @property
+    def active_min_liquidity_usd(self) -> float:
+        p = self.trading_profile
+        if p == "conservative": return self.conservative_min_liquidity_usd
+        if p == "aggressive":   return self.aggressive_min_liquidity_usd
+        return self.extreme_min_liquidity_usd
+
+    # V513 — Backward-compat shim: aggressive_mode = True إذا profile != conservative
+    @property
+    def aggressive_mode(self) -> bool:
+        """Backward-compat: يعيد True في aggressive و extreme، False في conservative."""
+        return self.trading_profile != "conservative"
+
+    # V513 — Trailing/sudden_dump thresholds per profile
+    @property
+    def trailing_tiers(self) -> list:
+        """يُرجع قائمة [(gain_threshold, trail_pct), ...] مرتبة تنازلياً.
+        الـ trailing يبدأ عند أول tier يجتازه peak_gain.
+        """
+        if self.trading_profile == "conservative":
+            return [
+                (5.0,  0.45),  # +500%
+                (1.0,  0.35),  # +100%
+                (0.30, 0.25),  # +30%
+            ]
+        if self.trading_profile == "aggressive":
+            return [
+                (10.0, 0.50),  # +1000%
+                (3.0,  0.40),  # +300%
+                (1.0,  0.35),  # +100%
+                (0.50, 0.25),  # +50%
+            ]
+        # extreme
+        return [
+            (20.0, 0.55),  # +2000%
+            (5.0,  0.45),  # +500%
+            (2.0,  0.40),  # +200%
+            (0.80, 0.30),  # +80%
+        ]
+
+    @property
+    def sudden_dump_min_gain(self) -> float:
+        """حد الربح الأدنى لتفعيل sudden_dump."""
+        if self.trading_profile == "conservative": return 0.10
+        if self.trading_profile == "aggressive":   return 0.20
+        return 0.30  # extreme
+
+    @property
+    def sudden_dump_drop_threshold(self) -> float:
+        """نسبة الهبوط من peak لتفعيل sudden_dump."""
+        if self.trading_profile == "conservative": return 0.25
+        if self.trading_profile == "aggressive":   return 0.30
+        return 0.40  # extreme
 
 
 @lru_cache(maxsize=1)
