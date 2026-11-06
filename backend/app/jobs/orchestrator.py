@@ -53,6 +53,9 @@ class MainOrchestrator:
         self.decision_engine: Optional[DecisionEngine] = None  # lazy init
         self._running = False
         self._last_market_regime = None
+        # Ultimate-bot: real-time WebSocket for instant token discovery
+        self._ws_manager = None
+        self._realtime_tokens: list = []  # tokens received via WebSocket
 
     async def _init_decision_engine(self):
         """Initialize the decision engine (rule-based, no ML needed)."""
@@ -649,6 +652,45 @@ class MainOrchestrator:
         timeout = max(60, int(settings.live_cycle_timeout_seconds))
         self._running = True
         logger.info(f"🚀 Main orchestrator started (cycle every {interval}s, timeout {timeout}s)")
+
+        # Ultimate-bot: start PumpPortal WebSocket for real-time token discovery
+        try:
+            from ..modules.market_scanner.pumpportal_ws import PumpPortalWebSocket
+
+            async def on_new_token(token_data: dict):
+                """Called instantly when a new pump.fun token is created."""
+                mint = token_data.get("mint", "")
+                symbol = token_data.get("symbol", "?")
+                logger.info(f"🆕 REAL-TIME: new pump.fun token {symbol} ({mint[:12]}...)")
+                # Store for the next cycle to analyze
+                self._realtime_tokens.append({
+                    "mint": mint,
+                    "symbol": symbol,
+                    "name": token_data.get("name", ""),
+                    "creator": token_data.get("creator", ""),
+                    "received_at": datetime.utcnow().isoformat(),
+                })
+                # Keep only last 50 tokens (memory)
+                if len(self._realtime_tokens) > 50:
+                    self._realtime_tokens = self._realtime_tokens[-50:]
+                # Send alert
+                try:
+                    await self.alerts.send(
+                        "new_token_discovered",
+                        f"🆕 توكن جديد: {symbol}",
+                        f"Mint: {mint}\nالمنشئ: {token_data.get('creator', '?')[:12]}...",
+                        {"mint": mint, "symbol": symbol},
+                    )
+                except Exception:
+                    pass
+
+            self._ws_manager = PumpPortalWebSocket()
+            self._ws_manager.on_new_token(on_new_token)
+            asyncio.create_task(self._ws_manager.start())
+            logger.info("⚡ PumpPortal WebSocket started (real-time token discovery)")
+        except Exception as exc:
+            logger.warning(f"WebSocket start failed (non-fatal, will use DexScreener): {exc}")
+
         while self._running:
             try:
                 await asyncio.wait_for(self.run_cycle(), timeout=timeout)
@@ -680,6 +722,12 @@ class MainOrchestrator:
 
     async def stop(self):
         self._running = False
+        # Ultimate-bot: stop WebSocket
+        if self._ws_manager:
+            try:
+                await self._ws_manager.stop()
+            except Exception:
+                pass
         await self.scanner.close()
         await self.ohlcv_fetcher.close()
         await self.alerts.close()
