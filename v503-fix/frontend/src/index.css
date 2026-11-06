@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+body {
+  @apply bg-bg text-gray-200 antialiased;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.card {
+  @apply bg-bg-card border border-bg-border rounded-xl p-4 shadow-lg;
+}
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50;
+}
+
+.btn-primary {
+  @apply btn bg-accent-blue hover:bg-blue-600 text-white;
+}
+
+.btn-success {
+  @apply btn bg-accent-green hover:bg-emerald-600 text-white;
+}
+
+.btn-danger {
+  @apply btn bg-accent-red hover:bg-red-600 text-white;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full;
+}
+
+.badge-success { @apply badge bg-emerald-500/20 text-emerald-400; }
+.badge-danger  { @apply badge bg-red-500/20 text-red-400; }
+.badge-warning { @apply badge bg-amber-500/20 text-amber-400; }
+.badge-info    { @apply badge bg-blue-500/20 text-blue-400; }
+.badge-neutral { @apply badge bg-gray-500/20 text-gray-400; }
+
+.score-bar {
+  @apply h-2 rounded-full bg-bg-border overflow-hidden;
+}
+
+.score-bar-fill {
+  @apply h-full transition-all duration-500;
+}
+
+.scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar::-webkit-scrollbar-thumb { @apply bg-bg-border rounded-full; }
+.scrollbar::-webkit-scrollbar-track { @apply bg-transparent; }

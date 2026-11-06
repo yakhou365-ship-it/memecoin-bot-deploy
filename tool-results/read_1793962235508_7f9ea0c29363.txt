@@ -1,0 +1,675 @@
+     1→"""
+     2→Live trading executor (real SOL on Pump.fun via PumpPortal).
+     3→
+     4→This is the only module allowed to move real money.  It is deliberately
+     5→conservative:
+     6→
+     7→* Every guard in :mod:`app.core.config` must pass before a buy is attempted
+     8→  (``is_live_trading`` checks mode, keys and the explicit confirmation phrase).
+     9→* A hard per-trade cap (``PUMP_MAX_TRADE_SOL``, default 0.1 SOL).
+    10→* A hard daily spend cap (``LIVE_DAILY_CAP_SOL``, default 0.5 SOL).
+    11→* A hard daily realised-loss limit (``LIVE_DAILY_LOSS_LIMIT_SOL``, default
+    12→  0.2 SOL) that stops trading for the rest of the day.
+    13→* A hard limit on concurrent live positions (``LIVE_MAX_OPEN_POSITIONS``).
+    14→* The on-chain wallet balance is checked before every buy.  If the wallet has
+    15→  no SOL the trade is rejected with a precise reason instead of pretending.
+    16→
+    17→Live trades are stored in the same ``trades`` table as paper trades but tagged
+    18→with ``strategy_id = "live_pumpfun"``.  The paper engine ignores them, and the
+    19→dashboard can tell them apart.
+    20→"""
+    21→from __future__ import annotations
+    22→
+    23→import asyncio
+    24→from datetime import datetime, timezone
+    25→from typing import Any, Dict, List, Optional
+    26→
+    27→from sqlalchemy import select
+    28→
+    29→from ...core.config import settings
+    30→from ...core.database import get_session
+    31→from ...core.logger import logger
+    32→from ...core.models import SystemState, Token, Trade
+    33→from ..market_scanner.pumpfun_client import PumpPortalClient
+    34→
+    35→LIVE_STRATEGY_ID = "live_pumpfun"
+    36→DAILY_STATE_KEY = "live_daily_state"
+    37→# PumpPortal Lightning fee is 1% of notional, charged on each side.
+    38→PUMPPORTAL_FEE_PCT = 0.01
+    39→
+    40→
+    41→def is_live_trade(trade: Trade) -> bool:
+    42→    """True when a Trade row was executed with real funds."""
+    43→    return (trade.strategy_id or "").startswith("live")
+    44→
+    45→
+    46→def _utcnow() -> datetime:
+    47→    return datetime.now(timezone.utc).replace(tzinfo=None)
+    48→
+    49→
+    50→def _today() -> str:
+    51→    return _utcnow().date().isoformat()
+    52→
+    53→
+    54→class LiveTradingExecutor:
+    55→    """Execute and manage real Pump.fun positions."""
+    56→
+    57→    def __init__(self, client: Optional[PumpPortalClient] = None):
+    58→        self.client = client or PumpPortalClient()
+    59→        self._lock = asyncio.Lock()
+    60→        self._sold_pending_db: set = set()  # V503: sold on-chain but DB close failed
+    61→
+    62→    # ------------------------------------------------------------------
+    63→    # Configuration / status
+    64→    # ------------------------------------------------------------------
+    65→    @property
+    66→    def configured(self) -> bool:
+    67→        return settings.is_live_trading
+    68→
+    69→    async def status(self) -> Dict[str, Any]:
+    70→        daily = await self._load_daily()
+    71→        wallet = await self.client.get_wallet_balance()
+    72→        open_count = await self._count_open_live()
+    73→        return {
+    74→            "configured": self.configured,
+    75→            "missing_requirements": settings.live_requirements,
+    76→            "trading_mode": settings.trading_mode,
+    77→            "wallet_address": settings.solana_wallet_address,
+    78→            "wallet_sol": round(float(wallet.get("sol", 0.0)), 9),
+    79→            "max_trade_sol": settings.pump_max_trade_sol,
+    80→            "daily_cap_sol": settings.live_daily_cap_sol,
+    81→            "daily_loss_limit_sol": settings.live_daily_loss_limit_sol,
+    82→            "max_open_positions": settings.live_max_open_positions,
+    83→            "open_live_positions": open_count,
+    84→            "daily": daily,
+    85→            "can_open": (
+    86→                self.configured
+    87→                and float(wallet.get("sol", 0.0)) > 0
+    88→                and daily["sol_spent"] < settings.live_daily_cap_sol
+    89→                and daily["sol_pnl"] > -settings.live_daily_loss_limit_sol
+    90→                and open_count < settings.live_max_open_positions
+    91→            ),
+    92→        }
+    93→
+    94→    async def _count_open_live(self) -> int:
+    95→        async with get_session() as session:
+    96→            rows = (
+    97→                await session.execute(
+    98→                    select(Trade).where(
+    99→                        Trade.status == "open",
+   100→                        Trade.strategy_id == LIVE_STRATEGY_ID,
+   101→                    )
+   102→                )
+   103→            ).scalars().all()
+   104→            return len(rows)
+   105→
+   106→    # ------------------------------------------------------------------
+   107→    # Daily accounting (SOL denominated)
+   108→    # ------------------------------------------------------------------
+   109→    async def _load_daily(self) -> Dict[str, Any]:
+   110→        default = {
+   111→            "date": _today(),
+   112→            "sol_spent": 0.0,
+   113→            "sol_pnl": 0.0,
+   114→            "trades_opened": 0,
+   115→            "trades_closed": 0,
+   116→        }
+   117→        async with get_session() as session:
+   118→            row = await session.get(SystemState, DAILY_STATE_KEY)
+   119→            data = dict(row.value_json or {}) if row else {}
+   120→        if data.get("date") != _today():
+   121→            return default
+   122→        for key, value in default.items():
+   123→            data.setdefault(key, value)
+   124→        return data
+   125→
+   126→    async def _save_daily(self, data: Dict[str, Any]) -> None:
+   127→        async with get_session() as session:
+   128→            row = await session.get(SystemState, DAILY_STATE_KEY)
+   129→            if row is None:
+   130→                row = SystemState(key=DAILY_STATE_KEY, value_json=dict(data))
+   131→                session.add(row)
+   132→            else:
+   133→                row.value_json = dict(data)
+   134→                session.add(row)
+   135→            await session.commit()
+   136→
+   137→    # ------------------------------------------------------------------
+   138→    # Open
+   139→    # ------------------------------------------------------------------
+   140→    async def open_position(
+   141→        self,
+   142→        token_id: str,
+   143→        amount_sol: Optional[float] = None,
+   144→        entry_price: Optional[float] = None,
+   145→        stop_loss: Optional[float] = None,
+   146→        take_profit: Optional[float] = None,
+   147→        holding_period_minutes: int = 60,
+   148→        analysis_snapshot_id: Optional[str] = None,
+   149→        entry_reasons: Optional[List[str]] = None,
+   150→    ) -> Dict[str, Any]:
+   151→        """Attempt a real buy.  Returns a result dict, never raises."""
+   152→        async with self._lock:
+   153→            if not self.configured:
+   154→                return self._reject(
+   155→                    "live_trading_not_configured",
+   156→                    "Live trading requirements missing: "
+   157→                    + ", ".join(settings.live_requirements),
+   158→                )
+   159→
+   160→            amount = float(amount_sol or settings.pump_max_trade_sol)
+   161→            if amount <= 0:
+   162→                return self._reject("invalid_amount", "Amount must be positive")
+   163→            if amount > settings.pump_max_trade_sol + 1e-9:
+   164→                return self._reject(
+   165→                    "amount_above_cap",
+   166→                    f"{amount} SOL exceeds per-trade cap {settings.pump_max_trade_sol} SOL",
+   167→                )
+   168→
+   169→            daily = await self._load_daily()
+   170→            if daily["sol_spent"] + amount > settings.live_daily_cap_sol + 1e-9:
+   171→                return self._reject(
+   172→                    "daily_cap_reached",
+   173→                    f"Daily cap {settings.live_daily_cap_sol} SOL would be exceeded "
+   174→                    f"(spent {daily['sol_spent']:.4f} SOL)",
+   175→                )
+   176→            # V503 FIX: effective daily loss limit = min(absolute SOL limit,
+   177→            # X% of the start-of-day wallet). With a ~0.1 SOL wallet the 0.3 SOL
+   178→            # absolute limit could never trigger, i.e. there was no loss limit.
+   179→            effective_loss_limit = float(settings.live_daily_loss_limit_sol)
+   180→            try:
+   181→                _w = await self.client.get_wallet_balance()
+   182→                _start_wallet = float(_w.get("sol", 0.0)) + max(0.0, -float(daily["sol_pnl"]))
+   183→                if _start_wallet > 0:
+   184→                    effective_loss_limit = min(
+   185→                        effective_loss_limit,
+   186→                        _start_wallet * settings.live_daily_loss_limit_pct_of_wallet / 100.0,
+   187→                    )
+   188→            except Exception as _exc:
+   189→                logger.warning(f"Could not read wallet for loss-limit check: {_exc}")
+   190→            if daily["sol_pnl"] <= -effective_loss_limit:
+   191→                try:
+   192→                    from ..risk_management.manager import RiskManager
+   193→                    await RiskManager().activate_circuit_breaker(
+   194→                        f"Live daily loss limit reached: {daily['sol_pnl']:.4f} SOL "
+   195→                        f"(limit {effective_loss_limit:.4f} SOL)"
+   196→                    )
+   197→                except Exception as _exc:
+   198→                    logger.warning(f"Could not activate circuit breaker: {_exc}")
+   199→                return self._reject(
+   200→                    "daily_loss_limit_reached",
+   201→                    f"Daily loss limit {effective_loss_limit:.4f} SOL reached "
+   202→                    f"(pnl {daily['sol_pnl']:.4f} SOL)",
+   203→                )
+   204→
+   205→            # V503: enforce circuit breaker + cooldown-after-losses in LIVE mode
+   206→            try:
+   207→                from ..risk_management.manager import RiskManager
+   208→                _rc = await RiskManager().check_live_can_open()
+   209→                if not _rc.can_open:
+   210→                    return self._reject("risk_blocked", _rc.reason or "Risk manager blocked the trade")
+   211→            except Exception as _exc:
+   212→                # Fail closed: if the risk state cannot be read, do not trade.
+   213→                logger.error(f"Live risk check failed — blocking trade: {_exc}")
+   214→                return self._reject("risk_check_failed", f"Risk check failed: {str(_exc)[:150]}")
+   215→
+   216→            open_count = await self._count_open_live()
+   217→            if open_count >= settings.live_max_open_positions:
+   218→                return self._reject(
+   219→                    "max_open_positions",
+   220→                    f"Already {open_count} live positions open "
+   221→                    f"(max {settings.live_max_open_positions})",
+   222→                )
+   223→
+   224→            # Resolve token
+   225→            async with get_session() as session:
+   226→                token = await session.get(Token, token_id)
+   227→                if token is None:
+   228→                    return self._reject("token_not_found", f"Token {token_id} not found")
+   229→                mint = token.address
+   230→                symbol = token.symbol
+   231→                price_usd = float(entry_price or token.price_usd or 0.0)
+   232→                pool = self._pool_for(getattr(token, "dex", None))
+   233→
+   234→            if not mint:
+   235→                return self._reject("missing_mint", "Token has no on-chain address")
+   236→
+   237→            # Wallet must actually hold SOL
+   238→            wallet = await self.client.get_wallet_balance()
+   239→            sol_balance = float(wallet.get("sol", 0.0))
+   240→            required = amount + 0.005  # leave room for priority fee + ATA rent
+   241→            if sol_balance < required:
+   242→                return self._reject(
+   243→                    "insufficient_wallet_balance",
+   244→                    f"Wallet {settings.solana_wallet_address} holds {sol_balance:.6f} SOL; "
+   245→                    f"{required:.4f} SOL required. Fund the wallet before live trading.",
+   246→                    extra={"wallet_sol": sol_balance, "required_sol": required},
+   247→                )
+   248→
+   249→            sol_price_usd = await self.client._fetch_sol_price()
+   250→            result = await self.client.buy_token(mint_address=mint, amount_sol=amount, pool=pool)
+   251→            if not result.success:
+   252→                logger.warning(f"Live buy failed for {symbol}: {result.error}")
+   253→                return self._reject("buy_failed", result.error or "PumpPortal rejected the buy")
+   254→
+   255→            # V400 P0-3 FIX: Confirm the transaction on-chain before recording.
+   256→            # PumpPortal returns a signature immediately, but the tx may fail
+   257→            # on-chain (slippage exceeded, insufficient funds, congestion).
+   258→            # We wait up to 15 seconds for confirmation.
+   259→            confirmed = False
+   260→            if result.tx_signature:
+   261→                try:
+   262→                    # V503 FIX: kwarg is timeout_seconds (was `timeout=` -> TypeError,
+   263→                    # silently swallowed, so confirmation NEVER ran) and the result
+   264→                    # is a dict, not a bool.
+   265→                    conf = await self.client.confirm_signature(result.tx_signature, timeout_seconds=15)
+   266→                    confirmed = bool(conf.get("confirmed"))
+   267→                    conf_err = str(conf.get("error") or "")
+   268→                    if not confirmed and conf_err and not conf_err.startswith("timeout"):
+   269→                        # The tx LANDED on-chain but FAILED (slippage, funds...).
+   270→                        # No tokens were bought -> do not record a phantom position.
+   271→                        logger.error(
+   272→                            f"❌ Buy tx {result.tx_signature} for {symbol} failed on-chain: {conf_err}"
+   273→                        )
+   274→                        return self._reject(
+   275→                            "buy_tx_failed_onchain",
+   276→                            f"Buy transaction failed on-chain: {conf_err[:200]}",
+   277→                            {"tx_signature": result.tx_signature},
+   278→                        )
+   279→                except Exception as confirm_exc:
+   280→                    logger.warning(f"Buy confirm failed for {symbol}: {confirm_exc}")
+   281→            if not confirmed:
+   282→                # Status unknown (timeout / RPC trouble): PumpPortal accepted the
+   283→                # order, so keep tracking it but flag it for the operator.
+   284→                logger.warning(
+   285→                    f"⚠️ Buy tx {result.tx_signature} for {symbol} NOT confirmed within 15s. "
+   286→                    f"Recording anyway — monitor for stuck position."
+   287→                )
+   288→
+   289→            # V400 P1-2/P1-3 FIX: Estimate fill price with slippage.
+   290→            # PumpPortal doesn't return fill details, so we estimate:
+   291→            # assume 3% slippage on buy (conservative).
+   292→            estimated_slippage_pct = 3.0
+   293→            notional_usd = amount * sol_price_usd
+   294→            # V400: if price_usd is valid, use it + slippage estimate
+   295→            if price_usd and price_usd > 0:
+   296→                fill_price = price_usd * (1 + estimated_slippage_pct / 100)
+   297→            else:
+   298→                fill_price = notional_usd  # fallback (quantity = 1.0)
+   299→            quantity = notional_usd / fill_price if fill_price > 0 else 0.0
+   300→            entry_fee_usd = notional_usd * PUMPPORTAL_FEE_PCT
+   301→            entry_slippage_usd = notional_usd * estimated_slippage_pct / 100  # V400 P1-3
+   302→
+   303→            reasons = list(entry_reasons or [])
+   304→            reasons.append(f"LIVE buy {amount} SOL via PumpPortal")
+   305→            reasons.append(f"tx:{result.tx_signature}")
+   306→            if not confirmed:
+   307→                reasons.append("⚠️ tx not confirmed on-chain")
+   308→
+   309→            trade = Trade(
+   310→                token_id=token_id,
+   311→                analysis_snapshot_id=analysis_snapshot_id,
+   312→                side="long",
+   313→                entry_price=fill_price,
+   314→                entry_size_usd=notional_usd,
+   315→                entry_quantity=quantity,
+   316→                entry_fee_usd=entry_fee_usd,
+   317→                entry_slippage_usd=entry_slippage_usd,  # V400 P1-3: track slippage
+   318→                stop_loss_price=stop_loss,
+   319→                take_profit_price=take_profit,
+   320→                planned_holding_period_minutes=holding_period_minutes,
+   321→                strategy_id=LIVE_STRATEGY_ID,
+   322→                fees_total_usd=entry_fee_usd,
+   323→                slippage_total_usd=entry_slippage_usd,  # V400 P1-3
+   324→                entry_reasons_json=reasons,
+   325→                status="open",
+   326→                max_unrealized_profit_usd=fill_price,  # V400 P0-1: init peak = entry
+   327→            )
+   328→            # V400 P0-4 FIX: DB save with retry + compensation logic.
+   329→            # If DB save fails after on-chain buy, we log the tx_signature
+   330→            # so the operator can manually recover the tokens.
+   331→            trade_id = None
+   332→            try:
+   333→                async with get_session() as session:
+   334→                    session.add(trade)
+   335→                    await session.commit()
+   336→                    await session.refresh(trade)
+   337→                    trade_id = trade.id
+   338→            except Exception as db_exc:
+   339→                logger.error(
+   340→                    f"🚨 CRITICAL: DB save failed after on-chain buy! "
+   341→                    f"tx={result.tx_signature} symbol={symbol} amount={amount}SOL. "
+   342→                    f"Tokens are in wallet but NOT tracked. Error: {db_exc}"
+   343→                )
+   344→                # Try one more time with a fresh session
+   345→                try:
+   346→                    async with get_session() as session2:
+   347→                        session2.add(trade)
+   348→                        await session2.commit()
+   349→                        await session2.refresh(trade)
+   350→                        trade_id = trade.id
+   351→                except Exception as db_exc2:
+   352→                    logger.error(
+   353→                        f"🚨 DB save retry also failed! Manual recovery needed. "
+   354→                        f"tx={result.tx_signature}"
+   355→                    )
+   356→                    return {
+   357→                        "success": False,
+   358→                        "code": "db_save_failed_after_buy",
+   359→                        "error": f"DB save failed after on-chain buy. tx={result.tx_signature}",
+   360→                        "tx_signature": result.tx_signature,
+   361→                        "symbol": symbol,
+   362→                    }
+   363→            if not trade_id:
+   364→                return self._reject("db_save_failed", "Could not save trade to DB")
+   365→
+   366→            daily["sol_spent"] = round(float(daily["sol_spent"]) + amount, 9)
+   367→            daily["trades_opened"] = int(daily["trades_opened"]) + 1
+   368→            await self._save_daily(daily)
+   369→
+   370→            logger.info(
+   371→                f"🟢 LIVE BUY {symbol} {amount} SOL @ ~${fill_price:.10f} "
+   372→                f"tx={result.tx_signature} trade={trade_id}"
+   373→            )
+   374→            return {
+   375→                "success": True,
+   376→                "trade_id": trade_id,
+   377→                "tx_signature": result.tx_signature,
+   378→                "symbol": symbol,
+   379→                "amount_sol": amount,
+   380→                "fill_price": fill_price,
+   381→                "notional_usd": notional_usd,
+   382→                "wallet_sol_before": sol_balance,
+   383→            }
+   384→
+   385→    # ------------------------------------------------------------------
+   386→    # Close
+   387→    # ------------------------------------------------------------------
+   388→    async def close_position(self, trade_id: str, exit_reason: str = "manual") -> Dict[str, Any]:
+   389→        """Sell 100% of a live position and record the realised result."""
+   390→        async with self._lock:
+   391→            async with get_session() as session:
+   392→                trade = await session.get(Trade, trade_id)
+   393→                if trade is None or trade.status != "open" or not is_live_trade(trade):
+   394→                    return self._reject("not_an_open_live_trade", "No open live trade with that id")
+   395→                token = await session.get(Token, trade.token_id)
+   396→                mint = token.address if token else ""
+   397→                symbol = token.symbol if token else trade.token_id
+   398→                exit_price = float(token.price_usd or trade.entry_price or 0.0) if token else float(trade.entry_price or 0)
+   399→                pool = self._pool_for(getattr(token, "dex", None)) if token else None
+   400→
+   401→            if not mint:
+   402→                return self._reject("missing_mint", "Cannot sell: token mint unknown")
+   403→
+   404→            result = await self.client.sell_token(mint_address=mint, amount_tokens="100%", pool=pool)
+   405→            if not result.success:
+   406→                logger.warning(f"Live sell failed for {symbol}: {result.error}")
+   407→                return self._reject("sell_failed", result.error or "PumpPortal rejected the sell")
+   408→
+   409→            # V400 P0-3 FIX: Confirm sell on-chain (V503: correct kwarg + dict result)
+   410→            sell_confirmed = False
+   411→            if result.tx_signature:
+   412→                try:
+   413→                    sconf = await self.client.confirm_signature(result.tx_signature, timeout_seconds=15)
+   414→                    sell_confirmed = bool(sconf.get("confirmed"))
+   415→                    serr = str(sconf.get("error") or "")
+   416→                    if not sell_confirmed and serr and not serr.startswith("timeout"):
+   417→                        # Sell failed on-chain: tokens are still in the wallet.
+   418→                        # Keep the trade OPEN so the next cycle retries the exit.
+   419→                        logger.error(
+   420→                            f"❌ Sell tx {result.tx_signature} for {symbol} failed on-chain: {serr}"
+   421→                        )
+   422→                        return self._reject(
+   423→                            "sell_tx_failed_onchain",
+   424→                            f"Sell transaction failed on-chain: {serr[:200]}",
+   425→                            {"tx_signature": result.tx_signature},
+   426→                        )
+   427→                    if not sell_confirmed:
+   428→                        logger.warning(f"⚠️ Sell tx {result.tx_signature} for {symbol} NOT confirmed in 15s")
+   429→                except Exception as confirm_exc:
+   430→                    logger.warning(f"Sell confirm failed: {confirm_exc}")
+   431→
+   432→            sol_price_usd = await self.client._fetch_sol_price()
+   433→            # V400 P1-2 FIX: Apply slippage to exit_price (was missing!)
+   434→            # Estimate 5% slippage on sell (memecoins have thin liquidity)
+   435→            estimated_exit_slippage_pct = 5.0
+   436→            actual_exit_price = exit_price * (1 - estimated_exit_slippage_pct / 100)
+   437→            proceeds_usd = trade.entry_quantity * actual_exit_price  # V400: use actual price
+   438→            exit_fee_usd = proceeds_usd * PUMPPORTAL_FEE_PCT
+   439→            exit_slippage_usd = trade.entry_quantity * exit_price * estimated_exit_slippage_pct / 100
+   440→            gross_pnl = (actual_exit_price - float(trade.entry_price)) * float(trade.entry_quantity)
+   441→            # V400 P1-2: Include exit slippage in net PnL (was missing!)
+   442→            net_pnl = (gross_pnl
+   443→                      - float(trade.entry_fee_usd or 0)
+   444→                      - exit_fee_usd
+   445→                      - float(trade.entry_slippage_usd or 0)  # V400 P1-3
+   446→                      - exit_slippage_usd)  # V400 P1-2: NEW!
+   447→            pnl_pct = (net_pnl / float(trade.entry_size_usd) * 100) if trade.entry_size_usd else 0.0
+   448→
+   449→            # V400 P1-11 FIX: DB save with retry to prevent double-sell
+   450→            db_save_success = False
+   451→            try:
+   452→                async with get_session() as session:
+   453→                    db_trade = await session.get(Trade, trade_id)
+   454→                    if db_trade is None or db_trade.status != "open":
+   455→                        return self._reject("already_closed", "Trade was already closed")
+   456→                    db_trade.exit_price = actual_exit_price
+   457→                    db_trade.exit_slippage_usd = exit_slippage_usd
+   458→                    db_trade.exit_timestamp = _utcnow()
+   459→                    db_trade.exit_fee_usd = exit_fee_usd
+   460→                    db_trade.exit_reason = exit_reason
+   461→                    db_trade.gross_pnl_usd = gross_pnl
+   462→                    db_trade.net_pnl_usd = net_pnl
+   463→                    db_trade.pnl_pct = pnl_pct
+   464→                    # V407 P0-2: ALL mutations inside the async with block
+   465→                    db_trade.fees_total_usd = float(db_trade.entry_fee_usd or 0) + exit_fee_usd
+   466→                    db_trade.slippage_total_usd = float(db_trade.entry_slippage_usd or 0) + exit_slippage_usd
+   467→                    db_trade.status = "closed"
+   468→                    db_trade.exit_reasons_json = list(db_trade.exit_reasons_json or []) + [
+   469→                        exit_reason,
+   470→                        f"LIVE sell 100% tx:{result.tx_signature}",
+   471→                    ]
+   472→                    session.add(db_trade)
+   473→                    await session.commit()
+   474→                    db_save_success = True
+   475→            except Exception as db_exc:
+   476→                logger.error(f"DB save failed on close for trade {trade_id}: {db_exc}")
+   477→                # V400 P1-11: retry once
+   478→                try:
+   479→                    async with get_session() as session2:
+   480→                        db_trade2 = await session2.get(Trade, trade_id)
+   481→                        if db_trade2 and db_trade2.status == "open":
+   482→                            db_trade2.exit_price = actual_exit_price
+   483→                            db_trade2.exit_slippage_usd = exit_slippage_usd
+   484→                            db_trade2.exit_timestamp = _utcnow()
+   485→                            db_trade2.exit_fee_usd = exit_fee_usd
+   486→                            db_trade2.exit_reason = exit_reason
+   487→                            db_trade2.gross_pnl_usd = gross_pnl
+   488→                            db_trade2.net_pnl_usd = net_pnl
+   489→                            db_trade2.pnl_pct = pnl_pct
+   490→                            db_trade2.fees_total_usd = float(db_trade2.entry_fee_usd or 0) + exit_fee_usd
+   491→                            db_trade2.slippage_total_usd = float(db_trade2.entry_slippage_usd or 0) + exit_slippage_usd
+   492→                            db_trade2.status = "closed"
+   493→                            db_trade2.exit_reasons_json = list(db_trade2.exit_reasons_json or []) + [
+   494→                                exit_reason,
+   495→                                f"LIVE sell 100% tx:{result.tx_signature}",
+   496→                            ]
+   497→                            session2.add(db_trade2)
+   498→                            await session2.commit()
+   499→                            db_save_success = True
+   500→                except Exception as db_exc2:
+   501→                    logger.error(f"DB save retry also failed: {db_exc2}")
+   502→
+   503→            if not db_save_success:
+   504→                # V503: tokens are sold but the DB still says "open". Remember it so
+   505→                # manage_open_positions does not try to sell it again every cycle.
+   506→                self._sold_pending_db.add(trade_id)
+   507→                logger.critical(
+   508→                    f"🚨 Trade {trade_id} SOLD on-chain (tx={result.tx_signature}) but DB close "
+   509→                    f"failed twice. Excluded from auto-exit; fix the DB row manually."
+   510→                )
+   511→
+   512→            daily = await self._load_daily()
+   513→            daily["sol_pnl"] = round(
+   514→                float(daily["sol_pnl"]) + (net_pnl / sol_price_usd if sol_price_usd else 0.0),
+   515→                9,
+   516→            )
+   517→            daily["trades_closed"] = int(daily["trades_closed"]) + 1
+   518→            await self._save_daily(daily)
+   519→
+   520→            # V407 P1-7: Update RiskManager with live trade result
+   521→            # Before: only paper trades updated risk state (consecutive_losses, peak_equity)
+   522→            try:
+   523→                from ..risk_management.manager import RiskManager
+   524→                rm = RiskManager()
+   525→                await rm.record_trade_result(net_pnl > 0, net_pnl)
+   526→            except Exception as rm_exc:
+   527→                logger.warning(f"RiskManager record_trade_result failed: {rm_exc}")
+   528→
+   529→            logger.info(
+   530→                f"🔴 LIVE SELL {symbol} @ ~${exit_price:.10f} pnl=${net_pnl:.4f} "
+   531→                f"({pnl_pct:+.2f}%) reason={exit_reason} tx={result.tx_signature}"
+   532→            )
+   533→            return {
+   534→                "success": True,
+   535→                "trade_id": trade_id,
+   536→                "tx_signature": result.tx_signature,
+   537→                "symbol": symbol,
+   538→                "exit_price": exit_price,
+   539→                "net_pnl_usd": net_pnl,
+   540→                "pnl_pct": pnl_pct,
+   541→            }
+   542→
+   543→    # ------------------------------------------------------------------
+   544→    # Manage open live positions (SL / TP / trailing / time exit)
+   545→    # ------------------------------------------------------------------
+   546→    async def manage_open_positions(self) -> Dict[str, int]:
+   547→        closed = {"stop_loss": 0, "sudden_dump": 0, "mega_tp": 0, "smart_trailing": 0, "stagnation": 0, "time_exit": 0, "exit_all": 0, "circuit_breaker": 0}
+   548→        async with get_session() as session:
+   549→            trades = (
+   550→                await session.execute(
+   551→                    select(Trade).where(
+   552→                        Trade.status == "open",
+   553→                        Trade.strategy_id == LIVE_STRATEGY_ID,
+   554→                    )
+   555→                )
+   556→            ).scalars().all()
+   557→
+   558→        # V502: circuit breaker active -> liquidate everything.
+   559→        circuit_breaker_on = False
+   560→        try:
+   561→            from ..risk_management.manager import RiskManager
+   562→            _st = (await RiskManager().get_state()).to_dict()
+   563→            circuit_breaker_on = bool(_st.get("circuit_breaker_active", False))
+   564→        except Exception as exc:
+   565→            logger.warning(f"Could not read circuit breaker state: {exc}")
+   566→
+   567→        for trade in trades:
+   568→            if trade.id in self._sold_pending_db:
+   569→                continue
+   570→            try:
+   571→                async with get_session() as session:
+   572→                    token = await session.get(Token, trade.token_id)
+   573→                    price = float(token.price_usd) if token and token.price_usd else None
+   574→                if price is None or price <= 0:
+   575→                    continue
+   576→
+   577→                # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
+   578→                # Use max_unrealized_profit_usd as a proxy to store peak_price:
+   579→                # we encode peak_price in this field (it's normally a PnL value,
+   580→                # but for open trades it's the best available DB column).
+   581→                # If None, initialize to max(entry, current).
+   582→                if trade.max_unrealized_profit_usd is None:
+   583→                    trade.max_unrealized_profit_usd = max(trade.entry_price, price)
+   584→                # Update peak if current price is higher
+   585→                if price > trade.max_unrealized_profit_usd:
+   586→                    trade.max_unrealized_profit_usd = price
+   587→                    # Persist the updated peak to DB
+   588→                    try:
+   589→                        async with get_session() as s2:
+   590→                            db_trade = await s2.get(Trade, trade.id)
+   591→                            if db_trade and db_trade.status == "open":
+   592→                                db_trade.max_unrealized_profit_usd = price
+   593→                                await s2.commit()
+   594→                    except Exception:
+   595→                        pass  # non-critical, will retry next cycle
+   596→
+   597→                peak_price = trade.max_unrealized_profit_usd
+   598→                # V502: Smart exit — variable trailing by peak-gain tier.
+   599→                peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
+   600→                if peak_gain_pct >= 5.0:
+   601→                    trail_pct = 0.45   # +500%: very wide, ride mega pumps
+   602→                elif peak_gain_pct >= 1.0:
+   603→                    trail_pct = 0.35   # +100%: wide
+   604→                elif peak_gain_pct >= 0.30:
+   605→                    trail_pct = 0.25   # +30%: tight, lock profit
+   606→                else:
+   607→                    trail_pct = None   # trailing not armed yet
+   608→                drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
+   609→                trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
+   610→                # V502 FIX: the 25% sudden-dump rule only applies BEFORE the
+   611→                # trailing tiers are armed (+10%..+30% peak). Previously it ran
+   612→                # first at every tier and made the 35%/45% trails dead code.
+   613→                sudden_dump = (
+   614→                    trail_pct is None and peak_gain_pct >= 0.10 and drop_from_peak >= 0.25
+   615→                )
+   616→                # V502 FIX: stagnation was impossible (gain>5% AND within 5%).
+   617→                # Now: held >=4h, still in profit, but never rose above +5%.
+   618→                stagnation_hit = False
+   619→                age_min = 0.0
+   620→                if trade.entry_timestamp:
+   621→                    age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
+   622→                    if age_min >= 240 and trade.entry_price > 0:
+   623→                        current_gain = price / trade.entry_price - 1
+   624→                        if 0 < current_gain <= 0.05 and peak_gain_pct < 0.05:
+   625→                            stagnation_hit = True
+   626→
+   627→                reason = None
+   628→                if circuit_breaker_on: reason = "circuit_breaker"
+   629→                elif sudden_dump: reason = "sudden_dump"
+   630→                elif trade.stop_loss_price and price <= trade.stop_loss_price: reason = "stop_loss"
+   631→                elif trade.take_profit_price and price >= trade.take_profit_price: reason = "mega_tp"
+   632→                elif trailing_hit: reason = "smart_trailing"
+   633→                elif stagnation_hit: reason = "stagnation"
+   634→                elif trade.planned_holding_period_minutes and trade.entry_timestamp:
+   635→                    if age_min >= trade.planned_holding_period_minutes:
+   636→                        reason = "time_exit"
+   637→
+   638→                if reason:
+   639→                    result = await self.close_position(trade.id, reason)
+   640→                    if result.get("success"):
+   641→                        closed[reason] = closed.get(reason, 0) + 1
+   642→            except Exception as exc:
+   643→                logger.exception(f"Live position management failed for {trade.id}: {exc}")
+   644→
+   645→        return closed
+   646→
+   647→    # ------------------------------------------------------------------
+   648→    @staticmethod
+   649→    def _pool_for(dex: Optional[str]) -> Optional[str]:
+   650→        """Map a DexScreener dex id to a PumpPortal pool.
+   651→
+   652→        pump.fun bonding-curve tokens use "pump"; graduated tokens must trade
+   653→        on their actual venue (pump-amm/raydium); unknown/other DEXes use
+   654→        "auto" so PumpPortal routes correctly. None keeps the client default.
+   655→        """
+   656→        if not dex:
+   657→            return None
+   658→        d = str(dex).strip().lower()
+   659→        if d in ("pumpfun", "pump"):
+   660→            return "pump"
+   661→        if d in ("pumpswap", "pump-amm", "pump_amm"):
+   662→            return "pump-amm"
+   663→        if d in ("raydium", "raydium-cpmm", "raydium_cpmm"):
+   664→            return "raydium-cpmm" if "cpmm" in d else "raydium"
+   665→        if d in ("launchlab", "bonk"):
+   666→            return d
+   667→        return "auto"
+   668→
+   669→    @staticmethod
+   670→    def _reject(code: str, message: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+   671→        payload = {"success": False, "code": code, "error": message}
+   672→        if extra:
+   673→            payload.update(extra)
+   674→        return payload
+   675→

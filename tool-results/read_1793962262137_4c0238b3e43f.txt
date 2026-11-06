@@ -1,0 +1,892 @@
+     1→"""
+     2→PumpPortal + Pump.fun API Client.
+     3→================================
+     4→
+     5→Provides real-time access to Pump.fun (the largest memecoin launchpad on Solana)
+     6→via the PumpPortal 3rd-party API.
+     7→
+     8→PumpPortal API structure (from official docs at https://pumpportal.fun):
+     9→
+    10→1. LIGHTNING TRANSACTION API (easiest):
+    11→   - Endpoint: POST https://pumpportal.fun/api/trade?api-key=YOUR_API_KEY
+    12→   - PumpPortal signs and sends the trade from their hosted wallet
+    13→   - Fee: 1% of each trade (calculated before slippage)
+    14→   - Required params: action, mint, amount, denominatedInSol, slippage, priorityFee
+    15→   - Optional: pool (pump, raydium, pump-amm, launchlab, raydium-cpmm, bonk, auto)
+    16→
+    17→2. LOCAL TRANSACTION API (self-custody):
+    18→   - Endpoint: POST https://pumpportal.fun/api/trade-local
+    19→   - Returns unsigned transaction for you to sign with your own keypair
+    20→   - Fee: 0.5% of each trade (calculated before slippage)
+    21→   - Required params: publicKey, action, mint, amount, denominatedInSol, slippage, priorityFee
+    22→   - More secure: PumpPortal never sees your private key
+    23→
+    24→3. DATA API (real-time WebSocket streaming):
+    25→   - Endpoint: wss://pumpportal.fun/api/data?api-key=YOUR_API_KEY
+    26→   - Methods: subscribeNewToken (free), subscribeMigration (free),
+    27→              subscribeTokenTrade, subscribeAccountTrade (paid: 0.01 SOL per 10k events)
+    28→   - Requires funded wallet (≥0.02 SOL) linked to API key
+    29→
+    30→4. TOKEN CREATION API:
+    31→   - Endpoint: https://pumpportal.fun/api/trade (with action: "create")
+    32→   - Requires IPFS metadata upload (via Pinata)
+    33→
+    34→Pump.fun program address: 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P
+    35→Official docs: https://pumpportal.fun
+    36→
+    37→AUTH:
+    38→- Get a free API key at https://pumpportal.fun (Developer Docs section)
+    39→- Set as env: PUMPPORTAL_API_KEY
+    40→- For Lightning trade: also set SOLANA_PRIVATE_KEY (Lightning signs from linked wallet)
+    41→- For Local trade: only need SOLANA_PRIVATE_KEY (signs in your own code)
+    42→
+    43→Rate Limits: 25 trade requests/second
+    44→"""
+    45→from __future__ import annotations
+    46→import os
+    47→
+    48→import asyncio
+    49→import base64
+    50→import json
+    51→import time
+    52→from dataclasses import dataclass, field, asdict
+    53→from typing import Any, Dict, List, Optional, Tuple
+    54→
+    55→import httpx
+    56→
+    57→from ...core.config import settings
+    58→from ...core.logger import logger
+    59→
+    60→
+    61→# Pump.fun constants (from official docs)
+    62→PUMP_FUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+    63→PUMP_PORTAL_BASE = "https://pumpportal.fun"
+    64→PUMP_PORTAL_TRADE_URL = f"{PUMP_PORTAL_BASE}/api/trade"
+    65→PUMP_PORTAL_TRADE_LOCAL_URL = f"{PUMP_PORTAL_BASE}/api/trade-local"
+    66→PUMP_PORTAL_WS_URL = "wss://pumpportal.fun/api/data"
+    67→PUMP_FUN_API_BASE = "https://pump.fun"
+    68→
+    69→# Bonding curve constants (from pump.fun/docs/bonding-curve)
+    70→VIRTUAL_SOL_RESERVES = 30.0  # SOL
+    71→VIRTUAL_TOKEN_RESERVES = 1_073_000_000.0  # tokens
+    72→REAL_SOL_RESERVES = 0.0  # SOL
+    73→REAL_TOKEN_RESERVES = 793_000_000.0  # tokens (initial)
+    74→TOTAL_SUPPLY = 1_000_000_000.0  # 1B tokens
+    75→GRADUATION_THRESHOLD_SOL = 85.0  # Market cap that triggers Raydium migration
+    76→SOL_PRICE_USD_FALLBACK = 200.0  # Used if we can't fetch SOL price
+    77→
+    78→# Supported DEX pools (from PumpPortal docs, October 2026)
+    79→SUPPORTED_POOLS = ["pump", "raydium", "pump-amm", "launchlab", "raydium-cpmm", "bonk", "auto"]
+    80→
+    81→
+    82→# ============================================================
+    83→# Data classes
+    84→# ============================================================
+    85→@dataclass
+    86→class PumpFunToken:
+    87→    """A token launched on Pump.fun."""
+    88→    address: str  # mint address
+    89→    symbol: str
+    90→    name: str
+    91→    description: str = ""
+    92→    image_uri: str = ""
+    93→    creator: str = ""
+    94→    created_timestamp: int = 0
+    95→    market_cap_usd: float = 0.0
+    96→    price_usd: float = 0.0
+    97→    price_sol: float = 0.0
+    98→    bonding_curve_progress: float = 0.0  # 0-100
+    99→    virtual_sol_reserves: float = 0.0
+   100→    virtual_token_reserves: float = 0.0
+   101→    real_sol_reserves: float = 0.0
+   102→    real_token_reserves: float = 0.0
+   103→    total_supply: float = 0.0
+   104→    website: str = ""
+   105→    twitter: str = ""
+   106→    telegram: str = ""
+   107→    is_graduated: bool = False
+   108→    raydium_pool: str = ""
+   109→    holder_count: int = 0
+   110→    volume_24h_usd: float = 0.0
+   111→    volume_5m_usd: float = 0.0
+   112→    price_change_24h_pct: float = 0.0
+   113→
+   114→    def to_dict(self) -> Dict[str, Any]:
+   115→        return asdict(self)
+   116→
+   117→
+   118→@dataclass
+   119→class PumpTradeResult:
+   120→    """Result of a pump.fun trade."""
+   121→    success: bool
+   122→    tx_signature: str = ""
+   123→    error: str = ""
+   124→    token_address: str = ""
+   125→    side: str = ""  # buy | sell
+   126→    amount_sol: float = 0.0
+   127→    amount_tokens: float = 0.0
+   128→    timestamp: int = 0
+   129→
+   130→    def to_dict(self) -> Dict[str, Any]:
+   131→        return asdict(self)
+   132→
+   133→
+   134→# ============================================================
+   135→# Bonding curve math (from pump.fun docs)
+   136→# ============================================================
+   137→class BondingCurveMath:
+   138→    """
+   139→    Compute token price from bonding curve reserves.
+   140→
+   141→    Pump.fun uses a constant-product AMM:
+   142→        price = (virtual_sol_reserves * total_supply) /
+   143→                (virtual_token_reserves * sol_price_usd)
+   144→
+   145→    When tokens are bought:
+   146→        - real_sol_reserves increases
+   147→        - real_token_reserves decreases
+   148→        - virtual_sol_reserves stays fixed at 30 SOL
+   149→        - virtual_token_reserves stays fixed at 1.073B tokens
+   150→
+   151→    Graduation happens when real_sol_reserves reaches 85 SOL.
+   152→    """
+   153→
+   154→    @staticmethod
+   155→    def compute_price_usd(
+   156→        real_sol_reserves: float,
+   157→        sol_price_usd: float = SOL_PRICE_USD_FALLBACK,
+   158→    ) -> float:
+   159→        """
+   160→        Compute token price in USD given the current SOL reserves in the curve.
+   161→
+   162→        Pump.fun uses a constant-product bonding curve:
+   163→            k = (virtual_sol + real_sol) * (virtual_tokens - tokens_bought)
+   164→
+   165→        Initially: k = 30 SOL * 1.073B tokens
+   166→        As SOL enters curve: token supply decreases, price increases
+   167→        Price per token = (virtual_sol + real_sol) / (virtual_tokens - tokens_bought)
+   168→
+   169→        At graduation (real_sol=85): price reaches ~$0.00016 (when SOL=$200)
+   170→        """
+   171→        if real_sol_reserves < 0:
+   172→            return 0.0
+   173→
+   174→        # Compute tokens bought so far from curve
+   175→        # When real_sol enters: tokens bought = real_sol / virtual_sol * virtual_tokens (linear approx)
+   176→        # But actual pump.fun curve is constant-product, so:
+   177→        # k = (virtual_sol + real_sol) * (virtual_tokens - tokens_bought)
+   178→        # Initial k = virtual_sol * virtual_tokens
+   179→        # So: tokens_bought = virtual_tokens - (virtual_sol * virtual_tokens) / (virtual_sol + real_sol)
+   180→        # tokens_bought = virtual_tokens * (1 - virtual_sol / (virtual_sol + real_sol))
+   181→        # tokens_bought = virtual_tokens * real_sol / (virtual_sol + real_sol)
+   182→
+   183→        if real_sol_reserves == 0:
+   184→            # Initial price = virtual_sol / virtual_tokens
+   185→            price_sol = VIRTUAL_SOL_RESERVES / VIRTUAL_TOKEN_RESERVES
+   186→        else:
+   187→            # After buying, effective token reserves decrease
+   188→            tokens_bought = VIRTUAL_TOKEN_RESERVES * real_sol_reserves / (VIRTUAL_SOL_RESERVES + real_sol_reserves)
+   189→            effective_tokens = VIRTUAL_TOKEN_RESERVES - tokens_bought
+   190→            effective_sol = VIRTUAL_SOL_RESERVES + real_sol_reserves
+   191→
+   192→            if effective_tokens <= 0:
+   193→                # Curve exhausted (shouldn't happen before graduation)
+   194→                return 0.0
+   195→
+   196→            price_sol = effective_sol / effective_tokens
+   197→
+   198→        price_usd = price_sol * sol_price_usd
+   199→        return price_usd
+   200→
+   201→    @staticmethod
+   202→    def compute_bonding_progress(real_sol_reserves: float) -> float:
+   203→        """
+   204→        Compute how far the bonding curve has progressed (0-100%).
+   205→        Graduation happens at 85 SOL.
+   206→        """
+   207→        if real_sol_reserves <= 0:
+   208→            return 0.0
+   209→        progress = (real_sol_reserves / GRADUATION_THRESHOLD_SOL) * 100
+   210→        return min(progress, 100.0)
+   211→
+   212→    @staticmethod
+   213→    def compute_market_cap(real_sol_reserves: float, sol_price_usd: float = SOL_PRICE_USD_FALLBACK) -> float:
+   214→        """Compute market cap = price * total_supply."""
+   215→        price = BondingCurveMath.compute_price_usd(real_sol_reserves, sol_price_usd)
+   216→        return price * TOTAL_SUPPLY
+   217→
+   218→    @staticmethod
+   219→    def compute_tokens_for_sol(
+   220→        sol_amount: float,
+   221→        real_sol_reserves: float,
+   222→        fee_bps: int = 100,  # 1% pump.fun fee
+   223→    ) -> float:
+   224→        """
+   225→        How many tokens you get for buying `sol_amount` SOL worth.
+   226→
+   227→        Uses the constant-product formula:
+   228→            new_sol_reserves = real_sol_reserves + sol_amount * (1 - fee/10000)
+   229→            tokens_out = effective_tokens_before - effective_tokens_after
+   230→
+   231→        where: k = effective_sol * effective_tokens = constant
+   232→        """
+   233→        if sol_amount <= 0 or real_sol_reserves < 0:
+   234→            return 0.0
+   235→
+   236→        # Apply fee
+   237→        fee_pct = fee_bps / 10000.0
+   238→        sol_after_fee = sol_amount * (1 - fee_pct)
+   239→
+   240→        # Compute current effective reserves
+   241→        if real_sol_reserves == 0:
+   242→            effective_sol_before = VIRTUAL_SOL_RESERVES
+   243→            effective_tokens_before = VIRTUAL_TOKEN_RESERVES
+   244→        else:
+   245→            tokens_bought_so_far = VIRTUAL_TOKEN_RESERVES * real_sol_reserves / (VIRTUAL_SOL_RESERVES + real_sol_reserves)
+   246→            effective_tokens_before = VIRTUAL_TOKEN_RESERVES - tokens_bought_so_far
+   247→            effective_sol_before = VIRTUAL_SOL_RESERVES + real_sol_reserves
+   248→
+   249→        if effective_tokens_before <= 0:
+   250→            return 0.0
+   251→
+   252→        # Constant k
+   253→        k = effective_sol_before * effective_tokens_before
+   254→
+   255→        # After buy: effective_sol increases, effective_tokens decreases
+   256→        effective_sol_after = effective_sol_before + sol_after_fee
+   257→        if effective_sol_after <= 0:
+   258→            return 0.0
+   259→
+   260→        effective_tokens_after = k / effective_sol_after
+   261→        if effective_tokens_after >= effective_tokens_before:
+   262→            return 0.0
+   263→
+   264→        tokens_out = effective_tokens_before - effective_tokens_after
+   265→        return max(tokens_out, 0.0)
+   266→
+   267→
+   268→# ============================================================
+   269→# Main PumpPortal client
+   270→# ============================================================
+   271→class PumpPortalClient:
+   272→    """
+   273→    Client for PumpPortal API - the 3rd-party API for Pump.fun.
+   274→
+   275→    Provides:
+   276→    1. Lightning Transaction API: buy/sell tokens with SOL via PumpPortal's hosted wallet
+   277→    2. Local Transaction API: build unsigned transactions to sign with your own keypair
+   278→    3. Data API (WebSocket): real-time token creation, migration, and trade events
+   279→
+   280→    AUTH (for trade execution):
+   281→    - settings.pumportal_api_key: Get free at https://pumpportal.fun
+   282→    - settings.solana_private_key: Required for Lightning API (signs from linked wallet)
+   283→    - settings.solana_wallet_address: Required for Local API (PumpPortal returns unsigned tx)
+   284→
+   285→    NO AUTH needed for:
+   286→    - Bonding curve math (computed locally)
+   287→    - SOL price fetching
+   288→    - WebSocket subscribeNewToken (free) and subscribeMigration (free)
+   289→    """
+   290→
+   291→    def __init__(self):
+   292→        self.base_url = PUMP_PORTAL_BASE
+   293→        self.trade_url = PUMP_PORTAL_TRADE_URL
+   294→        self.trade_local_url = PUMP_PORTAL_TRADE_LOCAL_URL
+   295→        self.ws_url = PUMP_PORTAL_WS_URL
+   296→        # Solana wallet (needed for trade execution)
+   297→        self.api_key = getattr(settings, "pumportal_api_key", "") or os.environ.get("PUMPPORTAL_API_KEY", "") or ""
+   298→        self.wallet_private_key = getattr(settings, "solana_private_key", "") or os.environ.get("SOLANA_PRIVATE_KEY", "") or ""
+   299→        self.wallet_address = getattr(settings, "solana_wallet_address", "") or os.environ.get("SOLANA_WALLET_ADDRESS", "") or ""
+   300→        self.slippage_pct = getattr(settings, "pump_slippage_bps", 500) / 100  # Convert bps to %
+   301→        self.priority_fee_sol = getattr(settings, "pump_priority_fee_sol", 0.0001)
+   302→        self.default_pool = getattr(settings, "pump_default_pool", "auto") or "auto"
+   303→        self._client: Optional[httpx.AsyncClient] = None
+   304→        self._sol_price_usd: float = SOL_PRICE_USD_FALLBACK
+   305→        self._sol_price_last_fetch: float = 0.0
+   306→
+   307→    async def _get_client(self) -> httpx.AsyncClient:
+   308→        if self._client is None or self._client.is_closed:
+   309→            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+   310→            self._client = httpx.AsyncClient(timeout=15.0, headers=headers)
+   311→        return self._client
+   312→
+   313→    async def _fetch_sol_price(self) -> float:
+   314→        """Fetch current SOL price in USD (cached for 60s)."""
+   315→        now = time.time()
+   316→        if now - self._sol_price_last_fetch < 60:
+   317→            return self._sol_price_usd
+   318→
+   319→        client = await self._get_client()
+   320→        try:
+   321→            # Jupiter price API
+   322→            resp = await client.get(
+   323→                "https://lite-api.jup.ag/price/v2",
+   324→                params={"ids": "So11111111111111111111111111111111111111112"},
+   325→            )
+   326→            if resp.status_code == 200:
+   327→                data = resp.json()
+   328→                price = data.get("data", {}).get(
+   329→                    "So11111111111111111111111111111111111111112", {}
+   330→                ).get("price")
+   331→                if price and float(price) > 0:
+   332→                    self._sol_price_usd = float(price)
+   333→                    self._sol_price_last_fetch = now
+   334→                    return self._sol_price_usd
+   335→        except Exception as exc:
+   336→            logger.debug(f"SOL price fetch failed: {exc}")
+   337→
+   338→        return self._sol_price_usd
+   339→
+   340→    @property
+   341→    def is_configured_for_trading(self) -> bool:
+   342→        """Check if all required settings are present for live trading."""
+   343→        return bool(self.api_key and self.wallet_address and self.wallet_private_key)
+   344→
+   345→    # ========================================================
+   346→    # DATA API endpoints (no auth required)
+   347→    # ========================================================
+   348→    async def get_new_tokens(self, limit: int = 50) -> List[PumpFunToken]:
+   349→        """
+   350→        Get recently launched tokens on Pump.fun.
+   351→        Useful for catching new memecoins in the first few minutes.
+   352→        """
+   353→        client = await self._get_client()
+   354→        try:
+   355→            # PumpPortal data API
+   356→            resp = await client.post(
+   357→                f"{self.base_url}/api/data",
+   358→                json={"action": "newTokens", "limit": min(limit, 100)},
+   359→            )
+   360→            if resp.status_code == 200:
+   361→                data = resp.json()
+   362→                tokens = []
+   363→                for item in data if isinstance(data, list) else []:
+   364→                    token = self._parse_token(item)
+   365→                    if token:
+   366→                        tokens.append(token)
+   367→                return tokens[:limit]
+   368→        except Exception as exc:
+   369→            logger.debug(f"PumpPortal newTokens failed: {exc}")
+   370→        return []
+   371→
+   372→    async def get_trending_tokens(self, limit: int = 50) -> List[PumpFunToken]:
+   373→        """Get trending Pump.fun tokens."""
+   374→        client = await self._get_client()
+   375→        try:
+   376→            resp = await client.get(
+   377→                "https://pump.fun/api/coin/trending",
+   378→                params={"limit": min(limit, 100)},
+   379→            )
+   380→            if resp.status_code == 200:
+   381→                data = resp.json()
+   382→                tokens = []
+   383→                for item in data if isinstance(data, list) else []:
+   384→                    token = self._parse_token(item)
+   385→                    if token:
+   386→                        tokens.append(token)
+   387→                return tokens[:limit]
+   388→        except Exception as exc:
+   389→            logger.debug(f"PumpPortal trendingTokens failed: {exc}")
+   390→        return []
+   391→
+   392→    async def get_token_info(self, mint_address: str) -> Optional[PumpFunToken]:
+   393→        """Get detailed info about a specific Pump.fun token."""
+   394→        client = await self._get_client()
+   395→        try:
+   396→            resp = await client.get(
+   397→                f"https://pump.fun/api/coin/{mint_address}",
+   398→            )
+   399→            if resp.status_code == 200:
+   400→                data = resp.json()
+   401→                # Could be a single token or list
+   402→                if isinstance(data, list) and data:
+   403→                    return self._parse_token(data[0])
+   404→                if isinstance(data, dict):
+   405→                    return self._parse_token(data)
+   406→        except Exception as exc:
+   407→            logger.debug(f"PumpPortal tokenInfo failed: {exc}")
+   408→        return None
+   409→
+   410→    async def get_token_holders(self, mint_address: str) -> List[Dict[str, Any]]:
+   411→        """Get list of holders for a Pump.fun token."""
+   412→        client = await self._get_client()
+   413→        try:
+   414→            resp = await client.get(
+   415→                f"https://pump.fun/api/coin/{mint_address}/holders",
+   416→            )
+   417→            if resp.status_code == 200:
+   418→                data = resp.json()
+   419→                if isinstance(data, list):
+   420→                    return data
+   421→        except Exception as exc:
+   422→            logger.debug(f"PumpPortal holders failed: {exc}")
+   423→        return []
+   424→
+   425→    async def get_graduated_tokens(self, limit: int = 50) -> List[PumpFunToken]:
+   426→        """Get graduated tokens (moved to Raydium LP)."""
+   427→        client = await self._get_client()
+   428→        try:
+   429→            resp = await client.get(
+   430→                "https://pump.fun/api/coin/graduated",
+   431→                params={"limit": min(limit, 100)},
+   432→            )
+   433→            if resp.status_code == 200:
+   434→                data = resp.json()
+   435→                tokens = []
+   436→                for item in data if isinstance(data, list) else []:
+   437→                    token = self._parse_token(item)
+   438→                    if token:
+   439→                        token.is_graduated = True
+   440→                        tokens.append(token)
+   441→                return tokens[:limit]
+   442→        except Exception as exc:
+   443→            logger.debug(f"PumpPortal graduatedTokens failed: {exc}")
+   444→        return []
+   445→
+   446→    async def search_tokens(self, query: str, limit: int = 20) -> List[PumpFunToken]:
+   447→        """Search Pump.fun tokens by name or symbol."""
+   448→        client = await self._get_client()
+   449→        try:
+   450→            resp = await client.get(
+   451→                f"https://pump.fun/api/search",
+   452→                params={"q": query, "limit": limit},
+   453→            )
+   454→            if resp.status_code == 200:
+   455→                data = resp.json()
+   456→                tokens = []
+   457→                for item in data if isinstance(data, list) else []:
+   458→                    token = self._parse_token(item)
+   459→                    if token:
+   460→                        tokens.append(token)
+   461→                return tokens[:limit]
+   462→        except Exception as exc:
+   463→            logger.debug(f"PumpPortal search failed: {exc}")
+   464→        return []
+   465→
+   466→    # ========================================================
+   467→    # Lightning Transaction API (trade execution)
+   468→    # ========================================================
+   469→    async def _lightning_post(
+   470→        self,
+   471→        payload: Dict[str, Any],
+   472→        timeout: float,
+   473→        max_retries: int = 2,
+   474→    ):
+   475→        """POST to PumpPortal Lightning API with network-level retries."""
+   476→        client = await self._get_client()
+   477→        url = f"{self.trade_url}?api-key={self.api_key}"
+   478→        last_error = ""
+   479→        for attempt in range(max_retries + 1):
+   480→            try:
+   481→                resp = await client.post(url, json=payload, timeout=timeout)
+   482→                return resp, None
+   483→            except (httpx.TimeoutException, httpx.NetworkError, httpx.ConnectError) as exc:
+   484→                last_error = str(exc)[:200]
+   485→                logger.warning(
+   486→                    f"PumpPortal request attempt {attempt + 1}/{max_retries + 1} failed: {last_error}"
+   487→                )
+   488→                if attempt < max_retries:
+   489→                    await asyncio.sleep(0.5 * (attempt + 1))
+   490→        return None, last_error
+   491→
+   492→    async def buy_token(
+   493→        self,
+   494→        mint_address: str,
+   495→        amount_sol: float,
+   496→        pool: Optional[str] = None,
+   497→    ) -> PumpTradeResult:
+   498→        """
+   499→        Buy a Pump.fun token with SOL via PumpPortal Lightning API.
+   500→
+   501→        Args:
+   502→            mint_address: Token mint address (Solana)
+   503→            amount_sol: SOL amount to spend (e.g., 0.1)
+   504→            pool: DEX to trade on (pump, raydium, pump-amm, launchlab, raydium-cpmm, bonk, auto)
+   505→
+   506→        Returns: PumpTradeResult with tx_signature on success
+   507→
+   508→        REQUIRES:
+   509→        - settings.pumportal_api_key set
+   510→        - settings.solana_private_key set (base58 encoded)
+   511→        - Wallet has SOL balance
+   512→        """
+   513→        if not self.api_key:
+   514→            return PumpTradeResult(
+   515→                success=False,
+   516→                error="PumpPortal API key not configured. Set PUMPPORTAL_API_KEY env var.",
+   517→                token_address=mint_address,
+   518→                side="buy",
+   519→                amount_sol=amount_sol,
+   520→            )
+   521→        if not self.wallet_private_key:
+   522→            return PumpTradeResult(
+   523→                success=False,
+   524→                error="Solana wallet private key not configured. Set SOLANA_PRIVATE_KEY env var.",
+   525→                token_address=mint_address,
+   526→                side="buy",
+   527→                amount_sol=amount_sol,
+   528→            )
+   529→
+   530→        try:
+   531→            payload = {
+   532→                "action": "buy",
+   533→                "mint": mint_address,
+   534→                "amount": amount_sol,
+   535→                "denominatedInSol": "true",
+   536→                "slippage": self.slippage_pct,
+   537→                "priorityFee": self.priority_fee_sol * 3,
+   538→                "skipPreflight": "true",
+   539→                "pool": pool or "pump",
+   540→            }
+   541→            resp, net_error = await self._lightning_post(payload, timeout=8.0, max_retries=2)
+   542→            if net_error:
+   543→                return PumpTradeResult(
+   544→                    success=False,
+   545→                    error=f"Network error after 3 attempts: {net_error}",
+   546→                    token_address=mint_address,
+   547→                    side="buy",
+   548→                    amount_sol=amount_sol,
+   549→                )
+   550→
+   551→            if resp.status_code == 200:
+   552→                data = resp.json()
+   553→                if data.get("signature"):
+   554→                    return PumpTradeResult(
+   555→                        success=True,
+   556→                        tx_signature=data["signature"],
+   557→                        token_address=mint_address,
+   558→                        side="buy",
+   559→                        amount_sol=amount_sol,
+   560→                        timestamp=int(time.time()),
+   561→                    )
+   562→                return PumpTradeResult(
+   563→                    success=False,
+   564→                    error=data.get("errors", data.get("error", "Unknown error")),
+   565→                    token_address=mint_address,
+   566→                    side="buy",
+   567→                    amount_sol=amount_sol,
+   568→                )
+   569→            return PumpTradeResult(
+   570→                success=False,
+   571→                error=f"HTTP {resp.status_code}: {resp.text[:200]}",
+   572→                token_address=mint_address,
+   573→                side="buy",
+   574→                amount_sol=amount_sol,
+   575→            )
+   576→        except Exception as exc:
+   577→            logger.exception(f"PumpPortal buy failed: {exc}")
+   578→            return PumpTradeResult(
+   579→                success=False,
+   580→                error=str(exc)[:200],
+   581→                token_address=mint_address,
+   582→                side="buy",
+   583→                amount_sol=amount_sol,
+   584→            )
+   585→
+   586→    async def sell_token(
+   587→        self,
+   588→        mint_address: str,
+   589→        amount_tokens: float,
+   590→        pool: Optional[str] = None,
+   591→    ) -> PumpTradeResult:
+   592→        """
+   593→        Sell a Pump.fun token for SOL via PumpPortal Lightning API.
+   594→
+   595→        Args:
+   596→            mint_address: Token mint address
+   597→            amount_tokens: Number of tokens to sell (or "100%" to sell all)
+   598→
+   599→        Returns: PumpTradeResult
+   600→        """
+   601→        if not self.api_key:
+   602→            return PumpTradeResult(
+   603→                success=False,
+   604→                error="PumpPortal API key not configured",
+   605→                token_address=mint_address,
+   606→                side="sell",
+   607→                amount_tokens=amount_tokens,
+   608→            )
+   609→        if not self.wallet_private_key:
+   610→            return PumpTradeResult(
+   611→                success=False,
+   612→                error="Solana wallet private key not configured",
+   613→                token_address=mint_address,
+   614→                side="sell",
+   615→                amount_tokens=amount_tokens,
+   616→            )
+   617→
+   618→        try:
+   619→            payload = {
+   620→                "action": "sell",
+   621→                "mint": mint_address,
+   622→                "amount": amount_tokens,
+   623→                "denominatedInSol": "false",
+   624→                "slippage": self.slippage_pct,
+   625→                "priorityFee": self.priority_fee_sol * 3,
+   626→                "skipPreflight": "true",
+   627→                "jitoOnly": "true",
+   628→                "pool": pool or "pump",
+   629→            }
+   630→            resp, net_error = await self._lightning_post(payload, timeout=10.0, max_retries=2)
+   631→            if net_error:
+   632→                return PumpTradeResult(
+   633→                    success=False,
+   634→                    error=f"Network error after 3 attempts: {net_error}",
+   635→                    token_address=mint_address,
+   636→                    side="sell",
+   637→                    amount_tokens=amount_tokens,
+   638→                )
+   639→
+   640→            # If the sell fails with "insufficient", retry with the full balance ("100%").
+   641→            if resp.status_code == 200:
+   642→                data = resp.json()
+   643→                err_text = str(data.get("errors", data.get("error", ""))).lower()
+   644→                if not data.get("signature") and "insufficient" in err_text:
+   645→                    logger.info("Sell insufficient balance, retrying with amount='100%'")
+   646→                    retry_payload = dict(payload)
+   647→                    retry_payload["amount"] = "100%"
+   648→                    resp, net_error = await self._lightning_post(retry_payload, timeout=10.0, max_retries=1)
+   649→                    if net_error:
+   650→                        return PumpTradeResult(
+   651→                            success=False,
+   652→                            error=f"Retry network error: {net_error}",
+   653→                            token_address=mint_address,
+   654→                            side="sell",
+   655→                            amount_tokens=amount_tokens,
+   656→                        )
+   657→
+   658→            if resp.status_code == 200:
+   659→                data = resp.json()
+   660→                if data.get("signature"):
+   661→                    return PumpTradeResult(
+   662→                        success=True,
+   663→                        tx_signature=data["signature"],
+   664→                        token_address=mint_address,
+   665→                        side="sell",
+   666→                        amount_tokens=amount_tokens,
+   667→                        timestamp=int(time.time()),
+   668→                    )
+   669→                return PumpTradeResult(
+   670→                    success=False,
+   671→                    error=data.get("errors", data.get("error", "Unknown error")),
+   672→                    token_address=mint_address,
+   673→                    side="sell",
+   674→                    amount_tokens=amount_tokens,
+   675→                )
+   676→            return PumpTradeResult(
+   677→                success=False,
+   678→                error=f"HTTP {resp.status_code}: {resp.text[:200]}",
+   679→                token_address=mint_address,
+   680→                side="sell",
+   681→                amount_tokens=amount_tokens,
+   682→            )
+   683→        except Exception as exc:
+   684→            logger.exception(f"PumpPortal sell failed: {exc}")
+   685→            return PumpTradeResult(
+   686→                success=False,
+   687→                error=str(exc)[:200],
+   688→                token_address=mint_address,
+   689→                side="sell",
+   690→                amount_tokens=amount_tokens,
+   691→            )
+   692→
+   693→    async def confirm_signature(
+   694→        self,
+   695→        signature: str,
+   696→        timeout_seconds: float = 30.0,
+   697→        max_retries: int = 2,
+   698→    ) -> Dict[str, Any]:
+   699→        """Confirm a Solana transaction signature via RPC.
+   700→
+   701→        Fast polling (0.5s), short RPC timeout (3s), accepts any of
+   702→        processed/confirmed/finalized as success.
+   703→        """
+   704→        if not signature:
+   705→            return {"confirmed": False, "error": "empty signature"}
+   706→
+   707→        client = await self._get_client()
+   708→        deadline = time.time() + timeout_seconds
+   709→        accepted = ("processed", "confirmed", "finalized")
+   710→        last_status = "unknown"
+   711→        rpc_url = settings.solana_rpc_url
+   712→
+   713→        while time.time() < deadline:
+   714→            try:
+   715→                resp = await client.post(
+   716→                    rpc_url,
+   717→                    json={
+   718→                        "jsonrpc": "2.0",
+   719→                        "id": 1,
+   720→                        "method": "getSignatureStatuses",
+   721→                        "params": [[signature], {"searchTransactionHistory": True}],
+   722→                    },
+   723→                    timeout=3.0,
+   724→                )
+   725→                if resp.status_code == 200:
+   726→                    data = resp.json()
+   727→                    value = (data.get("result", {}) or {}).get("value", [])
+   728→                    info = value[0] if value else None
+   729→                    if info:
+   730→                        # V407 P1-10: Check err FIRST — a tx can be "processed" but failed
+   731→                        if info.get("err"):
+   732→                            return {
+   733→                                "confirmed": False,
+   734→                                "error": str(info.get("err")),
+   735→                                "status": info.get("confirmationStatus", "unknown"),
+   736→                                "signature": signature,
+   737→                            }
+   738→                        last_status = info.get("confirmationStatus", "unknown")
+   739→                        if last_status in accepted:
+   740→                            return {
+   741→                                "confirmed": True,
+   742→                                "status": last_status,
+   743→                                "slot": info.get("slot"),
+   744→                                "err": None,
+   745→                                "signature": signature,
+   746→                            }
+   747→                        if info.get("err"):
+   748→                            return {
+   749→                                "confirmed": False,
+   750→                                "error": str(info.get("err")),
+   751→                                "status": last_status,
+   752→                                "signature": signature,
+   753→                            }
+   754→            except Exception as exc:
+   755→                logger.debug(f"getSignatureStatuses attempt failed: {str(exc)[:150]}")
+   756→
+   757→            await asyncio.sleep(0.5)
+   758→
+   759→        return {
+   760→            "confirmed": False,
+   761→            "error": f"timeout after {timeout_seconds}s (last status: {last_status})",
+   762→            "status": last_status,
+   763→            "signature": signature,
+   764→        }
+   765→
+   766→    # ========================================================
+   767→    # Wallet operations
+   768→    # ========================================================
+   769→    async def get_wallet_balance(self) -> Dict[str, float]:
+   770→        """Get wallet SOL and token balances."""
+   771→        if not self.wallet_address:
+   772→            return {"sol": 0.0, "tokens": []}
+   773→
+   774→        client = await self._get_client()
+   775→        try:
+   776→            # Use Solana RPC to get balance
+   777→            resp = await client.post(
+   778→                settings.solana_rpc_url,
+   779→                json={
+   780→                    "jsonrpc": "2.0",
+   781→                    "id": 1,
+   782→                    "method": "getBalance",
+   783→                    "params": [self.wallet_address],
+   784→                },
+   785→            )
+   786→            if resp.status_code == 200:
+   787→                data = resp.json()
+   788→                lamports = data.get("result", {}).get("value", 0)
+   789→                sol_balance = lamports / 1_000_000_000  # 1 SOL = 1e9 lamports
+   790→                return {"sol": sol_balance, "tokens": []}
+   791→        except Exception as exc:
+   792→            logger.debug(f"Wallet balance failed: {exc}")
+   793→        return {"sol": 0.0, "tokens": []}
+   794→
+   795→    async def get_wallet_token_balances(self) -> List[Dict[str, Any]]:
+   796→        """Get all token balances in the wallet (SPL tokens)."""
+   797→        if not self.wallet_address:
+   798→            return []
+   799→
+   800→        client = await self._get_client()
+   801→        try:
+   802→            resp = await client.post(
+   803→                settings.solana_rpc_url,
+   804→                json={
+   805→                    "jsonrpc": "2.0",
+   806→                    "id": 1,
+   807→                    "method": "getTokenAccountsByOwner",
+   808→                    "params": [
+   809→                        self.wallet_address,
+   810→                        {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
+   811→                        {"encoding": "jsonParsed"},
+   812→                    ],
+   813→                },
+   814→            )
+   815→            if resp.status_code == 200:
+   816→                data = resp.json()
+   817→                accounts = data.get("result", {}).get("value", [])
+   818→                tokens = []
+   819→                for acc in accounts:
+   820→                    info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+   821→                    if info:
+   822→                        tokens.append({
+   823→                            "mint": info.get("mint", ""),
+   824→                            "amount": float(info.get("tokenAmount", {}).get("uiAmount", 0) or 0),
+   825→                            "decimals": info.get("tokenAmount", {}).get("decimals", 0),
+   826→                        })
+   827→                return tokens
+   828→        except Exception as exc:
+   829→            logger.debug(f"Wallet token balances failed: {exc}")
+   830→        return []
+   831→
+   832→    # ========================================================
+   833→    # Internal helpers
+   834→    # ========================================================
+   835→    def _parse_token(self, data: Dict[str, Any]) -> Optional[PumpFunToken]:
+   836→        """Parse a token dict from PumpPortal API into PumpFunToken."""
+   837→        if not data or not isinstance(data, dict):
+   838→            return None
+   839→
+   840→        try:
+   841→            sol_price = self._sol_price_usd
+   842→            real_sol = float(data.get("sol_reserves", 0) or 0)
+   843→            real_tokens = float(data.get("token_reserves", 0) or 0)
+   844→
+   845→            # Compute derived fields if not provided
+   846→            market_cap = float(data.get("market_cap", 0) or 0)
+   847→            price_usd = float(data.get("usd_market_cap", 0) or 0) / TOTAL_SUPPLY if not market_cap else market_cap / TOTAL_SUPPLY
+   848→
+   849→            # Use bonding curve math if market cap is 0
+   850→            if market_cap <= 0 and real_sol > 0:
+   851→                market_cap = BondingCurveMath.compute_market_cap(real_sol, sol_price)
+   852→                price_usd = market_cap / TOTAL_SUPPLY
+   853→
+   854→            progress = float(data.get("bonding_curve_progress", 0) or 0)
+   855→            if progress <= 0 and real_sol > 0:
+   856→                progress = BondingCurveMath.compute_bonding_progress(real_sol)
+   857→
+   858→            return PumpFunToken(
+   859→                address=data.get("mint", "") or data.get("address", ""),
+   860→                symbol=data.get("symbol", ""),
+   861→                name=data.get("name", ""),
+   862→                description=data.get("description", ""),
+   863→                image_uri=data.get("image_uri", ""),
+   864→                creator=data.get("creator", ""),
+   865→                created_timestamp=int(data.get("created_timestamp", 0) or 0),
+   866→                market_cap_usd=market_cap,
+   867→                price_usd=price_usd,
+   868→                price_sol=price_usd / sol_price if sol_price > 0 else 0,
+   869→                bonding_curve_progress=progress,
+   870→                virtual_sol_reserves=float(data.get("virtual_sol_reserves", VIRTUAL_SOL_RESERVES) or VIRTUAL_SOL_RESERVES),
+   871→                virtual_token_reserves=float(data.get("virtual_token_reserves", VIRTUAL_TOKEN_RESERVES) or VIRTUAL_TOKEN_RESERVES),
+   872→                real_sol_reserves=real_sol,
+   873→                real_token_reserves=real_tokens,
+   874→                total_supply=float(data.get("total_supply", TOTAL_SUPPLY) or TOTAL_SUPPLY),
+   875→                website=data.get("website", ""),
+   876→                twitter=data.get("twitter", ""),
+   877→                telegram=data.get("telegram", ""),
+   878→                is_graduated=bool(data.get("complete", False) or data.get("is_graduated", False)),
+   879→                raydium_pool=data.get("raydium_pool", ""),
+   880→                holder_count=int(data.get("holder_count", 0) or 0),
+   881→                volume_24h_usd=float(data.get("volume_24h", 0) or 0),
+   882→                volume_5m_usd=float(data.get("volume_5m", 0) or 0),
+   883→                price_change_24h_pct=float(data.get("price_change_24h", 0) or 0),
+   884→            )
+   885→        except Exception as exc:
+   886→            logger.debug(f"PumpFun token parse failed: {exc}")
+   887→            return None
+   888→
+   889→    async def close(self):
+   890→        if self._client and not self._client.is_closed:
+   891→            await self._client.aclose()
+   892→
