@@ -470,9 +470,11 @@ class DecisionEngine:
             # V400 P1-9 FIX: use token price (validated above to be > 0)
             result.suggested_stop_loss = token_price * 0.92  # -8% SL
         if not result.suggested_take_profit or result.suggested_take_profit <= 0:
-            result.suggested_take_profit = token_price * 1.50  # +50% TP
+            # V501: TP cap at +1000% (10x) — not a real TP, just a safety cap
+            # V500 strategy: NO early TP, let winners run via trailing stop
+            result.suggested_take_profit = token_price * 11.0  # 10x cap (was 1.50)
         if not result.suggested_holding_period_minutes:
-            result.suggested_holding_period_minutes = 3600  # V57: 60h (2.5 days)
+            result.suggested_holding_period_minutes = 7200  # V501: 5 days (was 60h)
         if not result.suggested_entry:
             result.suggested_entry = token.price_usd
 
@@ -573,16 +575,16 @@ class DecisionEngine:
         if ta.atr > 0 and result.suggested_entry > 0:
             sl_distance = 1.8 * ta.atr  # tight SL
             result.suggested_stop_loss = max(0.0001, result.suggested_entry - sl_distance)
-            # Very wide TP — let big winners run (memecoin pumps can be 10x+)
-            result.suggested_take_profit = result.suggested_entry + 9.0 * ta.atr
-            # Longer holding period for pumps to develop
-            result.suggested_holding_period_minutes = 3600  # 60 hours (2.5 days)
+            # V501: TP cap at 10x (was 9×ATR) — let winners run via trailing
+            result.suggested_take_profit = result.suggested_entry * 11.0  # 10x cap
+            # V501: 5 days holding (was 60h)
+            result.suggested_holding_period_minutes = 7200  # 5 days
         else:
             # Fallback for tokens without OHLCV (new memecoins):
-            # V57 uses -8% SL, +50% TP (R:R = 1:6.25)
+            # V501: -8% SL, +1000% TP cap (was +50%)
             result.suggested_stop_loss = result.suggested_entry * 0.92  # -8% SL
-            result.suggested_take_profit = result.suggested_entry * 1.50  # +50% TP
-            result.suggested_holding_period_minutes = 3600  # 60h
+            result.suggested_take_profit = result.suggested_entry * 11.0  # V501: 10x cap
+            result.suggested_holding_period_minutes = 7200  # V501: 5 days
 
         # Position size: risk-based
         # Risk per trade = 2% of capital
