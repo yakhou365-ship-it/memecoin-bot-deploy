@@ -952,13 +952,17 @@ async def _run_agents_for_token(token_id: str):
     } for c in candles]) if candles else None
 
     # Run decision engine to get analysis context
-    engine = DecisionEngine()
-    regime = MarketRegimeDetector().detect(broad_market_candles=df) if df is not None else None
-    decision = await engine.analyze(token, candles_df=df, market_regime=regime)
+    try:
+        engine = DecisionEngine()
+        regime = MarketRegimeDetector().detect(broad_market_candles=df) if df is not None else None
+        decision = await engine.analyze(token, candles_df=df, market_regime=regime)
 
-    # Get risk state
-    rm = RiskManager()
-    risk_state = await rm.get_state()
+        # Get risk state
+        rm = RiskManager()
+        risk_state = await rm.get_state()
+    except Exception as exc:
+        logger.exception(f"Decision engine failed for token {token_id}: {exc}")
+        raise HTTPException(500, f"Decision engine failed: {str(exc)[:200]}")
 
     # Build a normalized analysis context (same shape the orchestrator uses)
     sec = decision.security_detail or {}
@@ -1002,9 +1006,23 @@ async def _run_agents_for_token(token_id: str):
     }
 
     # Run consensus
-    orch = AgentOrchestrator()
-    result = await orch.run_consensus(token, analysis_context)
-    return result.to_dict()
+    try:
+        orch = AgentOrchestrator()
+        result = await orch.run_consensus(token, analysis_context)
+        return result.to_dict()
+    except Exception as exc:
+        logger.exception(f"Agent consensus failed for token {token_id}: {exc}")
+        # V510: degrade gracefully — return the analysis_context + the error
+        # so the dashboard can show what we know without 500ing.
+        return {
+            "token_id": token_id,
+            "symbol": token.symbol if token else None,
+            "approved": False,
+            "approvals_count": 0,
+            "total_agents": 0,
+            "error": f"Agent consensus failed: {str(exc)[:200]}",
+            "analysis_context": analysis_context,
+        }
 
 
 # =========================================================================
@@ -1284,7 +1302,13 @@ async def analyze_token_full(token_id: str):
         return result
     except Exception as exc:
         logger.exception(f"Multi-agent analysis failed: {exc}")
-        raise HTTPException(500, f"Multi-agent analysis failed: {str(exc)[:200]}")
+        # V510: degrade gracefully instead of 500. The dashboard depends on this.
+        return {
+            "token_id": token_id,
+            "symbol": token.symbol if token else None,
+            "error": f"Multi-agent analysis failed: {str(exc)[:200]}",
+            "analysis": analysis_context,
+        }
 
 
 @router.get("/agents/list")
