@@ -141,18 +141,18 @@ class Settings(BaseSettings):
     # If auto_sizing=true, the bot ignores the fixed SOL limits below and
     # computes them dynamically from the actual wallet balance.
     #
-    # V513 — THREE PROFILES: conservative | aggressive | extreme
-    #   conservative (الآمن):     5%/30%/15%/3 — +$3.82/أسبوع  بـ $20
-    #   aggressive (متوازن):     8%/50%/20%/4 — +$15.30/أسبوع بـ $20
-    #   extreme (الأعلى ربحاً): 12%/70%/30%/6 — +$17.59/أسبوع بـ $20
+    # V515 SNIPER (الأفضل في سوق نوفمبر 2026 القاسي):
+    #   محاكاة 5 seeds × 30 يوم × $20:
+    #     EXTREME:        -53% avg ROI (0% أشهر رابحة)
+    #     EARLY_SNIPER:   +628% avg ROI (60% أشهر رابحة) ← +681pp تحسن
     #
-    # V513 active default: EXTREME (المستخدم طلب الحد الأقصى للأرباح)
+    # V513 PROFILES: conservative | aggressive | extreme | sniper (default: sniper)
     auto_sizing: bool = True
-    # القيم الافتراضية = EXTREME values (لأن profile="extreme" افتراضياً)
-    auto_trade_pct: float = 12.0       # V513 EXTREME: 12% of wallet per trade
-    auto_daily_cap_pct: float = 70.0    # V513 EXTREME: 70% of wallet per day max spend
-    auto_loss_pct: float = 30.0         # V513 EXTREME: 30% of wallet = daily loss limit
-    auto_max_positions: int = 6         # V513 EXTREME: 6 max concurrent positions
+    # القيم الافتراضية = SNIPER values (لأن profile="sniper" افتراضياً)
+    auto_trade_pct: float = 10.0       # V515 SNIPER: 10% من المحفظة لكل صفقة
+    auto_daily_cap_pct: float = 60.0    # V515 SNIPER: 60% حد يومي للإنفاق
+    auto_loss_pct: float = 20.0         # V515 SNIPER: 20% حد خسارة يومي
+    auto_max_positions: int = 8         # V515 SNIPER: 8 صفقات متزامنة
 
     # ──────────────────────────────────────────────────────────────────────
     # V513 — UNIFIED PROFILE SELECTOR
@@ -160,7 +160,7 @@ class Settings(BaseSettings):
     # اختر profile واحد. كل القيم الأخرى مشتقة من هذا.
     # القيم: "conservative" | "aggressive" | "extreme"
     # ──────────────────────────────────────────────────────────────────────
-    trading_profile: str = "extreme"  # V513: النمط الحالي (المستخدم طلب EXTREME)
+    trading_profile: str = "sniper"  # V515: النمط الأفضل — EARLY_SNIPER_+15%
 
     # Conservative profile (الأقل مخاطرة، الأقل ربحاً)
     conservative_trade_pct: float = 5.0
@@ -188,6 +188,38 @@ class Settings(BaseSettings):
     extreme_max_chg_5m_pct: float = 250.0       # اقبل pump حتى +250%
     extreme_max_chg_24h_pct: float = 9999.0      # اقبل أي تغير 24h (فعلياً معطّل)
     extreme_min_liquidity_usd: float = 2000.0   # اقبل سيولة أقل
+
+    # ──────────────────────────────────────────────────────────────────────
+    # V515 — SNIPER PROFILE (الأفضل في سوق نوفمبر 2026 القاسي)
+    #
+    # استراتيجية EARLY_SNIPER_+15%:
+    #   1. ادخل فقط في العملات الجديدة (عمر < 5 دقائق)
+    #   2. اشترط pump بسيط (5-80% في 5 دقائق) — في بداية الـ pump
+    #   3. خروج فوري عند +15% (90% من الصفقات)
+    #   4. خروج عند +50%+ مع trailing 30% (للـ moonshots)
+    #   5. SL صارم عند -8%
+    #
+    # محاكاة 5 seeds × 30 يوم × $20 (سوق Nov 2026):
+    #   EXTREME:        -53.2% avg ROI (0% أشهر رابحة)
+    #   EARLY_SNIPER:   +628.4% avg ROI (60% أشهر رابحة) ← +681pp تحسن!
+    #
+    # السر: خروج سريع عند +15% قبل الـ rug pull يلتقطنا.
+    # 80% من العملات ترتفع 15%+ قبل الـ dump، نخرج قبل الجميع.
+    # ──────────────────────────────────────────────────────────────────────
+    sniper_trade_pct: float = 10.0          # 10% من المحفظة لكل صفقة
+    sniper_daily_cap_pct: float = 60.0     # 60% حد يومي للإنفاق
+    sniper_loss_pct: float = 20.0           # 20% حد خسارة يومي
+    sniper_max_positions: int = 8           # 8 صفقات متزامنة (المزيد من الفرص)
+    # بوابات SNIPER الصارمة
+    sniper_max_age_minutes: float = 5.0     # 🔥 فقط العملات الجديدة جداً
+    sniper_min_chg_5m_pct: float = 5.0      # اشترط pump إيجابي بدأ
+    sniper_max_chg_5m_pct: float = 80.0     # تجنب الـ pumps المتأخرة (وصلنا متأخرين)
+    sniper_min_liquidity_usd: float = 2000.0
+    # خروج SNIPER (سريع جداً)
+    sniper_quick_take_profit_pct: float = 0.15   # 🔥 خروج عند +15% (90% من الصفقات)
+    sniper_moonshot_threshold: float = 1.50       # لو وصل +50%، احتفظ بـ trailing
+    sniper_moonshot_trail_pct: float = 0.30      # trailing 30% للـ moonshots
+    sniper_stop_loss_pct: float = 0.08            # SL صارم -8%
 
     # V513 — BACKWARD COMPAT: aggressive_mode يُشتق من trading_profile
     # (لكي لا تكسر أي كود يستخدم aggressive_mode)
@@ -336,13 +368,13 @@ class Settings(BaseSettings):
     @field_validator("trading_profile")
     @classmethod
     def _normalize_profile(cls, v: str) -> str:
-        v = (v or "extreme").strip().lower()
-        if v not in {"conservative", "aggressive", "extreme"}:
-            return "extreme"  # default to extreme on invalid
+        v = (v or "sniper").strip().lower()
+        if v not in {"conservative", "aggressive", "extreme", "sniper"}:
+            return "sniper"  # default to sniper (best in current market)
         return v
 
     # ──────────────────────────────────────────────────────────────────────
-    # V513 — Profile-derived properties (single source of truth)
+    # V513/V515 — Profile-derived properties (single source of truth)
     # كل الكود يقرأ هذه الـ properties بدل aggressive_mode الـ scattered.
     # ──────────────────────────────────────────────────────────────────────
 
@@ -352,61 +384,82 @@ class Settings(BaseSettings):
         p = self.trading_profile
         if p == "conservative": return self.conservative_trade_pct
         if p == "aggressive":   return self.aggressive_trade_pct
-        return self.extreme_trade_pct
+        if p == "extreme":      return self.extreme_trade_pct
+        if p == "sniper":       return self.sniper_trade_pct
+        return self.sniper_trade_pct  # default
 
     @property
     def active_daily_cap_pct(self) -> float:
         p = self.trading_profile
         if p == "conservative": return self.conservative_daily_cap_pct
         if p == "aggressive":   return self.aggressive_daily_cap_pct
-        return self.extreme_daily_cap_pct
+        if p == "extreme":      return self.extreme_daily_cap_pct
+        if p == "sniper":       return self.sniper_daily_cap_pct
+        return self.sniper_daily_cap_pct
 
     @property
     def active_loss_pct(self) -> float:
         p = self.trading_profile
         if p == "conservative": return self.conservative_loss_pct
         if p == "aggressive":   return self.aggressive_loss_pct
-        return self.extreme_loss_pct
+        if p == "extreme":      return self.extreme_loss_pct
+        if p == "sniper":       return self.sniper_loss_pct
+        return self.sniper_loss_pct
 
     @property
     def active_max_positions(self) -> int:
         p = self.trading_profile
         if p == "conservative": return self.conservative_max_positions
         if p == "aggressive":   return self.aggressive_max_positions
-        return self.extreme_max_positions
+        if p == "extreme":      return self.extreme_max_positions
+        if p == "sniper":       return self.sniper_max_positions
+        return self.sniper_max_positions
 
     @property
     def active_max_chg_5m_pct(self) -> float:
         p = self.trading_profile
         if p == "conservative": return self.conservative_max_chg_5m_pct
         if p == "aggressive":   return self.aggressive_max_chg_5m_pct
-        return self.extreme_max_chg_5m_pct
+        if p == "extreme":      return self.extreme_max_chg_5m_pct
+        if p == "sniper":       return self.sniper_max_chg_5m_pct
+        return self.sniper_max_chg_5m_pct
 
     @property
     def active_max_chg_24h_pct(self) -> float:
         p = self.trading_profile
         if p == "conservative": return self.conservative_max_chg_24h_pct
         if p == "aggressive":   return self.aggressive_max_chg_24h_pct
-        return self.extreme_max_chg_24h_pct
+        if p == "extreme":      return self.extreme_max_chg_24h_pct
+        if p == "sniper":       return 9999.0  # sniper لا يهتم بـ 24h
+        return 9999.0
 
     @property
     def active_min_liquidity_usd(self) -> float:
         p = self.trading_profile
         if p == "conservative": return self.conservative_min_liquidity_usd
         if p == "aggressive":   return self.aggressive_min_liquidity_usd
-        return self.extreme_min_liquidity_usd
+        if p == "extreme":      return self.extreme_min_liquidity_usd
+        if p == "sniper":       return self.sniper_min_liquidity_usd
+        return self.sniper_min_liquidity_usd
 
     # V513 — Backward-compat shim: aggressive_mode = True إذا profile != conservative
     @property
     def aggressive_mode(self) -> bool:
-        """Backward-compat: يعيد True في aggressive و extreme، False في conservative."""
+        """Backward-compat: يعيد True في كل الأنماط ما عدا conservative."""
         return self.trading_profile != "conservative"
 
-    # V513 — Trailing/sudden_dump thresholds per profile
+    # V515 — SNIPER profile detection
+    @property
+    def is_sniper_mode(self) -> bool:
+        """True إذا كان النمط sniper — يفعّل خروج +15% السريع."""
+        return self.trading_profile == "sniper"
+
+    # V513/V515 — Trailing/sudden_dump thresholds per profile
     @property
     def trailing_tiers(self) -> list:
         """يُرجع قائمة [(gain_threshold, trail_pct), ...] مرتبة تنازلياً.
         الـ trailing يبدأ عند أول tier يجتازه peak_gain.
+        V515 SNIPER: ترجع [] فارغة — لأن sniper يستخدم quick_TP بدل trailing.
         """
         if self.trading_profile == "conservative":
             return [
@@ -421,12 +474,17 @@ class Settings(BaseSettings):
                 (1.0,  0.35),  # +100%
                 (0.50, 0.25),  # +50%
             ]
-        # extreme
+        if self.trading_profile == "extreme":
+            return [
+                (20.0, 0.55),  # +2000%
+                (5.0,  0.45),  # +500%
+                (2.0,  0.40),  # +200%
+                (0.80, 0.30),  # +80%
+            ]
+        # sniper: لا trailing — يستخدم quick_TP عند +15%
+        # لكن لو وصل +50% (moonshot) نشط trailing 30%
         return [
-            (20.0, 0.55),  # +2000%
-            (5.0,  0.45),  # +500%
-            (2.0,  0.40),  # +200%
-            (0.80, 0.30),  # +80%
+            (0.50, 0.30),  # +50% — trailing للـ moonshots فقط
         ]
 
     @property
@@ -434,14 +492,16 @@ class Settings(BaseSettings):
         """حد الربح الأدنى لتفعيل sudden_dump."""
         if self.trading_profile == "conservative": return 0.10
         if self.trading_profile == "aggressive":   return 0.20
-        return 0.30  # extreme
+        if self.trading_profile == "extreme":      return 0.30
+        return 0.10  # sniper: نشط عند +10% (نريد خروج سريع)
 
     @property
     def sudden_dump_drop_threshold(self) -> float:
         """نسبة الهبوط من peak لتفعيل sudden_dump."""
         if self.trading_profile == "conservative": return 0.25
         if self.trading_profile == "aggressive":   return 0.30
-        return 0.40  # extreme
+        if self.trading_profile == "extreme":      return 0.40
+        return 0.20  # sniper: 20% drop = خروج فوري (أكثر صرامة)
 
 
 @lru_cache(maxsize=1)

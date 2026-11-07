@@ -475,15 +475,51 @@ class DecisionEngine:
 
         # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > حد معين
         # V513: الحد يعتمد على الـ profile (conservative: 100%, aggressive: 150%, extreme: 250%)
-        max_chg_5m = settings.active_max_chg_5m_pct
-        if chg_5m > max_chg_5m:
-            result.qualified = False
-            result.recommendation = "monitor"
-            result.rejection_reason = (
-                f"ارتفاع 5 دقائق = {chg_5m:.0f}% — pump مفاجئ، انتظار استقرار"
-            )
-            result.reasons.append(f"⚠️ {result.rejection_reason}")
-            return
+        # V515 SNIPER: اشترط chg_5m بين 5% و 80% فقط — بداية pump فقط
+        if settings.is_sniper_mode:
+            min_chg_5m = settings.sniper_min_chg_5m_pct  # 5%
+            max_chg_5m = settings.sniper_max_chg_5m_pct   # 80%
+            if chg_5m < min_chg_5m or chg_5m > max_chg_5m:
+                result.qualified = False
+                result.recommendation = "monitor"
+                result.rejection_reason = (
+                    f"SNIPER: chg_5m={chg_5m:.1f}% خارج النطاق [{min_chg_5m}-{max_chg_5m}%] — "
+                    f"الـ pump لم يبدأ أو وصل متأخراً"
+                )
+                result.reasons.append(f"⚠️ {result.rejection_reason}")
+                return
+            # V515 SNIPER: اشترط عمر التوكن < 5 دقائق
+            # ملاحظة: لا يتوفر age مباشرة في token model، نستخدم first_seen_at
+            try:
+                from datetime import datetime
+                first_seen = getattr(token, "first_seen_at", None)
+                if first_seen:
+                    if isinstance(first_seen, str):
+                        first_seen = datetime.fromisoformat(first_seen.replace("Z", "+00:00"))
+                    age_sec = (datetime.utcnow() - first_seen.replace(tzinfo=None)).total_seconds()
+                    age_min = age_sec / 60
+                    max_age_min = settings.sniper_max_age_minutes  # 5 دقائق
+                    if age_min > max_age_min:
+                        result.qualified = False
+                        result.recommendation = "monitor"
+                        result.rejection_reason = (
+                            f"SNIPER: عمر التوكن {age_min:.1f}دقيقة > {max_age_min}دقيقة — "
+                            f"فقط العملات الجديدة جداً"
+                        )
+                        result.reasons.append(f"⚠️ {result.rejection_reason}")
+                        return
+            except Exception as exc:
+                logger.debug(f"Token age check failed for {token.symbol}: {exc}")
+        else:
+            max_chg_5m = settings.active_max_chg_5m_pct
+            if chg_5m > max_chg_5m:
+                result.qualified = False
+                result.recommendation = "monitor"
+                result.rejection_reason = (
+                    f"ارتفاع 5 دقائق = {chg_5m:.0f}% — pump مفاجئ، انتظار استقرار"
+                )
+                result.reasons.append(f"⚠️ {result.rejection_reason}")
+                return
 
         # GATE 6: Risk score maximum
         if result.risk_score > settings.max_risk_score:

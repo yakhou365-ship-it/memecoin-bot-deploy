@@ -44,10 +44,10 @@ DEFAULT_BUDGET = {
     # When the user changes max_capital_per_trade / max_daily_loss /
     # max_simultaneous_positions in the budget page, these percentages update
     # and the orchestrator reads them to compute SOL limits from the wallet.
-    # V513 EXTREME: defaults مرتفعة جداً (المستخدم طلب الحد الأقصى)
-    "auto_trade_pct": 12.0,      # V513 EXTREME: 12% من المحفظة لكل صفقة
-    "auto_loss_pct": 30.0,       # V513 EXTREME: 30% حد خسارة يومي
-    "auto_max_positions": 6,     # V513 EXTREME: 6 صفقات متزامنة
+    # V515 SNIPER: defaults مناسبة للنمط الجديد (الأفضل في سوق نوفمبر 2026)
+    "auto_trade_pct": 10.0,      # V515 SNIPER: 10% من المحفظة لكل صفقة
+    "auto_loss_pct": 20.0,       # V515 SNIPER: 20% حد خسارة يومي
+    "auto_max_positions": 8,     # V515 SNIPER: 8 صفقات متزامنة
 }
 
 BUDGET_KEY = "daily_budget_settings"
