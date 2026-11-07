@@ -486,13 +486,40 @@ class PaperTradingEngine:
                             await s2.commit()
                 except Exception:
                     pass  # non-critical
-            # V500/V513/V515/V518: Smart Exit Strategy based on profile
+            # V500/V513/V515/V518/V519: Smart Exit Strategy based on profile
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
             drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
 
+            # V519 ULTIMATE: خروج +10% + medium +60% + trailing 25% moonshots +200%
+            if settings.is_ultimate_mode:
+                quick_tp = settings.ultimate_quick_take_profit_pct  # 0.10
+                medium_tp = settings.ultimate_medium_take_profit_pct  # 0.60
+                moonshot_thresh = settings.ultimate_moonshot_threshold  # 2.00
+
+                if peak_gain_pct >= moonshot_thresh:
+                    trail_pct = settings.ultimate_moonshot_trail_pct  # 0.25
+                    trailing_hit = drop_from_peak >= trail_pct
+                    trailing_level = peak_price * (1 - trail_pct)
+                    trailing_hit = current_price < trailing_level
+                elif peak_gain_pct >= medium_tp:
+                    trailing_hit = True
+                    trail_pct = medium_tp
+                elif peak_gain_pct >= quick_tp:
+                    trailing_hit = True
+                    trail_pct = quick_tp
+                else:
+                    trail_pct = None
+                    trailing_hit = False
+
+                sudden_dump = False
+                if not trailing_hit:
+                    if peak_gain_pct >= settings.sudden_dump_min_gain:
+                        if drop_from_peak >= settings.sudden_dump_drop_threshold:
+                            sudden_dump = True
+
             # V518 BRUTAL: خروج +8% فائق السرعة
-            if settings.is_brutal_mode:
+            elif settings.is_brutal_mode:
                 quick_tp = settings.brutal_quick_take_profit_pct  # 0.08
                 medium_tp = settings.brutal_medium_take_profit_pct  # 0.30
                 moonshot_thresh = settings.brutal_moonshot_threshold  # 1.00
@@ -512,7 +539,6 @@ class PaperTradingEngine:
 
                 trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
                 if trailing_hit and trail_pct is not None and trail_pct != quick_tp and trail_pct != medium_tp:
-                    # For trailing moonshots, check actual price
                     trailing_hit = current_price < trailing_level
 
                 sudden_dump = False

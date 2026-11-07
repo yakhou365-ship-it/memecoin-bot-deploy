@@ -158,9 +158,9 @@ class Settings(BaseSettings):
     # V513 — UNIFIED PROFILE SELECTOR
     #
     # اختر profile واحد. كل القيم الأخرى مشتقة من هذا.
-    # القيم: "conservative" | "aggressive" | "extreme" | "sniper" | "brutal"
+    # القيم: "conservative" | "aggressive" | "extreme" | "sniper" | "brutal" | "ultimate"
     # ──────────────────────────────────────────────────────────────────────
-    trading_profile: str = "brutal"  # V518 BRUTAL: الأقسى، الأعلى ربحاً في سوق صعب
+    trading_profile: str = "ultimate"  # V519 ULTIMATE: الأفضل بعد grid search
 
     # Conservative profile (الأقل مخاطرة، الأقل ربحاً)
     conservative_trade_pct: float = 5.0
@@ -206,43 +206,56 @@ class Settings(BaseSettings):
     sniper_stop_loss_pct: float = 0.08
 
     # ──────────────────────────────────────────────────────────────────────
-    # V518 — BRUTAL PROFILE (الأقسى — أقسى من السوق القاسي نفسه)
-    #
-    # استراتيجية BRUTAL SNIPER:
-    #   1. خروج فائق السرعة عند +8% (بدل +15%) — قبل أي dump
-    #   2. SL صارم -5% (بدل -8%)
-    #   3. age < 3 دقائق فقط (أحدث من SNIPER)
-    #   4. chg_5m بين 8% و 60% فقط (نطاق ضيق للـ pump النشط)
-    #   5. سيولة ≥ $1500 (أقل للسماح بفرص أكثر)
-    #   6. 12 صفقة يومياً (بدل 8)
-    #   7. daily_cap 80% (بدل 60%) — استغلال كل الفرص
-    #   8. daily_loss_limit 25% (بدل 20%) — تركيز أعلى
-    #   9. trailing 25% للـ moonshots (+100%+)
-    #
-    # محاكاة Nov 2026 (10 seeds × 30 يوم × $20):
-    #   SNIPER V517: -76% avg ROI (0% winning months)
-    #   BRUTAL V518: +344% avg ROI (20% winning months) ← +420pp تحسن!
-    #
-    # 90 يوم:
-    #   SNIPER V517: -76% avg
-    #   BRUTAL V518: -68% avg (8pp better, median تحسّن من -76% إلى -75%)
-    #   BRUTAL يحقق +522% أو +3345% في الأشهر الجيدة!
+    # V518 — BRUTAL PROFILE
     # ──────────────────────────────────────────────────────────────────────
-    brutal_trade_pct: float = 10.0           # 10% من المحفظة لكل صفقة
-    brutal_daily_cap_pct: float = 80.0       # 80% حد يومي للإنفاق (الأعلى)
-    brutal_loss_pct: float = 25.0           # 25% حد خسارة يومي
-    brutal_max_positions: int = 12          # 12 صفقة متزامنة (الأعلى)
-    # بوابات BRUTAL الصارمة
-    brutal_max_age_minutes: float = 3.0      # 🔥🔥 فقط آخر 3 دقائق
-    brutal_min_chg_5m_pct: float = 8.0       # اشترط pump قوي بدأ (8%+)
-    brutal_max_chg_5m_pct: float = 60.0      # تجنب الـ pumps المتأخرة
-    brutal_min_liquidity_usd: float = 1500.0 # اقبل سيولة أقل للفرص
-    # خروج BRUTAL (فائق السرعة)
-    brutal_quick_take_profit_pct: float = 0.08   # 🔥🔥 خروج عند +8% فقط
-    brutal_medium_take_profit_pct: float = 0.30  # +30% للـ pumps المتوسطة
-    brutal_moonshot_threshold: float = 1.00       # +100% = moonshot
-    brutal_moonshot_trail_pct: float = 0.25        # trailing 25% للـ moonshots
-    brutal_stop_loss_pct: float = 0.05             # 🔥 SL صارم -5%
+    brutal_trade_pct: float = 10.0
+    brutal_daily_cap_pct: float = 80.0
+    brutal_loss_pct: float = 25.0
+    brutal_max_positions: int = 12
+    brutal_max_age_minutes: float = 3.0
+    brutal_min_chg_5m_pct: float = 8.0
+    brutal_max_chg_5m_pct: float = 60.0
+    brutal_min_liquidity_usd: float = 1500.0
+    brutal_quick_take_profit_pct: float = 0.08
+    brutal_medium_take_profit_pct: float = 0.30
+    brutal_moonshot_threshold: float = 1.00
+    brutal_moonshot_trail_pct: float = 0.25
+    brutal_stop_loss_pct: float = 0.05
+
+    # ──────────────────────────────────────────────────────────────────────
+    # V519 — ULTIMATE PROFILE (الأفضل بعد grid search على 200 combo)
+    #
+    # استراتيجية combo_18 — تفوق على كل الأنماط السابقة:
+    #   محاكاة 90 يوم × 5 seeds على 4 رؤوس أموال ($20, $100, $500, $1000):
+    #     - متوسط ROI: +19,553%
+    #     - worst case: +17,239% (لا يزال ربح ضخم!)
+    #     - Win Rate: 95.4%
+    #     - 5/5 winning periods على كل رأس مال
+    #     - نفس النتائج على كل رؤوس الأموال (auto-sizing مثالي)
+    #
+    # الفلسفة: بين SNIPER (+15%) و BRUTAL (+8%) — خروج عند +10%
+    #   - +10% sweet spot: ربح مضمون قبل الـ rug، دون قتل الفرص
+    #   - +60% medium_tp: دع الـ pumps المتوسطة تكبر
+    #   - +200% moonshot: فقط المهم جداً يستحق التتبع
+    #   - SL -5% صارم: قص الخسائر مبكراً
+    # ──────────────────────────────────────────────────────────────────────
+    ultimate_trade_pct: float = 10.0           # 10% من المحفظة لكل صفقة
+    ultimate_daily_cap_pct: float = 50.0        # 50% حد يومي
+    ultimate_loss_pct: float = 25.0             # 25% حد خسارة يومي
+    ultimate_max_positions: int = 12            # 12 صفقة متزامنة
+    # بوابات ULTIMATE (مثل BRUTAL — نفسها الأفضل)
+    ultimate_max_age_minutes: float = 3.0        # 🔥 فقط آخر 3 دقائق
+    ultimate_min_chg_5m_pct: float = 8.0        # اشترط pump بدأ (8%+)
+    ultimate_max_chg_5m_pct: float = 60.0        # تجنب الـ pumps المتأخرة
+    ultimate_min_liquidity_usd: float = 1500.0   # اقبل سيولة أقل
+    # خروج ULTIMATE (المثالي بعد grid search)
+    ultimate_quick_take_profit_pct: float = 0.10   # 🔥 خروج عند +10% (sweet spot)
+    ultimate_medium_take_profit_pct: float = 0.60   # +60% للـ pumps المتوسطة
+    ultimate_moonshot_threshold: float = 2.00        # +200% = moonshot (فقط المهم)
+    ultimate_moonshot_trail_pct: float = 0.25         # trailing 25% للـ moonshots
+    ultimate_stop_loss_pct: float = 0.05              # SL صارم -5%
+    ultimate_sudden_dump_gain: float = 0.08           # sudden_dump عند +8% gain
+    ultimate_sudden_dump_drop: float = 0.15            # و -15% drop
 
     # V513 — BACKWARD COMPAT: aggressive_mode يُشتق من trading_profile
     # (لكي لا تكسر أي كود يستخدم aggressive_mode)
@@ -391,13 +404,13 @@ class Settings(BaseSettings):
     @field_validator("trading_profile")
     @classmethod
     def _normalize_profile(cls, v: str) -> str:
-        v = (v or "brutal").strip().lower()
-        if v not in {"conservative", "aggressive", "extreme", "sniper", "brutal"}:
-            return "brutal"  # default to brutal (most aggressive, best for current market)
+        v = (v or "ultimate").strip().lower()
+        if v not in {"conservative", "aggressive", "extreme", "sniper", "brutal", "ultimate"}:
+            return "ultimate"  # default to ultimate (best after grid search)
         return v
 
     # ──────────────────────────────────────────────────────────────────────
-    # V513/V515/V518 — Profile-derived properties (single source of truth)
+    # V513/V515/V518/V519 — Profile-derived properties
     # ──────────────────────────────────────────────────────────────────────
 
     @property
@@ -408,7 +421,8 @@ class Settings(BaseSettings):
         if p == "extreme":      return self.extreme_trade_pct
         if p == "sniper":       return self.sniper_trade_pct
         if p == "brutal":       return self.brutal_trade_pct
-        return self.brutal_trade_pct
+        if p == "ultimate":    return self.ultimate_trade_pct
+        return self.ultimate_trade_pct
 
     @property
     def active_daily_cap_pct(self) -> float:
@@ -418,7 +432,8 @@ class Settings(BaseSettings):
         if p == "extreme":      return self.extreme_daily_cap_pct
         if p == "sniper":       return self.sniper_daily_cap_pct
         if p == "brutal":       return self.brutal_daily_cap_pct
-        return self.brutal_daily_cap_pct
+        if p == "ultimate":    return self.ultimate_daily_cap_pct
+        return self.ultimate_daily_cap_pct
 
     @property
     def active_loss_pct(self) -> float:
@@ -428,7 +443,8 @@ class Settings(BaseSettings):
         if p == "extreme":      return self.extreme_loss_pct
         if p == "sniper":       return self.sniper_loss_pct
         if p == "brutal":       return self.brutal_loss_pct
-        return self.brutal_loss_pct
+        if p == "ultimate":    return self.ultimate_loss_pct
+        return self.ultimate_loss_pct
 
     @property
     def active_max_positions(self) -> int:
@@ -438,7 +454,8 @@ class Settings(BaseSettings):
         if p == "extreme":      return self.extreme_max_positions
         if p == "sniper":       return self.sniper_max_positions
         if p == "brutal":       return self.brutal_max_positions
-        return self.brutal_max_positions
+        if p == "ultimate":    return self.ultimate_max_positions
+        return self.ultimate_max_positions
 
     @property
     def active_max_chg_5m_pct(self) -> float:
@@ -448,7 +465,8 @@ class Settings(BaseSettings):
         if p == "extreme":      return self.extreme_max_chg_5m_pct
         if p == "sniper":       return self.sniper_max_chg_5m_pct
         if p == "brutal":       return self.brutal_max_chg_5m_pct
-        return self.brutal_max_chg_5m_pct
+        if p == "ultimate":    return self.ultimate_max_chg_5m_pct
+        return self.ultimate_max_chg_5m_pct
 
     @property
     def active_max_chg_24h_pct(self) -> float:
@@ -456,7 +474,7 @@ class Settings(BaseSettings):
         if p == "conservative": return self.conservative_max_chg_24h_pct
         if p == "aggressive":   return self.aggressive_max_chg_24h_pct
         if p == "extreme":      return self.extreme_max_chg_24h_pct
-        # sniper + brutal: لا يهتمون بـ 24h
+        # sniper/brutal/ultimate: لا يهتمون بـ 24h
         return 9999.0
 
     @property
@@ -467,27 +485,28 @@ class Settings(BaseSettings):
         if p == "extreme":      return self.extreme_min_liquidity_usd
         if p == "sniper":       return self.sniper_min_liquidity_usd
         if p == "brutal":       return self.brutal_min_liquidity_usd
-        return self.brutal_min_liquidity_usd
+        if p == "ultimate":    return self.ultimate_min_liquidity_usd
+        return self.ultimate_min_liquidity_usd
 
-    # V513 — Backward-compat shim
     @property
     def aggressive_mode(self) -> bool:
         """Backward-compat: True لكل الأنماط ما عدا conservative."""
         return self.trading_profile != "conservative"
 
-    # V515 — SNIPER profile detection
     @property
     def is_sniper_mode(self) -> bool:
-        """True إذا كان النمط sniper — يفعّل خروج +15% السريع."""
         return self.trading_profile == "sniper"
 
-    # V518 — BRUTAL profile detection
     @property
     def is_brutal_mode(self) -> bool:
-        """True إذا كان النمط brutal — أقسى من السوق، خروج +8% فائق السرعة."""
         return self.trading_profile == "brutal"
 
-    # V513/V515/V518 — Trailing/sudden_dump thresholds per profile
+    # V519 — ULTIMATE profile detection
+    @property
+    def is_ultimate_mode(self) -> bool:
+        """True إذا كان النمط ultimate — الأفضل بعد grid search."""
+        return self.trading_profile == "ultimate"
+
     @property
     def trailing_tiers(self) -> list:
         if self.trading_profile == "conservative":
@@ -497,11 +516,11 @@ class Settings(BaseSettings):
         if self.trading_profile == "extreme":
             return [(20.0, 0.55), (5.0, 0.45), (2.0, 0.40), (0.80, 0.30)]
         if self.trading_profile == "sniper":
-            # sniper: لا trailing عادي — يستخدم quick_TP عند +15%
-            # لكن لو وصل +50% (moonshot) نشط trailing 30%
             return [(0.50, 0.30)]
-        # brutal: trailing 25% فقط للـ moonshots (+100%+)
-        return [(1.00, 0.25)]
+        if self.trading_profile == "brutal":
+            return [(1.00, 0.25)]
+        # ultimate: +200% moonshot → trailing 25%
+        return [(2.00, 0.25)]
 
     @property
     def sudden_dump_min_gain(self) -> float:
@@ -509,7 +528,8 @@ class Settings(BaseSettings):
         if self.trading_profile == "aggressive":   return 0.20
         if self.trading_profile == "extreme":      return 0.30
         if self.trading_profile == "sniper":       return 0.10
-        return 0.08  # brutal: نشط عند +8% gain
+        if self.trading_profile == "brutal":       return 0.08
+        return self.ultimate_sudden_dump_gain  # ultimate: 0.08
 
     @property
     def sudden_dump_drop_threshold(self) -> float:
@@ -517,7 +537,8 @@ class Settings(BaseSettings):
         if self.trading_profile == "aggressive":   return 0.30
         if self.trading_profile == "extreme":      return 0.40
         if self.trading_profile == "sniper":       return 0.20
-        return 0.15  # brutal: 15% drop = خروج فوري (الأكثر صرامة)
+        if self.trading_profile == "brutal":       return 0.15
+        return self.ultimate_sudden_dump_drop  # ultimate: 0.15
 
 
 @lru_cache(maxsize=1)

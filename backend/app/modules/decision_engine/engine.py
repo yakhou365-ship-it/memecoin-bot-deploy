@@ -474,22 +474,30 @@ class DecisionEngine:
             return
 
         # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > حد معين
-        # V513: الحد يعتمد على الـ profile (conservative: 100%, aggressive: 150%, extreme: 250%)
-        # V515 SNIPER: اشترط chg_5m بين 5% و 80% فقط — بداية pump فقط
-        # V518 BRUTAL: اشترط chg_5m بين 8% و 60% فقط (نطاق أضيق للـ pump النشط)
-        if settings.is_brutal_mode:
-            min_chg_5m = settings.brutal_min_chg_5m_pct  # 8%
-            max_chg_5m = settings.brutal_max_chg_5m_pct   # 60%
+        # V519 ULTIMATE: نفس بوابات BRUTAL (chg_5m 8-60%، age < 3 دقيقة)
+        # V515 SNIPER: chg_5m بين 5% و 80% فقط
+        # V518 BRUTAL: chg_5m بين 8% و 60% فقط
+        if settings.is_ultimate_mode or settings.is_brutal_mode:
+            if settings.is_ultimate_mode:
+                min_chg_5m = settings.ultimate_min_chg_5m_pct  # 8%
+                max_chg_5m = settings.ultimate_max_chg_5m_pct   # 60%
+                max_age_min = settings.ultimate_max_age_minutes  # 3.0
+                profile_name = "ULTIMATE"
+            else:  # brutal
+                min_chg_5m = settings.brutal_min_chg_5m_pct  # 8%
+                max_chg_5m = settings.brutal_max_chg_5m_pct   # 60%
+                max_age_min = settings.brutal_max_age_minutes  # 3.0
+                profile_name = "BRUTAL"
             if chg_5m < min_chg_5m or chg_5m > max_chg_5m:
                 result.qualified = False
                 result.recommendation = "monitor"
                 result.rejection_reason = (
-                    f"BRUTAL: chg_5m={chg_5m:.1f}% خارج النطاق [{min_chg_5m}-{max_chg_5m}%] — "
+                    f"{profile_name}: chg_5m={chg_5m:.1f}% خارج النطاق [{min_chg_5m}-{max_chg_5m}%] — "
                     f"الـ pump غير نشط أو وصل متأخراً"
                 )
                 result.reasons.append(f"⚠️ {result.rejection_reason}")
                 return
-            # BRUTAL: اشترط عمر التوكن < 3 دقائق
+            # اشترط عمر التوكن < max_age دقيقة
             try:
                 from datetime import datetime
                 first_seen = getattr(token, "first_seen_at", None)
@@ -498,13 +506,12 @@ class DecisionEngine:
                         first_seen = datetime.fromisoformat(first_seen.replace("Z", "+00:00"))
                     age_sec = (datetime.utcnow() - first_seen.replace(tzinfo=None)).total_seconds()
                     age_min = age_sec / 60
-                    max_age_min = settings.brutal_max_age_minutes  # 3 دقائق
                     if age_min > max_age_min:
                         result.qualified = False
                         result.recommendation = "monitor"
                         result.rejection_reason = (
-                            f"BRUTAL: عمر التوكن {age_min:.1f}دقيقة > {max_age_min}دقيقة — "
-                            f"فقط العملات الأحدث من 3 دقائق"
+                            f"{profile_name}: عمر التوكن {age_min:.1f}دقيقة > {max_age_min}دقيقة — "
+                            f"فقط العملات الأحدث من {max_age_min} دقيقة"
                         )
                         result.reasons.append(f"⚠️ {result.rejection_reason}")
                         return
@@ -522,7 +529,6 @@ class DecisionEngine:
                 )
                 result.reasons.append(f"⚠️ {result.rejection_reason}")
                 return
-            # V515 SNIPER: اشترط عمر التوكن < 5 دقائق
             try:
                 from datetime import datetime
                 first_seen = getattr(token, "first_seen_at", None)

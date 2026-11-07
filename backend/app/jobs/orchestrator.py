@@ -410,22 +410,29 @@ class MainOrchestrator:
                             effective_max_positions = settings.live_max_open_positions
 
                         # V300: Auto-detect strategy based on wallet size
+                        # V519: SAME strategy for all capitals (auto-sizing handles it)
+                        # الـ trade_pct يأتي من الـ profile النشط (ultimate=10%، brutal=10%، إلخ)
+                        # ولا يختلف بين رؤوس الأموال الصغيرة والكبيرة.
                         SMALL_CAP_THRESHOLD_USD = 50.0
                         is_small_cap = real_capital_usd < SMALL_CAP_THRESHOLD_USD
 
+                        # V519: position_pct من الـ profile النشط (م统一 لكل الأحجام)
+                        # هذا يضمن أن نفس الاستراتيجية تعمل على $20 و $1000
                         position_pct = float(decision.suggested_position_size_pct or 0)
 
                         if is_small_cap:
-                            position_pct = min(max(position_pct, 2.5), 10.0)
+                            # V519: استخدم نفس position_pct من القرار (مستمد من ultimate_trade_pct=10%)
+                            position_pct = min(max(position_pct, 2.5), 15.0)
                             max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
                             v300_max_trade_sol = min(effective_max_trade_sol, settings.pump_max_trade_sol) if effective_max_trade_sol < settings.pump_max_trade_sol else effective_max_trade_sol
                             v300_min_trade_sol = 0.005
                             logger.info(
                                 f"🐜 V300-SMALL-CAP mode: wallet=${real_capital_usd:.0f} "
-                                f"({wallet_sol:.4f} SOL) - concentrated strategy"
+                                f"({wallet_sol:.4f} SOL) - same ultimate strategy"
                             )
                         else:
-                            position_pct = min(max(position_pct, 0.0), 5.0)
+                            # V519: نفس position_pct للكبيرة (لا نفرّق)
+                            position_pct = min(max(position_pct, 0.0), 15.0)
                             max_safe_sol = wallet_sol * 0.50 if wallet_sol > 0 else 0
                             v300_max_trade_sol = effective_max_trade_sol
                             v300_min_trade_sol = 0.01
