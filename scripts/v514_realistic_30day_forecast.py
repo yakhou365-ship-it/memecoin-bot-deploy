@@ -375,7 +375,7 @@ def main():
 
     # جدول مفصل
     print(f"{'Seed':<6} {'ROI':<10} {'PnL ($)':<10} {'Trades':<8} {'WR%':<8} "
-          f"{'Rug\Block':<10} {'Moonsht':<8} {'CB':<5}")
+          f"{'Rug/Blk':<10} {'Moonsht':<8} {'CB':<5}")
     print("-" * 75)
     for seed, r in zip(seeds, results):
         print(f"{seed:<6} {r['roi_pct']:>+8.1f}%  ${r['net_pnl_usd']:>+7.2f}  "
