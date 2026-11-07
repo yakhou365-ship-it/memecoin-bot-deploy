@@ -486,34 +486,85 @@ class PaperTradingEngine:
                             await s2.commit()
                 except Exception:
                     pass  # non-critical
-            # V500/V513: Smart Exit Strategy — Variable trailing based on profile
-            # V513: عتبات trailing تأتي من settings.trailing_tiers (single source of truth)
+            # V500/V513/V515/V518: Smart Exit Strategy based on profile
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
-
-            # V513: استخراج trail_pct من settings.trailing_tiers
-            trail_pct = None
-            for gain_threshold, tier_trail_pct in settings.trailing_tiers:
-                if peak_gain_pct >= gain_threshold:
-                    trail_pct = tier_trail_pct
-                    break
-
             drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
-            trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
-            trailing_hit = (
-                trail_pct is not None
-                and current_price < trailing_level
-            )
 
-            # V500/V513: Sudden dump detection
-            # V510 FIX: only triggers BEFORE the trailing is armed (otherwise
-            # it would re-trigger at every trailing tier and make them dead code).
-            # V513: الحدود تأتي من settings.sudden_dump_min_gain / sudden_dump_drop_threshold
-            sudden_dump = False
-            if trail_pct is None:
-                if peak_gain_pct >= settings.sudden_dump_min_gain:
-                    if drop_from_peak >= settings.sudden_dump_drop_threshold:
-                        sudden_dump = True
+            # V518 BRUTAL: خروج +8% فائق السرعة
+            if settings.is_brutal_mode:
+                quick_tp = settings.brutal_quick_take_profit_pct  # 0.08
+                medium_tp = settings.brutal_medium_take_profit_pct  # 0.30
+                moonshot_thresh = settings.brutal_moonshot_threshold  # 1.00
+
+                if peak_gain_pct >= moonshot_thresh:
+                    trail_pct = settings.brutal_moonshot_trail_pct
+                    trailing_hit = drop_from_peak >= trail_pct
+                elif peak_gain_pct >= medium_tp:
+                    trailing_hit = True
+                    trail_pct = medium_tp
+                elif peak_gain_pct >= quick_tp:
+                    trailing_hit = True
+                    trail_pct = quick_tp
+                else:
+                    trail_pct = None
+                    trailing_hit = False
+
+                trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
+                if trailing_hit and trail_pct is not None and trail_pct != quick_tp and trail_pct != medium_tp:
+                    # For trailing moonshots, check actual price
+                    trailing_hit = current_price < trailing_level
+
+                sudden_dump = False
+                if not trailing_hit:
+                    if peak_gain_pct >= settings.sudden_dump_min_gain:
+                        if drop_from_peak >= settings.sudden_dump_drop_threshold:
+                            sudden_dump = True
+
+            # V515 SNIPER: quick_TP عند +15%
+            elif settings.is_sniper_mode:
+                quick_tp_threshold = settings.sniper_quick_take_profit_pct  # 0.15
+                if quick_tp_threshold <= peak_gain_pct < settings.sniper_moonshot_threshold:
+                    trailing_hit = True
+                    trail_pct = quick_tp_threshold
+                    trailing_level = trade.entry_price * (1 + quick_tp_threshold)
+                    trailing_hit = current_price < trailing_level or peak_gain_pct >= quick_tp_threshold
+                else:
+                    trail_pct = None
+                    trailing_hit = False
+                    if peak_gain_pct >= settings.sniper_moonshot_threshold:
+                        for gain_threshold, tier_trail_pct in settings.trailing_tiers:
+                            if peak_gain_pct >= gain_threshold:
+                                trail_pct = tier_trail_pct
+                                break
+                        trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
+                        trailing_hit = trail_pct is not None and current_price < trailing_level
+
+                sudden_dump = False
+                if not trailing_hit:
+                    if peak_gain_pct >= settings.sudden_dump_min_gain:
+                        if drop_from_peak >= settings.sudden_dump_drop_threshold:
+                            sudden_dump = True
+
+            # V513 PROFILES (conservative/aggressive/extreme)
+            else:
+                trail_pct = None
+                for gain_threshold, tier_trail_pct in settings.trailing_tiers:
+                    if peak_gain_pct >= gain_threshold:
+                        trail_pct = tier_trail_pct
+                        break
+
+                trailing_level = peak_price * (1 - trail_pct) if trail_pct is not None else None
+                trailing_hit = (
+                    trail_pct is not None
+                    and current_price < trailing_level
+                )
+
+                sudden_dump = False
+                if trail_pct is None:
+                    if peak_gain_pct >= settings.sudden_dump_min_gain:
+                        if drop_from_peak >= settings.sudden_dump_drop_threshold:
+                            sudden_dump = True
 
             # V500: Stagnation exit (held 4h+ with small gain, never above +5%)
             # V510 FIX: original condition was contradictory (gain>5% AND within 5%).

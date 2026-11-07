@@ -623,32 +623,57 @@ class LiveTradingExecutor:
                         pass  # non-critical, will retry next cycle
 
                 peak_price = trade.max_unrealized_profit_usd
-                # V500/V513/V515: Smart Exit Strategy
+                # V500/V513/V515/V518: Smart Exit Strategy
                 #
-                # V515 SNIPER (الأفضل في سوق نوفمبر 2026 القاسي):
-                #   - خروج فوري عند +15% (90% من الصفقات)
-                #   - لو وصل +50% (moonshot) → trailing 30% للسماح بالنمو
-                #   - sudden_dump أكثر صرامة (20% drop بدل 25-40%)
-                #   - SL صارم -8%
+                # V518 BRUTAL (الأقسى من السوق القاسي):
+                #   - خروج فائق السرعة عند +8% (90% من الصفقات)
+                #   - خروج عند +30% للـ pumps المتوسطة
+                #   - trailing 25% للـ moonshots (+100%+)
+                #   - SL صارم -5%
+                #   - sudden_dump أكثر صرامة (15% drop بدل 20%)
                 #
-                # محاكاة Nov 2026 (5 seeds × 30 يوم × $20):
-                #   EXTREME: -53% avg ROI | SNIPER: +628% avg ROI ← +681pp تحسن
+                # V515 SNIPER (السابق):
+                #   - خروج عند +15%
+                #   - trailing 30% للـ moonshots (+50%+)
+                #   - SL -8%
                 peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
+                drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
 
-                # V515: SNIPER quick-take-profit عند +15% (أولوية قصوى)
-                if settings.is_sniper_mode:
-                    quick_tp_threshold = settings.sniper_quick_take_profit_pct  # 0.15
-                    if peak_gain_pct >= quick_tp_threshold and peak_gain_pct < settings.sniper_moonshot_threshold:
-                        # خروج فوري عند +15% — قبل الـ rug يلحق بنا
+                # V518 BRUTAL: أعلى أولوية — خروج +8% فائق السرعة
+                if settings.is_brutal_mode:
+                    quick_tp = settings.brutal_quick_take_profit_pct  # 0.08
+                    medium_tp = settings.brutal_medium_take_profit_pct  # 0.30
+                    moonshot_thresh = settings.brutal_moonshot_threshold  # 1.00
+
+                    # Tier 3: moonshot (+100%+) → trailing 25%
+                    if peak_gain_pct >= moonshot_thresh:
+                        trail_pct = settings.brutal_moonshot_trail_pct  # 0.25
+                        trailing_hit = drop_from_peak >= trail_pct
+                    # Tier 2: pump متوسط (+30% إلى +100%) → خروج عند +30%
+                    elif peak_gain_pct >= medium_tp:
+                        trailing_hit = True  # خروج فوري
+                        trail_pct = medium_tp
+                    # Tier 1: quick TP عند +8% (90% من الصفقات)
+                    elif peak_gain_pct >= quick_tp:
                         trailing_hit = True
-                        trail_pct = quick_tp_threshold  # استخدم trail_pct للـ reason
-                        # في الحقيقة نخرج عند entry * (1 + 0.15) لكن لو السعر هبط الآن
-                        # نخرج عند السعر الحالي (قد يكون أعلى أو أسفل من +15%)
-                        # بما أن peak ≥ +15%، نخرج عند max(price, entry*1.15)
-                        sniper_exit_price = max(price, trade.entry_price * (1 + quick_tp_threshold))
-                        # لكن لو السعر الحالي أقل من +15% (هبط بعد القمة) نخرج عند السعر الحالي
-                        # هذا ما يفعله البوت الحقيقي — يبيع عند أول فرصة بعد القمة
-                        # (محاكاة واقعية)
+                        trail_pct = quick_tp
+                    else:
+                        trailing_hit = False
+                        trail_pct = None
+                    # BRUTAL sudden_dump: أكثر صرامة
+                    sudden_dump = (
+                        not trailing_hit
+                        and peak_gain_pct >= settings.sudden_dump_min_gain  # 0.08
+                        and drop_from_peak >= settings.sudden_dump_drop_threshold  # 0.15
+                    ) if peak_price > 0 else False
+
+                # V515 SNIPER: خروج +15% ثم trailing 30% للـ moonshots
+                elif settings.is_sniper_mode:
+                    quick_tp_threshold = settings.sniper_quick_take_profit_pct  # 0.15
+                    if quick_tp_threshold <= peak_gain_pct < settings.sniper_moonshot_threshold:
+                        # خروج فوري عند +15%
+                        trailing_hit = True
+                        trail_pct = quick_tp_threshold
                     else:
                         trail_pct = None
                         trailing_hit = False
@@ -658,44 +683,34 @@ class LiveTradingExecutor:
                                 if peak_gain_pct >= gain_threshold:
                                     trail_pct = tier_trail_pct
                                     break
-                            drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
                             trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
+                    # SNIPER sudden_dump
+                    sudden_dump = (
+                        not trailing_hit
+                        and peak_gain_pct >= settings.sudden_dump_min_gain
+                        and drop_from_peak >= settings.sudden_dump_drop_threshold
+                    ) if peak_price > 0 else False
+
+                # V513 PROFILES (conservative/aggressive/extreme): استخدم trailing_tiers
                 else:
-                    # V513: استخراج trail_pct من settings.trailing_tiers (non-sniper profiles)
                     trail_pct = None
                     for gain_threshold, tier_trail_pct in settings.trailing_tiers:
                         if peak_gain_pct >= gain_threshold:
                             trail_pct = tier_trail_pct
                             break
-                    drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
                     trailing_hit = trail_pct is not None and drop_from_peak >= trail_pct
-
-                # V500/V515: Sudden dump detection
-                # الحدود تأتي من settings.sudden_dump_min_gain / sudden_dump_drop_threshold
-                if not settings.is_sniper_mode:
-                    drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
                     sudden_dump = (
                         trail_pct is None
                         and peak_gain_pct >= settings.sudden_dump_min_gain
                         and drop_from_peak >= settings.sudden_dump_drop_threshold
                     ) if peak_price > 0 else False
-                else:
-                    # SNIPER: sudden_dump أكثر صرامة — خروج عند +10% gain و 20% drop
-                    drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
-                    sudden_dump = (
-                        not trailing_hit
-                        and peak_gain_pct >= settings.sudden_dump_min_gain  # 0.10
-                        and drop_from_peak >= settings.sudden_dump_drop_threshold  # 0.20
-                    ) if peak_price > 0 else False
-                # V500: Stagnation (held 4h+ with ±5% gain while never going above +5%)
-                # SNIPER: لا يستخدم stagnation — نخرج عند +15% أو SL فقط (سريع)
+
+                # Stagnation: sniper/brutal لا يستخدم (نخرج سريعاً)
                 stagnation_hit = False
-                if not settings.is_sniper_mode and trade.entry_timestamp:
+                if not settings.is_sniper_mode and not settings.is_brutal_mode and trade.entry_timestamp:
                     elapsed_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
                     if elapsed_min >= 240:
                         current_gain = (price / trade.entry_price - 1) if trade.entry_price > 0 else 0
-                        # V510 FIX: original condition was contradictory (gain>5% AND within 5%).
-                        # Correct: stagnation = held 4h, in small profit (0-5%), never above 5%.
                         if 0 < current_gain <= 0.05 and peak_gain_pct < 0.05:
                             stagnation_hit = True
 

@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _orchestrator
 
     setup_logging()
-    logger.info("SOL Sniper Ultimate Bot starting...")
+    logger.info("⚔️ Asta — Black Clover Trading Bot starting...")
 
     try:
         await init_db()
@@ -148,7 +148,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def _inject_api_key(html: str) -> str:
-    """SOL Sniper: inject the API key directly into the HTML.
+    """Asta: inject the API key directly into the HTML.
 
     No more prompts. The server writes the key into window.__API_KEY__
     so the frontend can use it immediately. Works in all browsers
@@ -167,9 +167,9 @@ def _inject_api_key(html: str) -> str:
 def create_app() -> FastAPI:
     """Application factory."""
     app = FastAPI(
-        title="SOL Sniper — Ultimate Trading Bot",
-        description="Autonomous AI-powered memecoin trading on Pump.fun (Solana)",
-        version="0.3.0",
+        title="Asta — Black Clover Trading Bot",
+        description="⚔️ Autonomous AI-powered memecoin trading on Pump.fun (Solana) — never gives up!",
+        version="0.5.0",
         lifespan=lifespan,
     )
 
@@ -273,8 +273,8 @@ def create_app() -> FastAPI:
         @app.get("/")
         async def root():
             return {
-                "name": "SOL Sniper",
-                "version": "0.3.0",
+                "name": "Asta",
+                "version": "0.5.0",
                 "status": "running",
                 "trading_mode": settings.trading_mode,
                 "live_trading": settings.is_live_trading,

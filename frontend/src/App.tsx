@@ -61,12 +61,12 @@ export default function App() {
       {/* Sidebar */}
       <aside className="w-60 bg-bg-card border-l border-bg-border p-4 flex flex-col gap-2 overflow-y-auto scrollbar">
         <div className="flex items-center gap-2 mb-6 px-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-purple-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Rocket size={22} className="text-white" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-lg shadow-orange-500/20 ring-2 ring-orange-500/40">
+            <img src="/asta-logo.png" alt="Asta" className="w-full h-full object-cover" />
           </div>
           <div>
-            <h1 className="font-bold text-sm">SOL Sniper</h1>
-            <p className="text-xs text-gray-500">Ultimate Bot v1.0</p>
+            <h1 className="font-bold text-sm">Asta ⚔️</h1>
+            <p className="text-xs text-gray-500">Black Clover Bot v0.5</p>
           </div>
         </div>
         <nav className="flex-1 flex flex-col gap-1">

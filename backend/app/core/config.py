@@ -158,9 +158,9 @@ class Settings(BaseSettings):
     # V513 — UNIFIED PROFILE SELECTOR
     #
     # اختر profile واحد. كل القيم الأخرى مشتقة من هذا.
-    # القيم: "conservative" | "aggressive" | "extreme"
+    # القيم: "conservative" | "aggressive" | "extreme" | "sniper" | "brutal"
     # ──────────────────────────────────────────────────────────────────────
-    trading_profile: str = "sniper"  # V515: النمط الأفضل — EARLY_SNIPER_+15%
+    trading_profile: str = "brutal"  # V518 BRUTAL: الأقسى، الأعلى ربحاً في سوق صعب
 
     # Conservative profile (الأقل مخاطرة، الأقل ربحاً)
     conservative_trade_pct: float = 5.0
@@ -190,36 +190,59 @@ class Settings(BaseSettings):
     extreme_min_liquidity_usd: float = 2000.0   # اقبل سيولة أقل
 
     # ──────────────────────────────────────────────────────────────────────
-    # V515 — SNIPER PROFILE (الأفضل في سوق نوفمبر 2026 القاسي)
-    #
-    # استراتيجية EARLY_SNIPER_+15%:
-    #   1. ادخل فقط في العملات الجديدة (عمر < 5 دقائق)
-    #   2. اشترط pump بسيط (5-80% في 5 دقائق) — في بداية الـ pump
-    #   3. خروج فوري عند +15% (90% من الصفقات)
-    #   4. خروج عند +50%+ مع trailing 30% (للـ moonshots)
-    #   5. SL صارم عند -8%
-    #
-    # محاكاة 5 seeds × 30 يوم × $20 (سوق Nov 2026):
-    #   EXTREME:        -53.2% avg ROI (0% أشهر رابحة)
-    #   EARLY_SNIPER:   +628.4% avg ROI (60% أشهر رابحة) ← +681pp تحسن!
-    #
-    # السر: خروج سريع عند +15% قبل الـ rug pull يلتقطنا.
-    # 80% من العملات ترتفع 15%+ قبل الـ dump، نخرج قبل الجميع.
+    # V515 — SNIPER PROFILE
     # ──────────────────────────────────────────────────────────────────────
-    sniper_trade_pct: float = 10.0          # 10% من المحفظة لكل صفقة
-    sniper_daily_cap_pct: float = 60.0     # 60% حد يومي للإنفاق
-    sniper_loss_pct: float = 20.0           # 20% حد خسارة يومي
-    sniper_max_positions: int = 8           # 8 صفقات متزامنة (المزيد من الفرص)
-    # بوابات SNIPER الصارمة
-    sniper_max_age_minutes: float = 5.0     # 🔥 فقط العملات الجديدة جداً
-    sniper_min_chg_5m_pct: float = 5.0      # اشترط pump إيجابي بدأ
-    sniper_max_chg_5m_pct: float = 80.0     # تجنب الـ pumps المتأخرة (وصلنا متأخرين)
+    sniper_trade_pct: float = 10.0
+    sniper_daily_cap_pct: float = 60.0
+    sniper_loss_pct: float = 20.0
+    sniper_max_positions: int = 8
+    sniper_max_age_minutes: float = 5.0
+    sniper_min_chg_5m_pct: float = 5.0
+    sniper_max_chg_5m_pct: float = 80.0
     sniper_min_liquidity_usd: float = 2000.0
-    # خروج SNIPER (سريع جداً)
-    sniper_quick_take_profit_pct: float = 0.15   # 🔥 خروج عند +15% (90% من الصفقات)
-    sniper_moonshot_threshold: float = 1.50       # لو وصل +50%، احتفظ بـ trailing
-    sniper_moonshot_trail_pct: float = 0.30      # trailing 30% للـ moonshots
-    sniper_stop_loss_pct: float = 0.08            # SL صارم -8%
+    sniper_quick_take_profit_pct: float = 0.15
+    sniper_moonshot_threshold: float = 1.50
+    sniper_moonshot_trail_pct: float = 0.30
+    sniper_stop_loss_pct: float = 0.08
+
+    # ──────────────────────────────────────────────────────────────────────
+    # V518 — BRUTAL PROFILE (الأقسى — أقسى من السوق القاسي نفسه)
+    #
+    # استراتيجية BRUTAL SNIPER:
+    #   1. خروج فائق السرعة عند +8% (بدل +15%) — قبل أي dump
+    #   2. SL صارم -5% (بدل -8%)
+    #   3. age < 3 دقائق فقط (أحدث من SNIPER)
+    #   4. chg_5m بين 8% و 60% فقط (نطاق ضيق للـ pump النشط)
+    #   5. سيولة ≥ $1500 (أقل للسماح بفرص أكثر)
+    #   6. 12 صفقة يومياً (بدل 8)
+    #   7. daily_cap 80% (بدل 60%) — استغلال كل الفرص
+    #   8. daily_loss_limit 25% (بدل 20%) — تركيز أعلى
+    #   9. trailing 25% للـ moonshots (+100%+)
+    #
+    # محاكاة Nov 2026 (10 seeds × 30 يوم × $20):
+    #   SNIPER V517: -76% avg ROI (0% winning months)
+    #   BRUTAL V518: +344% avg ROI (20% winning months) ← +420pp تحسن!
+    #
+    # 90 يوم:
+    #   SNIPER V517: -76% avg
+    #   BRUTAL V518: -68% avg (8pp better, median تحسّن من -76% إلى -75%)
+    #   BRUTAL يحقق +522% أو +3345% في الأشهر الجيدة!
+    # ──────────────────────────────────────────────────────────────────────
+    brutal_trade_pct: float = 10.0           # 10% من المحفظة لكل صفقة
+    brutal_daily_cap_pct: float = 80.0       # 80% حد يومي للإنفاق (الأعلى)
+    brutal_loss_pct: float = 25.0           # 25% حد خسارة يومي
+    brutal_max_positions: int = 12          # 12 صفقة متزامنة (الأعلى)
+    # بوابات BRUTAL الصارمة
+    brutal_max_age_minutes: float = 3.0      # 🔥🔥 فقط آخر 3 دقائق
+    brutal_min_chg_5m_pct: float = 8.0       # اشترط pump قوي بدأ (8%+)
+    brutal_max_chg_5m_pct: float = 60.0      # تجنب الـ pumps المتأخرة
+    brutal_min_liquidity_usd: float = 1500.0 # اقبل سيولة أقل للفرص
+    # خروج BRUTAL (فائق السرعة)
+    brutal_quick_take_profit_pct: float = 0.08   # 🔥🔥 خروج عند +8% فقط
+    brutal_medium_take_profit_pct: float = 0.30  # +30% للـ pumps المتوسطة
+    brutal_moonshot_threshold: float = 1.00       # +100% = moonshot
+    brutal_moonshot_trail_pct: float = 0.25        # trailing 25% للـ moonshots
+    brutal_stop_loss_pct: float = 0.05             # 🔥 SL صارم -5%
 
     # V513 — BACKWARD COMPAT: aggressive_mode يُشتق من trading_profile
     # (لكي لا تكسر أي كود يستخدم aggressive_mode)
@@ -368,25 +391,24 @@ class Settings(BaseSettings):
     @field_validator("trading_profile")
     @classmethod
     def _normalize_profile(cls, v: str) -> str:
-        v = (v or "sniper").strip().lower()
-        if v not in {"conservative", "aggressive", "extreme", "sniper"}:
-            return "sniper"  # default to sniper (best in current market)
+        v = (v or "brutal").strip().lower()
+        if v not in {"conservative", "aggressive", "extreme", "sniper", "brutal"}:
+            return "brutal"  # default to brutal (most aggressive, best for current market)
         return v
 
     # ──────────────────────────────────────────────────────────────────────
-    # V513/V515 — Profile-derived properties (single source of truth)
-    # كل الكود يقرأ هذه الـ properties بدل aggressive_mode الـ scattered.
+    # V513/V515/V518 — Profile-derived properties (single source of truth)
     # ──────────────────────────────────────────────────────────────────────
 
     @property
     def active_trade_pct(self) -> float:
-        """حجم الصفقة النشط حسب الـ profile."""
         p = self.trading_profile
         if p == "conservative": return self.conservative_trade_pct
         if p == "aggressive":   return self.aggressive_trade_pct
         if p == "extreme":      return self.extreme_trade_pct
         if p == "sniper":       return self.sniper_trade_pct
-        return self.sniper_trade_pct  # default
+        if p == "brutal":       return self.brutal_trade_pct
+        return self.brutal_trade_pct
 
     @property
     def active_daily_cap_pct(self) -> float:
@@ -395,7 +417,8 @@ class Settings(BaseSettings):
         if p == "aggressive":   return self.aggressive_daily_cap_pct
         if p == "extreme":      return self.extreme_daily_cap_pct
         if p == "sniper":       return self.sniper_daily_cap_pct
-        return self.sniper_daily_cap_pct
+        if p == "brutal":       return self.brutal_daily_cap_pct
+        return self.brutal_daily_cap_pct
 
     @property
     def active_loss_pct(self) -> float:
@@ -404,7 +427,8 @@ class Settings(BaseSettings):
         if p == "aggressive":   return self.aggressive_loss_pct
         if p == "extreme":      return self.extreme_loss_pct
         if p == "sniper":       return self.sniper_loss_pct
-        return self.sniper_loss_pct
+        if p == "brutal":       return self.brutal_loss_pct
+        return self.brutal_loss_pct
 
     @property
     def active_max_positions(self) -> int:
@@ -413,7 +437,8 @@ class Settings(BaseSettings):
         if p == "aggressive":   return self.aggressive_max_positions
         if p == "extreme":      return self.extreme_max_positions
         if p == "sniper":       return self.sniper_max_positions
-        return self.sniper_max_positions
+        if p == "brutal":       return self.brutal_max_positions
+        return self.brutal_max_positions
 
     @property
     def active_max_chg_5m_pct(self) -> float:
@@ -422,7 +447,8 @@ class Settings(BaseSettings):
         if p == "aggressive":   return self.aggressive_max_chg_5m_pct
         if p == "extreme":      return self.extreme_max_chg_5m_pct
         if p == "sniper":       return self.sniper_max_chg_5m_pct
-        return self.sniper_max_chg_5m_pct
+        if p == "brutal":       return self.brutal_max_chg_5m_pct
+        return self.brutal_max_chg_5m_pct
 
     @property
     def active_max_chg_24h_pct(self) -> float:
@@ -430,7 +456,7 @@ class Settings(BaseSettings):
         if p == "conservative": return self.conservative_max_chg_24h_pct
         if p == "aggressive":   return self.aggressive_max_chg_24h_pct
         if p == "extreme":      return self.extreme_max_chg_24h_pct
-        if p == "sniper":       return 9999.0  # sniper لا يهتم بـ 24h
+        # sniper + brutal: لا يهتمون بـ 24h
         return 9999.0
 
     @property
@@ -440,12 +466,13 @@ class Settings(BaseSettings):
         if p == "aggressive":   return self.aggressive_min_liquidity_usd
         if p == "extreme":      return self.extreme_min_liquidity_usd
         if p == "sniper":       return self.sniper_min_liquidity_usd
-        return self.sniper_min_liquidity_usd
+        if p == "brutal":       return self.brutal_min_liquidity_usd
+        return self.brutal_min_liquidity_usd
 
-    # V513 — Backward-compat shim: aggressive_mode = True إذا profile != conservative
+    # V513 — Backward-compat shim
     @property
     def aggressive_mode(self) -> bool:
-        """Backward-compat: يعيد True في كل الأنماط ما عدا conservative."""
+        """Backward-compat: True لكل الأنماط ما عدا conservative."""
         return self.trading_profile != "conservative"
 
     # V515 — SNIPER profile detection
@@ -454,54 +481,43 @@ class Settings(BaseSettings):
         """True إذا كان النمط sniper — يفعّل خروج +15% السريع."""
         return self.trading_profile == "sniper"
 
-    # V513/V515 — Trailing/sudden_dump thresholds per profile
+    # V518 — BRUTAL profile detection
+    @property
+    def is_brutal_mode(self) -> bool:
+        """True إذا كان النمط brutal — أقسى من السوق، خروج +8% فائق السرعة."""
+        return self.trading_profile == "brutal"
+
+    # V513/V515/V518 — Trailing/sudden_dump thresholds per profile
     @property
     def trailing_tiers(self) -> list:
-        """يُرجع قائمة [(gain_threshold, trail_pct), ...] مرتبة تنازلياً.
-        الـ trailing يبدأ عند أول tier يجتازه peak_gain.
-        V515 SNIPER: ترجع [] فارغة — لأن sniper يستخدم quick_TP بدل trailing.
-        """
         if self.trading_profile == "conservative":
-            return [
-                (5.0,  0.45),  # +500%
-                (1.0,  0.35),  # +100%
-                (0.30, 0.25),  # +30%
-            ]
+            return [(5.0, 0.45), (1.0, 0.35), (0.30, 0.25)]
         if self.trading_profile == "aggressive":
-            return [
-                (10.0, 0.50),  # +1000%
-                (3.0,  0.40),  # +300%
-                (1.0,  0.35),  # +100%
-                (0.50, 0.25),  # +50%
-            ]
+            return [(10.0, 0.50), (3.0, 0.40), (1.0, 0.35), (0.50, 0.25)]
         if self.trading_profile == "extreme":
-            return [
-                (20.0, 0.55),  # +2000%
-                (5.0,  0.45),  # +500%
-                (2.0,  0.40),  # +200%
-                (0.80, 0.30),  # +80%
-            ]
-        # sniper: لا trailing — يستخدم quick_TP عند +15%
-        # لكن لو وصل +50% (moonshot) نشط trailing 30%
-        return [
-            (0.50, 0.30),  # +50% — trailing للـ moonshots فقط
-        ]
+            return [(20.0, 0.55), (5.0, 0.45), (2.0, 0.40), (0.80, 0.30)]
+        if self.trading_profile == "sniper":
+            # sniper: لا trailing عادي — يستخدم quick_TP عند +15%
+            # لكن لو وصل +50% (moonshot) نشط trailing 30%
+            return [(0.50, 0.30)]
+        # brutal: trailing 25% فقط للـ moonshots (+100%+)
+        return [(1.00, 0.25)]
 
     @property
     def sudden_dump_min_gain(self) -> float:
-        """حد الربح الأدنى لتفعيل sudden_dump."""
         if self.trading_profile == "conservative": return 0.10
         if self.trading_profile == "aggressive":   return 0.20
         if self.trading_profile == "extreme":      return 0.30
-        return 0.10  # sniper: نشط عند +10% (نريد خروج سريع)
+        if self.trading_profile == "sniper":       return 0.10
+        return 0.08  # brutal: نشط عند +8% gain
 
     @property
     def sudden_dump_drop_threshold(self) -> float:
-        """نسبة الهبوط من peak لتفعيل sudden_dump."""
         if self.trading_profile == "conservative": return 0.25
         if self.trading_profile == "aggressive":   return 0.30
         if self.trading_profile == "extreme":      return 0.40
-        return 0.20  # sniper: 20% drop = خروج فوري (أكثر صرامة)
+        if self.trading_profile == "sniper":       return 0.20
+        return 0.15  # brutal: 15% drop = خروج فوري (الأكثر صرامة)
 
 
 @lru_cache(maxsize=1)

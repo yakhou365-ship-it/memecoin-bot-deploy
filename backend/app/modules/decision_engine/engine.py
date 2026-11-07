@@ -476,7 +476,41 @@ class DecisionEngine:
         # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > حد معين
         # V513: الحد يعتمد على الـ profile (conservative: 100%, aggressive: 150%, extreme: 250%)
         # V515 SNIPER: اشترط chg_5m بين 5% و 80% فقط — بداية pump فقط
-        if settings.is_sniper_mode:
+        # V518 BRUTAL: اشترط chg_5m بين 8% و 60% فقط (نطاق أضيق للـ pump النشط)
+        if settings.is_brutal_mode:
+            min_chg_5m = settings.brutal_min_chg_5m_pct  # 8%
+            max_chg_5m = settings.brutal_max_chg_5m_pct   # 60%
+            if chg_5m < min_chg_5m or chg_5m > max_chg_5m:
+                result.qualified = False
+                result.recommendation = "monitor"
+                result.rejection_reason = (
+                    f"BRUTAL: chg_5m={chg_5m:.1f}% خارج النطاق [{min_chg_5m}-{max_chg_5m}%] — "
+                    f"الـ pump غير نشط أو وصل متأخراً"
+                )
+                result.reasons.append(f"⚠️ {result.rejection_reason}")
+                return
+            # BRUTAL: اشترط عمر التوكن < 3 دقائق
+            try:
+                from datetime import datetime
+                first_seen = getattr(token, "first_seen_at", None)
+                if first_seen:
+                    if isinstance(first_seen, str):
+                        first_seen = datetime.fromisoformat(first_seen.replace("Z", "+00:00"))
+                    age_sec = (datetime.utcnow() - first_seen.replace(tzinfo=None)).total_seconds()
+                    age_min = age_sec / 60
+                    max_age_min = settings.brutal_max_age_minutes  # 3 دقائق
+                    if age_min > max_age_min:
+                        result.qualified = False
+                        result.recommendation = "monitor"
+                        result.rejection_reason = (
+                            f"BRUTAL: عمر التوكن {age_min:.1f}دقيقة > {max_age_min}دقيقة — "
+                            f"فقط العملات الأحدث من 3 دقائق"
+                        )
+                        result.reasons.append(f"⚠️ {result.rejection_reason}")
+                        return
+            except Exception as exc:
+                logger.debug(f"Token age check failed for {token.symbol}: {exc}")
+        elif settings.is_sniper_mode:
             min_chg_5m = settings.sniper_min_chg_5m_pct  # 5%
             max_chg_5m = settings.sniper_max_chg_5m_pct   # 80%
             if chg_5m < min_chg_5m or chg_5m > max_chg_5m:
@@ -489,7 +523,6 @@ class DecisionEngine:
                 result.reasons.append(f"⚠️ {result.rejection_reason}")
                 return
             # V515 SNIPER: اشترط عمر التوكن < 5 دقائق
-            # ملاحظة: لا يتوفر age مباشرة في token model، نستخدم first_seen_at
             try:
                 from datetime import datetime
                 first_seen = getattr(token, "first_seen_at", None)
