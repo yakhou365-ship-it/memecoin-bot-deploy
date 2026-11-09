@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     app_secret_key: str = "change-me"
 
     # --- Security ---
-    # V537: كود الوصول للبوت والـ dashboard — "052307"
-    # يجب إدخاله للوصول إلى أي endpoint محمي (/api/*)
-    # يمكن تغييره عبر env var: API_AUTH_KEY
-    api_auth_key: str = "052307"
+    # When empty, authentication is disabled (local development only).
+    # In production set a strong random value; the dashboard receives it
+    # automatically through window.__API_KEY__ injection.
+    api_auth_key: str = ""
     cors_allowed_origins: str = "*"
 
     # --- Database ---

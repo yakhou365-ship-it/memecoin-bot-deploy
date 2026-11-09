@@ -11,12 +11,13 @@ export const api = axios.create({
   timeout: 20000,
 })
 
-// V537: the backend injects the access code "052307" into window.__API_KEY__.
-// The frontend reads it automatically — no prompt needed.
+// V503: backend no longer embeds the key in HTML. The dashboard asks the user
+// for the key once and keeps it in localStorage. This interceptor reads it
+// from there (with window.__API_KEY__ as a fallback for legacy backends).
 api.interceptors.request.use((config) => {
   const key = typeof window !== 'undefined'
-    ? (window.__API_KEY__ || localStorage.getItem('bot_api_key') || '052307')
-    : '052307'
+    ? (window.__API_KEY__ || localStorage.getItem('bot_api_key') || '')
+    : ''
   if (key) {
     config.headers = config.headers || {}
     config.headers['X-API-Key'] = key

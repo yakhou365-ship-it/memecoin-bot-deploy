@@ -148,14 +148,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def _inject_api_key(html: str) -> str:
-    """V537: inject the access code "052307" into the HTML.
+    """Asta: inject the API key directly into the HTML.
 
-    The server writes the key into window.__API_KEY__
-    so the frontend can use it automatically — no prompt needed.
+    No more prompts. The server writes the key into window.__API_KEY__
+    so the frontend can use it immediately. Works in all browsers
+    including incognito/private mode.
     """
-    key = settings.api_auth_key.strip()
-    if not key:
+    if not settings.api_auth_key.strip():
         return html
+    key = settings.api_auth_key.strip()
     safe_key = json.dumps(key)
     script = f"<script>window.__API_KEY__={safe_key};</script>"
     if "</head>" in html:
