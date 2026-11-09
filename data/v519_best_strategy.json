@@ -1,0 +1,60 @@
+{
+  "name": "combo_18",
+  "params": {
+    "max_age_minutes": 3.0,
+    "min_chg_5m": 8.0,
+    "max_chg_5m": 60.0,
+    "min_liquidity": 1500.0,
+    "min_volume_24h": 3000.0,
+    "quick_tp": 0.1,
+    "medium_tp": 0.6,
+    "moonshot_threshold": 2.0,
+    "moonshot_trail": 0.25,
+    "stop_loss": 0.05,
+    "sudden_dump_gain": 0.08000000000000002,
+    "sudden_dump_drop": 0.15,
+    "trade_pct": 10.0,
+    "daily_cap_pct": 50.0,
+    "daily_loss_pct": 25.0,
+    "max_trades_per_day": 12,
+    "max_holder_pct": 30.0
+  },
+  "results_90d": {
+    "20.0": {
+      "avg_roi": 19553.79704810931,
+      "median_roi": 19110.8755530177,
+      "worst_roi": 17239.323201395546,
+      "best_roi": 22426.228650496174,
+      "win_rate": 95.40384963607772,
+      "winning_periods": 5,
+      "avg_pnl": 3910.7594096218622
+    },
+    "100.0": {
+      "avg_roi": 19553.797048109172,
+      "median_roi": 19110.875553017533,
+      "worst_roi": 17239.323201395615,
+      "best_roi": 22426.228650495825,
+      "win_rate": 95.40384963607772,
+      "winning_periods": 5,
+      "avg_pnl": 19553.797048109172
+    },
+    "500.0": {
+      "avg_roi": 19553.797048109212,
+      "median_roi": 19110.875553017628,
+      "worst_roi": 17239.32320139548,
+      "best_roi": 22426.228650496018,
+      "win_rate": 95.40384963607772,
+      "winning_periods": 5,
+      "avg_pnl": 97768.98524054607
+    },
+    "1000.0": {
+      "avg_roi": 19553.797048109212,
+      "median_roi": 19110.875553017628,
+      "worst_roi": 17239.32320139548,
+      "best_roi": 22426.228650496018,
+      "win_rate": 95.40384963607772,
+      "winning_periods": 5,
+      "avg_pnl": 195537.97048109214
+    }
+  }
+}

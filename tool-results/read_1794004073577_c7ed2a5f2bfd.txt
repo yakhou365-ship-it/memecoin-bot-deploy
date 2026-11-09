@@ -1,0 +1,636 @@
+     1→"""
+     2→Comprehensive Dangerous Pattern Detection.
+     3→
+     4→Detects 20+ types of dangerous trading patterns/scenarios:
+     5→1. Honeypot (can't sell)
+     6→2. Rug Pull (liquidity removal)
+     7→3. Pump and Dump
+     8→4. Wash Trading (fake volume)
+     9→5. Front Running
+    10→6. MEV/Sandwich Attacks
+    11→7. Flash Loan Attacks
+    12→8. Spoofing (fake orders)
+    13→9. Layering (multiple fake orders)
+    14→10. Stop Hunting
+    15→11. Bear Trap
+    16→12. Bull Trap
+    17→13. Dead Cat Bounce
+    18→14. Blow-off Top (parabolic then crash)
+    19→15. Capitulation (panic selling)
+    20→16. Whale Manipulation
+    21→17. Insider Trading
+    22→18. Token Bundling
+    23→19. Liquidity Migration
+    24→20. Mint Authority Abuse
+    25→21. Freeze Authority Abuse
+    26→22. Smart Contract Exploit
+    27→23. Fake Breakout
+    28→24. Low Liquidity Trap
+    29→25. Slippage Trap
+    30→"""
+    31→from __future__ import annotations
+    32→
+    33→from dataclasses import dataclass, field, asdict
+    34→from typing import Dict, List, Optional, Tuple
+    35→import numpy as np
+    36→import pandas as pd
+    37→
+    38→
+    39→@dataclass
+    40→class DangerDetection:
+    41→    """Result of dangerous pattern detection."""
+    42→    pattern_name: str
+    43→    detected: bool
+    44→    severity: str = "low"  # low | medium | high | critical
+    45→    confidence: float = 0.0  # 0-1
+    46→    description: str = ""
+    47→    indicators: Dict = field(default_factory=dict)
+    48→    recommendation: str = ""  # AVOID | CAUTION | MONITOR | SAFE
+    49→
+    50→    def to_dict(self) -> Dict:
+    51→        return asdict(self)
+    52→
+    53→
+    54→class DangerousPatternDetector:
+    55→    """Detects 25+ dangerous trading patterns."""
+    56→
+    57→    def detect_all(self, df: pd.DataFrame, token=None, onchain_data: Dict = None) -> List[DangerDetection]:
+    58→        """Run all detectors and return list of detected patterns."""
+    59→        results = []
+    60→        onchain_data = onchain_data or {}
+    61→
+    62→        # === Contract-level dangers (from on-chain data) ===
+    63→        results.append(self.detect_honeypot(onchain_data, token))
+    64→        results.append(self.detect_rug_pull(onchain_data, token))
+    65→        results.append(self.detect_mint_authority_abuse(onchain_data))
+    66→        results.append(self.detect_freeze_authority_abuse(onchain_data))
+    67→        results.append(self.detect_token_bundling(onchain_data))
+    68→        results.append(self.detect_liquidity_migration(onchain_data))
+    69→        results.append(self.detect_smart_contract_exploit(onchain_data))
+    70→
+    71→        # === Volume/Trading dangers ===
+    72→        results.append(self.detect_wash_trading(df, token))
+    73→        results.append(self.detect_fake_volume(df, token))
+    74→        results.append(self.detect_spoofing(df))
+    75→        results.append(self.detect_layering(df))
+    76→        results.append(self.detect_front_running(df))
+    77→        results.append(self.detect_mev_sandwich(df))
+    78→
+    79→        # === Price action dangers ===
+    80→        results.append(self.detect_pump_and_dump(df))
+    81→        results.append(self.detect_blow_off_top(df))
+    82→        results.append(self.detect_capitulation(df))
+    83→        results.append(self.detect_dead_cat_bounce(df))
+    84→        results.append(self.detect_bear_trap(df))
+    85→        results.append(self.detect_bull_trap(df))
+    86→        results.append(self.detect_stop_hunting(df))
+    87→        results.append(self.detect_fake_breakout(df))
+    88→
+    89→        # === Liquidity dangers ===
+    90→        results.append(self.detect_low_liquidity_trap(token))
+    91→        results.append(self.detect_slippage_trap(token))
+    92→        results.append(self.detect_whale_manipulation(onchain_data, df))
+    93→
+    94→        # === Insider dangers ===
+    95→        results.append(self.detect_insider_trading(onchain_data))
+    96→        results.append(self.detect_flash_loan_attack(df, onchain_data))
+    97→
+    98→        return [r for r in results if r is not None]
+    99→
+   100→    # =====================================================================
+   101→    # Contract-level dangers
+   102→    # =====================================================================
+   103→
+   104→    def detect_honeypot(self, onchain: Dict, token) -> DangerDetection:
+   105→        """Honeypot: you can buy but can't sell."""
+   106→        if not onchain or not token:
+   107→            return DangerDetection("honeypot", False, "low", 0, "No on-chain data")
+   108→
+   109→        # Heuristics
+   110→        can_sell = onchain.get("can_sell", True)
+   111→        sell_tax = onchain.get("sell_tax_estimate_pct", 0)
+   112→        freeze_auth = onchain.get("freeze_authority_enabled", False)
+   113→
+   114→        score = 0
+   115→        if not can_sell: score += 50
+   116→        if sell_tax > 25: score += 30  # high sell tax
+   117→        if freeze_auth: score += 20
+   118→
+   119→        detected = score >= 50
+   120→        severity = "critical" if score >= 80 else ("high" if score >= 50 else "low")
+   121→        return DangerDetection(
+   122→            "honeypot", detected, severity, score / 100,
+   123→            "Honeypot: يمكن الشراء لكن لا يمكن البيع",
+   124→            {"can_sell": can_sell, "sell_tax": sell_tax, "freeze_auth": freeze_auth},
+   125→            "AVOID" if detected else "SAFE"
+   126→        )
+   127→
+   128→    def detect_rug_pull(self, onchain: Dict, token) -> DangerDetection:
+   129→        """Rug Pull: liquidity removal by devs."""
+   130→        if not onchain or not token:
+   131→            return DangerDetection("rug_pull", False, "low", 0, "No on-chain data")
+   132→
+   133→        liq_locked = onchain.get("liquidity_locked", False)
+   134→        owner_concentration = onchain.get("owner_concentration_risk", 0)
+   135→        top_10_pct = onchain.get("top_10_pct", 0)
+   136→        mint_auth = onchain.get("mint_authority_enabled", False)
+   137→
+   138→        score = 0
+   139→        if not liq_locked: score += 30
+   140→        if owner_concentration > 0.7: score += 30
+   141→        if top_10_pct > 80: score += 25
+   142→        if mint_auth: score += 15
+   143→
+   144→        detected = score >= 50
+   145→        severity = "critical" if score >= 80 else ("high" if score >= 50 else "medium")
+   146→        return DangerDetection(
+   147→            "rug_pull", detected, severity, score / 100,
+   148→            "Rug Pull: يمكن للمطورين سحب السيولة",
+   149→            {"liq_locked": liq_locked, "owner_conc": owner_concentration,
+   150→             "top_10_pct": top_10_pct, "mint_auth": mint_auth},
+   151→            "AVOID" if detected else "CAUTION"
+   152→        )
+   153→
+   154→    def detect_mint_authority_abuse(self, onchain: Dict) -> DangerDetection:
+   155→        """Mint Authority: devs can mint unlimited tokens."""
+   156→        if not onchain:
+   157→            return DangerDetection("mint_authority_abuse", False)
+   158→        mint_enabled = onchain.get("mint_authority_enabled", False)
+   159→        detected = mint_enabled
+   160→        return DangerDetection(
+   161→            "mint_authority_abuse", detected,
+   162→            "critical" if detected else "low",
+   163→            1.0 if detected else 0,
+   164→            "Mint Authority مفعّل - يمكن إنشاء عملات جديدة",
+   165→            {"mint_authority_enabled": mint_enabled},
+   166→            "AVOID" if detected else "SAFE"
+   167→        )
+   168→
+   169→    def detect_freeze_authority_abuse(self, onchain: Dict) -> DangerDetection:
+   170→        """Freeze Authority: devs can freeze your wallet."""
+   171→        if not onchain:
+   172→            return DangerDetection("freeze_authority_abuse", False)
+   173→        freeze_enabled = onchain.get("freeze_authority_enabled", False)
+   174→        detected = freeze_enabled
+   175→        return DangerDetection(
+   176→            "freeze_authority_abuse", detected,
+   177→            "critical" if detected else "low",
+   178→            1.0 if detected else 0,
+   179→            "Freeze Authority مفعّل - يمكن تجميد محفظتك",
+   180→            {"freeze_authority_enabled": freeze_enabled},
+   181→            "AVOID" if detected else "SAFE"
+   182→        )
+   183→
+   184→    def detect_token_bundling(self, onchain: Dict) -> DangerDetection:
+   185→        """Token Bundling: multiple wallets holding similar percentages."""
+   186→        if not onchain:
+   187→            return DangerDetection("token_bundling", False)
+   188→        bundle_prob = onchain.get("token_bundling_probability", 0)
+   189→        detected = bundle_prob > 0.5
+   190→        return DangerDetection(
+   191→            "token_bundling", detected,
+   192→            "high" if detected else "low",
+   193→            bundle_prob,
+   194→            "نمط Token Bundling - محافظ متعددة بنسب متشابهة",
+   195→            {"bundle_prob": bundle_prob},
+   196→            "AVOID" if detected else "CAUTION"
+   197→        )
+   198→
+   199→    def detect_liquidity_migration(self, onchain: Dict) -> DangerDetection:
+   200→        """Liquidity Migration: dev moves LP tokens."""
+   201→        if not onchain:
+   202→            return DangerDetection("liquidity_migration", False)
+   203→        liq_removed_recently = onchain.get("liquidity_removed_recently", False)
+   204→        detected = liq_removed_recently
+   205→        return DangerDetection(
+   206→            "liquidity_migration", detected,
+   207→            "critical" if detected else "low",
+   208→            1.0 if detected else 0,
+   209→            "تم سحب السيولة مؤخراً",
+   210→            {"liq_removed_recently": liq_removed_recently},
+   211→            "AVOID" if detected else "SAFE"
+   212→        )
+   213→
+   214→    def detect_smart_contract_exploit(self, onchain: Dict) -> DangerDetection:
+   215→        """Smart Contract Exploit: known vulnerable patterns."""
+   216→        if not onchain:
+   217→            return DangerDetection("smart_contract_exploit", False)
+   218→        similar_to_scam = onchain.get("contract_similar_to_known_scam", False)
+   219→        dangerous_changes = onchain.get("dangerous_contract_changes", False)
+   220→        detected = similar_to_scam or dangerous_changes
+   221→        return DangerDetection(
+   222→            "smart_contract_exploit", detected,
+   223→            "critical" if detected else "low",
+   224→            1.0 if detected else 0,
+   225→            "العقد مشابه لعقود احتيالية معروفة",
+   226→            {"similar_to_scam": similar_to_scam, "dangerous_changes": dangerous_changes},
+   227→            "AVOID" if detected else "SAFE"
+   228→        )
+   229→
+   230→    # =====================================================================
+   231→    # Volume/Trading dangers
+   232→    # =====================================================================
+   233→
+   234→    def detect_wash_trading(self, df: pd.DataFrame, token=None) -> DangerDetection:
+   235→        """Wash Trading: same wallet buying and selling to fake volume."""
+   236→        if df is None or len(df) < 20:
+   237→            return DangerDetection("wash_trading", False)
+   238→        vols = df["volume"].astype(float).tail(20)
+   239→        cv = vols.std() / max(vols.mean(), 1e-9)  # coefficient of variation
+   240→        # Suspiciously uniform volume = wash trading
+   241→        detected = cv < 0.15
+   242→        confidence = max(0, 1 - cv / 0.15) if cv < 0.15 else 0
+   243→        return DangerDetection(
+   244→            "wash_trading", detected,
+   245→            "high" if detected else "low",
+   246→            confidence,
+   247→            f"حجم تداول منتظم بشكل مريب (CV={cv:.3f})",
+   248→            {"cv": cv, "avg_vol": float(vols.mean())},
+   249→            "AVOID" if detected else "MONITOR"
+   250→        )
+   251→
+   252→    def detect_fake_volume(self, df: pd.DataFrame, token=None) -> DangerDetection:
+   253→        """Fake Volume: high volume but no price movement."""
+   254→        if df is None or len(df) < 30 or token is None:
+   255→            return DangerDetection("fake_volume", False)
+   256→        recent = df.tail(30)
+   257→        vol = float(recent["volume"].mean())
+   258→        price_range = (recent["high"].max() - recent["low"].min()) / recent["close"].mean()
+   259→        # High volume but low price movement = fake
+   260→        vol_to_movement_ratio = vol / max(price_range, 1e-9)
+   261→        detected = vol_to_movement_ratio > 100000 and price_range < 0.05
+   262→        return DangerDetection(
+   263→            "fake_volume", detected,
+   264→            "medium" if detected else "low",
+   265→            0.7 if detected else 0,
+   266→            "حجم مرتفع بدون حركة سعر حقيقية",
+   267→            {"vol": vol, "price_range": price_range},
+   268→            "CAUTION" if detected else "SAFE"
+   269→        )
+   270→
+   271→    def detect_spoofing(self, df: pd.DataFrame) -> DangerDetection:
+   272→        """Spoofing: large orders placed then cancelled."""
+   273→        # Can't detect without order book data, but can infer from volume spikes
+   274→        # followed by immediate price reversals
+   275→        if df is None or len(df) < 20:
+   276→            return DangerDetection("spoofing", False)
+   277→        vols = df["volume"].astype(float).tail(20)
+   278→        avg_vol = vols.mean()
+   279→        spikes = (vols > avg_vol * 3).sum()
+   280→        # Many volume spikes without sustained price movement = spoofing
+   281→        detected = spikes >= 3
+   282→        return DangerDetection(
+   283→            "spoofing", detected,
+   284→            "medium" if detected else "low",
+   285→            min(spikes / 5, 1.0),
+   286→            f"{spikes} ارتفاعات حجم مشبوهة في آخر 20 شمعة",
+   287→            {"spikes": spikes, "avg_vol": avg_vol},
+   288→            "CAUTION" if detected else "SAFE"
+   289→        )
+   290→
+   291→    def detect_layering(self, df: pd.DataFrame) -> DangerDetection:
+   292→        """Layering: multiple fake orders at different price levels."""
+   293→        if df is None or len(df) < 20:
+   294→            return DangerDetection("layering", False)
+   295→        # Detect: high volume but price stays in tight range
+   296→        recent = df.tail(20)
+   297→        price_range_pct = (recent["high"].max() - recent["low"].min()) / recent["close"].mean()
+   298→        avg_vol = recent["volume"].mean()
+   299→        # High vol + tight range = layering
+   300→        detected = price_range_pct < 0.02 and avg_vol > 50000
+   301→        return DangerDetection(
+   302→            "layering", detected,
+   303→            "medium" if detected else "low",
+   304→            0.6 if detected else 0,
+   305→            f"نطاق سعري ضيق ({price_range_pct:.3f}) مع حجم مرتفع",
+   306→            {"price_range_pct": price_range_pct, "avg_vol": avg_vol},
+   307→            "CAUTION" if detected else "SAFE"
+   308→        )
+   309→
+   310→    def detect_front_running(self, df: pd.DataFrame) -> DangerDetection:
+   311→        """Front Running: bots buying before large orders."""
+   312→        if df is None or len(df) < 30:
+   313→            return DangerDetection("front_running", False)
+   314→        # Detect: sudden price spike + immediate reversal
+   315→        recent = df.tail(10)
+   316→        max_gain = (recent["high"].max() - recent["open"].iloc[0]) / recent["open"].iloc[0]
+   317→        final_change = (recent["close"].iloc[-1] - recent["open"].iloc[0]) / recent["open"].iloc[0]
+   318→        # Spike then reversal = front running
+   319→        detected = max_gain > 0.05 and final_change < 0
+   320→        return DangerDetection(
+   321→            "front_running", detected,
+   322→            "medium" if detected else "low",
+   323→            0.7 if detected else 0,
+   324→            f"ارتفاع {max_gain:.1%} ثم انعكاس",
+   325→            {"max_gain": max_gain, "final_change": final_change},
+   326→            "CAUTION" if detected else "SAFE"
+   327→        )
+   328→
+   329→    def detect_mev_sandwich(self, df: pd.DataFrame) -> DangerDetection:
+   330→        """MEV Sandwich: bot buys before you, sells after."""
+   331→        if df is None or len(df) < 10:
+   332→            return DangerDetection("mev_sandwich", False)
+   333→        # Detect: rapid price spike (1-2 candles) then immediate drop
+   334→        recent = df.tail(5)
+   335→        spike = (recent["high"].max() - recent["open"].iloc[0]) / recent["open"].iloc[0]
+   336→        drop = (recent["high"].max() - recent["close"].iloc[-1]) / recent["high"].max()
+   337→        detected = spike > 0.03 and drop > 0.05  # Ultimate-bot: was 0.5 (50%!), should be 5%
+   338→        return DangerDetection(
+   339→            "mev_sandwich", detected,
+   340→            "high" if detected else "low",
+   341→            0.8 if detected else 0,
+   342→            f"هجوم MEV: ارتفاع {spike:.1%} ثم انخفاض {drop:.1%}",
+   343→            {"spike": spike, "drop": drop},
+   344→            "AVOID" if detected else "MONITOR"
+   345→        )
+   346→
+   347→    # =====================================================================
+   348→    # Price action dangers
+   349→    # =====================================================================
+   350→
+   351→    def detect_pump_and_dump(self, df: pd.DataFrame) -> DangerDetection:
+   352→        """Pump and Dump: rapid rise then crash."""
+   353→        if df is None or len(df) < 50:
+   354→            return DangerDetection("pump_and_dump", False)
+   355→        recent = df.tail(50)
+   356→        prices = recent["close"].astype(float)
+   357→        max_price = prices.max()
+   358→        current_price = prices.iloc[-1]
+   359→        max_idx = prices.values.tolist().index(max_price)
+   360→        # If peak was in middle and we're now 30%+ below
+   361→        drop_from_peak = (max_price - current_price) / max_price
+   362→        detected = drop_from_peak > 0.30 and 10 < max_idx < 40
+   363→        return DangerDetection(
+   364→            "pump_and_dump", detected,
+   365→            "high" if detected else "low",
+   366→            drop_from_peak if detected else 0,
+   367→            f"هبوط {drop_from_peak:.1%} من القمة",
+   368→            {"drop_from_peak": drop_from_peak, "peak_position": max_idx},
+   369→            "AVOID" if detected else "MONITOR"
+   370→        )
+   371→
+   372→    def detect_blow_off_top(self, df: pd.DataFrame) -> DangerDetection:
+   373→        """Blow-off Top: parabolic rise then immediate reversal."""
+   374→        if df is None or len(df) < 30:
+   375→            return DangerDetection("blow_off_top", False)
+   376→        recent = df.tail(30)
+   377→        prices = recent["close"].astype(float)
+   378→        # Parabolic: price increased 100%+ then dropped 20%+ from peak
+   379→        total_change = (prices.iloc[-1] - prices.iloc[0]) / prices.iloc[0]
+   380→        max_price = prices.max()
+   381→        drop_from_peak = (max_price - prices.iloc[-1]) / max_price
+   382→        detected = total_change > 1.0 and drop_from_peak > 0.20
+   383→        return DangerDetection(
+   384→            "blow_off_top", detected,
+   385→            "high" if detected else "low",
+   386→            0.8 if detected else 0,
+   387→            f"صعود Parabolic ({total_change:.0%}) ثم هبوط {drop_from_peak:.0%}",
+   388→            {"total_change": total_change, "drop_from_peak": drop_from_peak},
+   389→            "AVOID" if detected else "CAUTION"
+   390→        )
+   391→
+   392→    def detect_capitulation(self, df: pd.DataFrame) -> DangerDetection:
+   393→        """Capitulation: panic selling with high volume."""
+   394→        if df is None or len(df) < 20:
+   395→            return DangerDetection("capitulation", False)
+   396→        recent = df.tail(20)
+   397→        price_change = (recent["close"].iloc[-1] - recent["open"].iloc[0]) / recent["open"].iloc[0]
+   398→        vol = recent["volume"].astype(float)
+   399→        vol_spike = vol.iloc[-5:].mean() / max(vol.iloc[-20:-5].mean(), 1e-9)
+   400→        detected = price_change < -0.20 and vol_spike > 2
+   401→        return DangerDetection(
+   402→            "capitulation", detected,
+   403→            "high" if detected else "low",
+   404→            0.7 if detected else 0,
+   405→            f"بيع ذعرّي: {price_change:.1%} مع حجم {vol_spike:.1f}x",
+   406→            {"price_change": price_change, "vol_spike": vol_spike},
+   407→            "AVOID" if detected else "CAUTION"
+   408→        )
+   409→
+   410→    def detect_dead_cat_bounce(self, df: pd.DataFrame) -> DangerDetection:
+   411→        """Dead Cat Bounce: brief recovery in downtrend."""
+   412→        if df is None or len(df) < 100:
+   413→            return DangerDetection("dead_cat_bounce", False)
+   414→        # Long-term downtrend + brief recovery
+   415→        long_trend = (df["close"].iloc[-1] - df["close"].iloc[-100]) / df["close"].iloc[-100]
+   416→        short_trend = (df["close"].iloc[-1] - df["close"].iloc[-10]) / df["close"].iloc[-10]
+   417→        detected = long_trend < -0.20 and short_trend > 0.05
+   418→        return DangerDetection(
+   419→            "dead_cat_bounce", detected,
+   420→            "medium" if detected else "low",
+   421→            0.6 if detected else 0,
+   422→            f"اتجاه هابط طويل ({long_trend:.1%}) مع ارتفاع مؤقت ({short_trend:.1%})",
+   423→            {"long_trend": long_trend, "short_trend": short_trend},
+   424→            "CAUTION" if detected else "SAFE"
+   425→        )
+   426→
+   427→    def detect_bear_trap(self, df: pd.DataFrame) -> DangerDetection:
+   428→        """Bear Trap: price drops then immediately reverses up."""
+   429→        if df is None or len(df) < 10:
+   430→            return DangerDetection("bear_trap", False)
+   431→        recent = df.tail(10)
+   432→        # Quick drop then recovery
+   433→        min_price = recent["low"].min()
+   434→        current = recent["close"].iloc[-1]
+   435→        drop = (recent["open"].iloc[0] - min_price) / recent["open"].iloc[0]
+   436→        recovery = (current - min_price) / min_price
+   437→        detected = drop > 0.05 and recovery > 0.05  # Ultimate-bot: was 0.5 (50%!), should be 5%
+   438→        return DangerDetection(
+   439→            "bear_trap", detected,
+   440→            "medium" if detected else "low",
+   441→            0.6 if detected else 0,
+   442→            f"فخ هابط: انخفاض {drop:.1%} ثم تعافي {recovery:.1%}",
+   443→            {"drop": drop, "recovery": recovery},
+   444→            "MONITOR" if detected else "SAFE"
+   445→        )
+   446→
+   447→    def detect_bull_trap(self, df: pd.DataFrame) -> DangerDetection:
+   448→        """Bull Trap: price spikes then immediately reverses down."""
+   449→        if df is None or len(df) < 10:
+   450→            return DangerDetection("bull_trap", False)
+   451→        recent = df.tail(10)
+   452→        max_price = recent["high"].max()
+   453→        current = recent["close"].iloc[-1]
+   454→        spike = (max_price - recent["open"].iloc[0]) / recent["open"].iloc[0]
+   455→        drop = (max_price - current) / max_price
+   456→        detected = spike > 0.05 and drop > 0.05  # Ultimate-bot: was 0.5 (50%!), should be 5%
+   457→        return DangerDetection(
+   458→            "bull_trap", detected,
+   459→            "high" if detected else "low",
+   460→            0.7 if detected else 0,
+   461→            f"فخ صاعد: ارتفاع {spike:.1%} ثم هبوط {drop:.1%}",
+   462→            {"spike": spike, "drop": drop},
+   463→            "AVOID" if detected else "CAUTION"
+   464→        )
+   465→
+   466→    def detect_stop_hunting(self, df: pd.DataFrame) -> DangerDetection:
+   467→        """Stop Hunting: price spikes to trigger stops then reverses."""
+   468→        if df is None or len(df) < 30:
+   469→            return DangerDetection("stop_hunting", False)
+   470→        recent = df.tail(30)
+   471→        # Detect: wick below recent low, then close back above
+   472→        recent_low = recent["low"].iloc[:-1].min()
+   473→        last_low = recent["low"].iloc[-1]
+   474→        last_close = recent["close"].iloc[-1]
+   475→        # Wick below support then close above
+   476→        detected = last_low < recent_low * 0.98 and last_close > recent_low
+   477→        return DangerDetection(
+   478→            "stop_hunting", detected,
+   479→            "medium" if detected else "low",
+   480→            0.6 if detected else 0,
+   481→            "صيد أوامر الإيقاف: اختراق أسفل الدعم ثم إغلاق فوقه",
+   482→            {"recent_low": recent_low, "last_low": last_low, "last_close": last_close},
+   483→            "CAUTION" if detected else "SAFE"
+   484→        )
+   485→
+   486→    def detect_fake_breakout(self, df: pd.DataFrame) -> DangerDetection:
+   487→        """Fake Breakout: price breaks resistance then immediately reverses."""
+   488→        if df is None or len(df) < 30:
+   489→            return DangerDetection("fake_breakout", False)
+   490→        recent = df.tail(30)
+   491→        resistance = recent["high"].iloc[:-5].max()
+   492→        # Check if we broke resistance in last 5 candles but closed below
+   493→        last_5 = recent.tail(5)
+   494→        broke = (last_5["high"] > resistance).any()
+   495→        closed_below = last_5["close"].iloc[-1] < resistance
+   496→        detected = broke and closed_below
+   497→        return DangerDetection(
+   498→            "fake_breakout", detected,
+   499→            "high" if detected else "low",
+   500→            0.8 if detected else 0,
+   501→            "اختراق وهمي: تجاوز المقاومة ثم إغلاق دونها",
+   502→            {"resistance": resistance, "broke": broke, "closed_below": closed_below},
+   503→            "AVOID" if detected else "CAUTION"
+   504→        )
+   505→
+   506→    # =====================================================================
+   507→    # Liquidity dangers
+   508→    # =====================================================================
+   509→
+   510→    def detect_low_liquidity_trap(self, token) -> DangerDetection:
+   511→        """Low Liquidity Trap: high slippage expected."""
+   512→        if not token:
+   513→            return DangerDetection("low_liquidity_trap", False)
+   514→        liq = float(token.liquidity_usd or 0) if hasattr(token, 'liquidity_usd') else 0
+   515→        if liq == 0:
+   516→            return DangerDetection("low_liquidity_trap", False)
+   517→        detected = liq < 50000
+   518→        severity = "critical" if liq < 10000 else ("high" if liq < 30000 else "medium")
+   519→        return DangerDetection(
+   520→            "low_liquidity_trap", detected,
+   521→            severity if detected else "low",
+   522→            1 - (liq / 50000) if detected else 0,
+   523→            f"سيولة منخفضة (${liq:,.0f}) - انزلاق سعري متوقع",
+   524→            {"liquidity_usd": liq},
+   525→            "AVOID" if detected else "SAFE"
+   526→        )
+   527→
+   528→    def detect_slippage_trap(self, token) -> DangerDetection:
+   529→        """Slippage Trap: trade size vs liquidity ratio bad."""
+   530→        if not token:
+   531→            return DangerDetection("slippage_trap", False)
+   532→        liq = float(token.liquidity_usd or 0) if hasattr(token, 'liquidity_usd') else 0
+   533→        vol_24h = float(token.volume_24h_usd or 0) if hasattr(token, 'volume_24h_usd') else 0
+   534→        if liq == 0:
+   535→            return DangerDetection("slippage_trap", False)
+   536→        # Estimate slippage for $1000 trade
+   537→        slippage_pct = 200 * 1000 / liq  # rough estimate
+   538→        detected = slippage_pct > 2
+   539→        return DangerDetection(
+   540→            "slippage_trap", detected,
+   541→            "high" if slippage_pct > 5 else ("medium" if detected else "low"),
+   542→            min(slippage_pct / 10, 1.0),
+   543→            f"انزلاق سعري متوقع {slippage_pct:.2f}% لصفقة $1000",
+   544→            {"slippage_pct": slippage_pct, "liquidity": liq},
+   545→            "AVOID" if detected else "CAUTION"
+   546→        )
+   547→
+   548→    def detect_whale_manipulation(self, onchain: Dict, df: pd.DataFrame) -> DangerDetection:
+   549→        """Whale Manipulation: large holders can move price."""
+   550→        if not onchain:
+   551→            return DangerDetection("whale_manipulation", False)
+   552→        top_10_pct = onchain.get("top_10_pct", 0)
+   553→        whale_concentration = onchain.get("whale_concentration", "low")
+   554→        detected = top_10_pct > 60 or whale_concentration == "high"
+   555→        severity = "high" if top_10_pct > 80 else ("medium" if detected else "low")
+   556→        return DangerDetection(
+   557→            "whale_manipulation", detected,
+   558→            severity,
+   559→            top_10_pct / 100 if detected else 0,
+   560→            f"تركيز الحيازة: top 10 = {top_10_pct:.1f}%",
+   561→            {"top_10_pct": top_10_pct, "whale_concentration": whale_concentration},
+   562→            "AVOID" if detected else "CAUTION"
+   563→        )
+   564→
+   565→    # =====================================================================
+   566→    # Insider dangers
+   567→    # =====================================================================
+   568→
+   569→    def detect_insider_trading(self, onchain: Dict) -> DangerDetection:
+   570→        """Insider Trading: wallets bought very early."""
+   571→        if not onchain:
+   572→            return DangerDetection("insider_trading", False)
+   573→        insider_prob = onchain.get("insider_activity_probability", 0)
+   574→        early_wallet = onchain.get("early_wallet_activity", False)
+   575→        detected = insider_prob > 0.5 or early_wallet
+   576→        return DangerDetection(
+   577→            "insider_trading", detected,
+   578→            "high" if detected else "low",
+   579→            insider_prob,
+   580→            "نشاط insider محتمل - محافظ اشترت مبكراً",
+   581→            {"insider_prob": insider_prob, "early_wallet": early_wallet},
+   582→            "AVOID" if detected else "CAUTION"
+   583→        )
+   584→
+   585→    def detect_flash_loan_attack(self, df: pd.DataFrame, onchain: Dict) -> DangerDetection:
+   586→        """Flash Loan Attack: borrowed funds used to manipulate price."""
+   587→        if df is None or len(df) < 5:
+   588→            return DangerDetection("flash_loan_attack", False)
+   589→        # Detect: massive volume spike in 1-2 candles with extreme price movement
+   590→        recent = df.tail(5)
+   591→        vols = recent["volume"].astype(float)
+   592→        avg_vol = vols.mean()
+   593→        max_vol = vols.max()
+   594→        price_change = abs((recent["close"].iloc[-1] - recent["close"].iloc[0]) / recent["close"].iloc[0])
+   595→        detected = max_vol > avg_vol * 5 and price_change > 0.20
+   596→        return DangerDetection(
+   597→            "flash_loan_attack", detected,
+   598→            "critical" if detected else "low",
+   599→            0.9 if detected else 0,
+   600→            f"هجوم Flash Loan محتمل: حجم {max_vol/avg_vol:.1f}x وحركة {price_change:.1%}",
+   601→            {"max_vol": max_vol, "avg_vol": avg_vol, "price_change": price_change},
+   602→            "AVOID" if detected else "MONITOR"
+   603→        )
+   604→
+   605→
+   606→# Convenience function to get summary
+   607→def get_danger_summary(detections: List[DangerDetection]) -> Dict:
+   608→    """Get summary of all detected dangers."""
+   609→    detected = [d for d in detections if d.detected]
+   610→    critical = [d for d in detected if d.severity == "critical"]
+   611→    high = [d for d in detected if d.severity == "high"]
+   612→    medium = [d for d in detected if d.severity == "medium"]
+   613→
+   614→    # Overall recommendation
+   615→    if critical:
+   616→        recommendation = "AVOID"
+   617→    elif len(high) >= 2:
+   618→        recommendation = "AVOID"
+   619→    elif high or len(medium) >= 3:
+   620→        recommendation = "CAUTION"
+   621→    elif medium:
+   622→        recommendation = "MONITOR"
+   623→    else:
+   624→        recommendation = "SAFE"
+   625→
+   626→    return {
+   627→        "total_dangers": len(detected),
+   628→        "critical_count": len(critical),
+   629→        "high_count": len(high),
+   630→        "medium_count": len(medium),
+   631→        "detected_patterns": [d.pattern_name for d in detected],
+   632→        "critical_patterns": [d.pattern_name for d in critical],
+   633→        "recommendation": recommendation,
+   634→        "should_avoid": recommendation == "AVOID",
+   635→    }
+   636→

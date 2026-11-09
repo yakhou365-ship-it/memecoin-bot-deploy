@@ -1,0 +1,1684 @@
+{
+  "simulation_date": "2026-11-01T23:00:00.977455",
+  "platform": "Pump.fun (via PumpPortal Lightning)",
+  "initial_capital": 20.0,
+  "sol_price_usd": 200.0,
+  "round_trip_cost_pct": 3.0,
+  "stats_used": {
+    "total_tokens_launched_daily": 30000,
+    "tokens_fail_day1_pct": 69.0,
+    "tokens_rug_pct": 15.0,
+    "tokens_graduate_pct": 1.5,
+    "tokens_pump_then_dump_pct": 12.0,
+    "tokens_moonshot_pct": 0.5,
+    "wallets_profit_over_10k_pct": 0.41,
+    "avg_token_lifetime_minutes": 45,
+    "bonding_curve_fee_pct": 0.95,
+    "pumportal_lightning_fee_pct": 1.0,
+    "slippage_pct": 0.5,
+    "sol_price_usd": 200.0
+  },
+  "simulations": [
+    {
+      "initial_capital": 20.0,
+      "ending_capital": 0.9771066084615806,
+      "net_pnl": -19.02289339153842,
+      "roi_pct": -95.1144669576921,
+      "total_trades": 36,
+      "wins": 6,
+      "losses": 30,
+      "win_rate": 16.666666666666664,
+      "profit_factor": 0.1763575037777595,
+      "trades": [
+        {
+          "day": 1,
+          "token_type": "rug",
+          "entry_progress_pct": 27.8,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 18.97,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 1,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 31.1,
+          "multiplier": 0.33,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3044,
+          "pnl_usd": -0.6956,
+          "capital_after": 18.2744,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 2,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 41.9,
+          "multiplier": 1.27,
+          "entry_usd": 1.0,
+          "exit_usd": 1.2426,
+          "pnl_usd": 0.2426,
+          "capital_after": 18.517,
+          "description": "Pumped 2.3x then dumped"
+        },
+        {
+          "day": 3,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 27.3,
+          "multiplier": 0.37,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3386,
+          "pnl_usd": -0.6614,
+          "capital_after": 17.8556,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 4,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 25.7,
+          "multiplier": 0.39,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3558,
+          "pnl_usd": -0.6442,
+          "capital_after": 17.2114,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 4,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 41.2,
+          "multiplier": 0.27,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2352,
+          "pnl_usd": -0.7648,
+          "capital_after": 16.4466,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 36.2,
+          "multiplier": 0.3,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2661,
+          "pnl_usd": -0.7339,
+          "capital_after": 15.7126,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 6,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 44.0,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2207,
+          "pnl_usd": -0.7793,
+          "capital_after": 14.9334,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 7,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 33.5,
+          "multiplier": 0.32,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2855,
+          "pnl_usd": -0.7145,
+          "capital_after": 14.2189,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 7,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 48.9,
+          "multiplier": 0.23,
+          "entry_usd": 1.0,
+          "exit_usd": 0.1977,
+          "pnl_usd": -0.8023,
+          "capital_after": 13.4165,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 34.5,
+          "multiplier": 0.31,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2782,
+          "pnl_usd": -0.7218,
+          "capital_after": 12.6947,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 9,
+          "token_type": "rug",
+          "entry_progress_pct": 40.1,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 11.6647,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 9,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.2,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2245,
+          "pnl_usd": -0.7755,
+          "capital_after": 10.8892,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 10,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 27.0,
+          "multiplier": 0.37,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3423,
+          "pnl_usd": -0.6577,
+          "capital_after": 10.2315,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 10,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 40.7,
+          "multiplier": 1.66,
+          "entry_usd": 1.0,
+          "exit_usd": 1.6317,
+          "pnl_usd": 0.6317,
+          "capital_after": 10.8632,
+          "description": "Pumped 3.1x then dumped"
+        },
+        {
+          "day": 11,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 26.1,
+          "multiplier": 0.38,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3507,
+          "pnl_usd": -0.6493,
+          "capital_after": 10.2139,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 49.6,
+          "multiplier": 2.44,
+          "entry_usd": 1.0,
+          "exit_usd": 2.4077,
+          "pnl_usd": 1.4077,
+          "capital_after": 11.6216,
+          "description": "Pumped 4.6x then dumped"
+        },
+        {
+          "day": 12,
+          "token_type": "rug",
+          "entry_progress_pct": 36.3,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 10.5916,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 13,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 34.3,
+          "multiplier": 0.31,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2799,
+          "pnl_usd": -0.7201,
+          "capital_after": 9.8715,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 42.5,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2281,
+          "pnl_usd": -0.7719,
+          "capital_after": 9.0997,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 26.8,
+          "multiplier": 0.37,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3442,
+          "pnl_usd": -0.6558,
+          "capital_after": 8.4438,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.2,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2246,
+          "pnl_usd": -0.7754,
+          "capital_after": 7.6684,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 34.5,
+          "multiplier": 0.31,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2783,
+          "pnl_usd": -0.7217,
+          "capital_after": 6.9467,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 16,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 42.2,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.23,
+          "pnl_usd": -0.77,
+          "capital_after": 6.1766,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 16,
+          "token_type": "rug",
+          "entry_progress_pct": 33.1,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 5.1466,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 17,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 30.7,
+          "multiplier": 0.34,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3077,
+          "pnl_usd": -0.6923,
+          "capital_after": 4.4543,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 18,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 35.0,
+          "multiplier": 0.3,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2744,
+          "pnl_usd": -0.7256,
+          "capital_after": 3.7287,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 18,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 47.8,
+          "multiplier": 0.23,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2025,
+          "pnl_usd": -0.7975,
+          "capital_after": 2.9312,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 32.9,
+          "multiplier": 0.32,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2904,
+          "pnl_usd": -0.7096,
+          "capital_after": 2.2216,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 34.9,
+          "multiplier": 1.81,
+          "entry_usd": 1.0,
+          "exit_usd": 1.7848,
+          "pnl_usd": 0.7848,
+          "capital_after": 3.0063,
+          "description": "Pumped 3.4x then dumped"
+        },
+        {
+          "day": 20,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.6,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2225,
+          "pnl_usd": -0.7775,
+          "capital_after": 2.2288,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 21,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 39.6,
+          "multiplier": 1.72,
+          "entry_usd": 1.0,
+          "exit_usd": 1.691,
+          "pnl_usd": 0.691,
+          "capital_after": 2.9199,
+          "description": "Pumped 3.2x then dumped"
+        },
+        {
+          "day": 21,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 49.9,
+          "multiplier": 0.22,
+          "entry_usd": 1.0,
+          "exit_usd": 0.1934,
+          "pnl_usd": -0.8066,
+          "capital_after": 2.1133,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 22,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 43.9,
+          "multiplier": 1.35,
+          "entry_usd": 1.0,
+          "exit_usd": 1.3153,
+          "pnl_usd": 0.3153,
+          "capital_after": 2.4286,
+          "description": "Pumped 2.5x then dumped"
+        },
+        {
+          "day": 23,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 35.6,
+          "multiplier": 0.3,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2707,
+          "pnl_usd": -0.7293,
+          "capital_after": 1.6992,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 23,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 34.5,
+          "multiplier": 0.31,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2779,
+          "pnl_usd": -0.7221,
+          "capital_after": 0.9771,
+          "description": "Token died on day 1"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "trades": 2,
+          "pnl": -1.7256,
+          "capital": 18.2744
+        },
+        {
+          "day": 2,
+          "trades": 1,
+          "pnl": 0.2426,
+          "capital": 18.517
+        },
+        {
+          "day": 3,
+          "trades": 1,
+          "pnl": -0.6614,
+          "capital": 17.8556
+        },
+        {
+          "day": 4,
+          "trades": 2,
+          "pnl": -1.409,
+          "capital": 16.4466
+        },
+        {
+          "day": 5,
+          "trades": 1,
+          "pnl": -0.7339,
+          "capital": 15.7126
+        },
+        {
+          "day": 6,
+          "trades": 1,
+          "pnl": -0.7793,
+          "capital": 14.9334
+        },
+        {
+          "day": 7,
+          "trades": 2,
+          "pnl": -1.5168,
+          "capital": 13.4165
+        },
+        {
+          "day": 8,
+          "trades": 1,
+          "pnl": -0.7218,
+          "capital": 12.6947
+        },
+        {
+          "day": 9,
+          "trades": 2,
+          "pnl": -1.8055,
+          "capital": 10.8892
+        },
+        {
+          "day": 10,
+          "trades": 2,
+          "pnl": -0.026,
+          "capital": 10.8632
+        },
+        {
+          "day": 11,
+          "trades": 1,
+          "pnl": -0.6493,
+          "capital": 10.2139
+        },
+        {
+          "day": 12,
+          "trades": 2,
+          "pnl": 0.3777,
+          "capital": 10.5916
+        },
+        {
+          "day": 13,
+          "trades": 1,
+          "pnl": -0.7201,
+          "capital": 9.8715
+        },
+        {
+          "day": 14,
+          "trades": 2,
+          "pnl": -1.4277,
+          "capital": 8.4438
+        },
+        {
+          "day": 15,
+          "trades": 2,
+          "pnl": -1.4972,
+          "capital": 6.9467
+        },
+        {
+          "day": 16,
+          "trades": 2,
+          "pnl": -1.8,
+          "capital": 5.1466
+        },
+        {
+          "day": 17,
+          "trades": 1,
+          "pnl": -0.6923,
+          "capital": 4.4543
+        },
+        {
+          "day": 18,
+          "trades": 2,
+          "pnl": -1.5232,
+          "capital": 2.9312
+        },
+        {
+          "day": 19,
+          "trades": 2,
+          "pnl": 0.0751,
+          "capital": 3.0063
+        },
+        {
+          "day": 20,
+          "trades": 1,
+          "pnl": -0.7775,
+          "capital": 2.2288
+        },
+        {
+          "day": 21,
+          "trades": 2,
+          "pnl": -0.1155,
+          "capital": 2.1133
+        },
+        {
+          "day": 22,
+          "trades": 1,
+          "pnl": 0.3153,
+          "capital": 2.4286
+        },
+        {
+          "day": 23,
+          "trades": 2,
+          "pnl": -1.4514,
+          "capital": 0.9771
+        },
+        {
+          "day": 24,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        },
+        {
+          "day": 25,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        },
+        {
+          "day": 26,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        },
+        {
+          "day": 27,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        },
+        {
+          "day": 28,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        },
+        {
+          "day": 29,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        },
+        {
+          "day": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.9771
+        }
+      ],
+      "stats_used": {
+        "total_tokens_launched_daily": 30000,
+        "tokens_fail_day1_pct": 69.0,
+        "tokens_rug_pct": 15.0,
+        "tokens_graduate_pct": 1.5,
+        "tokens_pump_then_dump_pct": 12.0,
+        "tokens_moonshot_pct": 0.5,
+        "wallets_profit_over_10k_pct": 0.41,
+        "avg_token_lifetime_minutes": 45,
+        "bonding_curve_fee_pct": 0.95,
+        "pumportal_lightning_fee_pct": 1.0,
+        "slippage_pct": 0.5,
+        "sol_price_usd": 200.0
+      }
+    },
+    {
+      "initial_capital": 20.0,
+      "ending_capital": 0.26910553252713343,
+      "net_pnl": -19.730894467472865,
+      "roi_pct": -98.65447233736433,
+      "total_trades": 31,
+      "wins": 4,
+      "losses": 27,
+      "win_rate": 12.903225806451612,
+      "profit_factor": 0.11962055533493668,
+      "trades": [
+        {
+          "day": 1,
+          "token_type": "rug",
+          "entry_progress_pct": 31.7,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 18.97,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 2,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 27.7,
+          "multiplier": 1.21,
+          "entry_usd": 1.0,
+          "exit_usd": 1.1809,
+          "pnl_usd": 0.1809,
+          "capital_after": 19.1509,
+          "description": "Pumped 2.1x then dumped"
+        },
+        {
+          "day": 2,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 33.3,
+          "multiplier": 1.37,
+          "entry_usd": 1.0,
+          "exit_usd": 1.3432,
+          "pnl_usd": 0.3432,
+          "capital_after": 19.4941,
+          "description": "Pumped 2.5x then dumped"
+        },
+        {
+          "day": 3,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 42.5,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2282,
+          "pnl_usd": -0.7718,
+          "capital_after": 18.7222,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 3,
+          "token_type": "rug",
+          "entry_progress_pct": 47.6,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 17.6922,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 4,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 34.4,
+          "multiplier": 0.31,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2786,
+          "pnl_usd": -0.7214,
+          "capital_after": 16.9708,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 4,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.3,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2242,
+          "pnl_usd": -0.7758,
+          "capital_after": 16.195,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 27.3,
+          "multiplier": 0.37,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3388,
+          "pnl_usd": -0.6612,
+          "capital_after": 15.5338,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 6,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 32.3,
+          "multiplier": 0.32,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2949,
+          "pnl_usd": -0.7051,
+          "capital_after": 14.8287,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 7,
+          "token_type": "rug",
+          "entry_progress_pct": 31.6,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 13.7987,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 7,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 44.2,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2195,
+          "pnl_usd": -0.7805,
+          "capital_after": 13.0182,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 30.2,
+          "multiplier": 0.34,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3125,
+          "pnl_usd": -0.6875,
+          "capital_after": 12.3306,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "token_type": "rug",
+          "entry_progress_pct": 38.2,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 11.3006,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 9,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 25.3,
+          "multiplier": 2.11,
+          "entry_usd": 1.0,
+          "exit_usd": 2.0827,
+          "pnl_usd": 1.0827,
+          "capital_after": 12.3833,
+          "description": "Pumped 3.9x then dumped"
+        },
+        {
+          "day": 9,
+          "token_type": "rug",
+          "entry_progress_pct": 38.5,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 11.3533,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 10,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 47.3,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.205,
+          "pnl_usd": -0.795,
+          "capital_after": 10.5584,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 10,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 41.7,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2327,
+          "pnl_usd": -0.7673,
+          "capital_after": 9.791,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 11,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 46.2,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.21,
+          "pnl_usd": -0.79,
+          "capital_after": 9.001,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "token_type": "pump_dump",
+          "entry_progress_pct": 45.5,
+          "multiplier": 2.1,
+          "entry_usd": 1.0,
+          "exit_usd": 2.0741,
+          "pnl_usd": 1.0741,
+          "capital_after": 10.0751,
+          "description": "Pumped 4.0x then dumped"
+        },
+        {
+          "day": 12,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 33.4,
+          "multiplier": 0.32,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2861,
+          "pnl_usd": -0.7139,
+          "capital_after": 9.3612,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 13,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.1,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2253,
+          "pnl_usd": -0.7747,
+          "capital_after": 8.5866,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 25.4,
+          "multiplier": 0.39,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3585,
+          "pnl_usd": -0.6415,
+          "capital_after": 7.9451,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 45.8,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2118,
+          "pnl_usd": -0.7882,
+          "capital_after": 7.1569,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 49.9,
+          "multiplier": 0.22,
+          "entry_usd": 1.0,
+          "exit_usd": 0.1934,
+          "pnl_usd": -0.8066,
+          "capital_after": 6.3503,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "token_type": "rug",
+          "entry_progress_pct": 37.5,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 5.3203,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 16,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 41.0,
+          "multiplier": 0.27,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2368,
+          "pnl_usd": -0.7632,
+          "capital_after": 4.5571,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 17,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.0,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2257,
+          "pnl_usd": -0.7743,
+          "capital_after": 3.7828,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 17,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 49.5,
+          "multiplier": 0.23,
+          "entry_usd": 1.0,
+          "exit_usd": 0.1952,
+          "pnl_usd": -0.8048,
+          "capital_after": 2.978,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 18,
+          "token_type": "rug",
+          "entry_progress_pct": 36.1,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 1.948,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 18,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 26.1,
+          "multiplier": 0.38,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3511,
+          "pnl_usd": -0.6489,
+          "capital_after": 1.2991,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 19,
+          "token_type": "rug",
+          "entry_progress_pct": 25.5,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 0.2691,
+          "description": "Rug pull - liquidity removed"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "trades": 1,
+          "pnl": -1.03,
+          "capital": 18.97
+        },
+        {
+          "day": 2,
+          "trades": 2,
+          "pnl": 0.5241,
+          "capital": 19.4941
+        },
+        {
+          "day": 3,
+          "trades": 2,
+          "pnl": -1.8018,
+          "capital": 17.6922
+        },
+        {
+          "day": 4,
+          "trades": 2,
+          "pnl": -1.4972,
+          "capital": 16.195
+        },
+        {
+          "day": 5,
+          "trades": 1,
+          "pnl": -0.6612,
+          "capital": 15.5338
+        },
+        {
+          "day": 6,
+          "trades": 1,
+          "pnl": -0.7051,
+          "capital": 14.8287
+        },
+        {
+          "day": 7,
+          "trades": 2,
+          "pnl": -1.8105,
+          "capital": 13.0182
+        },
+        {
+          "day": 8,
+          "trades": 2,
+          "pnl": -1.7175,
+          "capital": 11.3006
+        },
+        {
+          "day": 9,
+          "trades": 2,
+          "pnl": 0.0527,
+          "capital": 11.3533
+        },
+        {
+          "day": 10,
+          "trades": 2,
+          "pnl": -1.5623,
+          "capital": 9.791
+        },
+        {
+          "day": 11,
+          "trades": 1,
+          "pnl": -0.79,
+          "capital": 9.001
+        },
+        {
+          "day": 12,
+          "trades": 2,
+          "pnl": 0.3603,
+          "capital": 9.3612
+        },
+        {
+          "day": 13,
+          "trades": 1,
+          "pnl": -0.7747,
+          "capital": 8.5866
+        },
+        {
+          "day": 14,
+          "trades": 2,
+          "pnl": -1.4297,
+          "capital": 7.1569
+        },
+        {
+          "day": 15,
+          "trades": 2,
+          "pnl": -1.8366,
+          "capital": 5.3203
+        },
+        {
+          "day": 16,
+          "trades": 1,
+          "pnl": -0.7632,
+          "capital": 4.5571
+        },
+        {
+          "day": 17,
+          "trades": 2,
+          "pnl": -1.5791,
+          "capital": 2.978
+        },
+        {
+          "day": 18,
+          "trades": 2,
+          "pnl": -1.6789,
+          "capital": 1.2991
+        },
+        {
+          "day": 19,
+          "trades": 1,
+          "pnl": -1.03,
+          "capital": 0.2691
+        },
+        {
+          "day": 20,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 21,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 22,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 23,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 24,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 25,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 26,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 27,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 28,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 29,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        },
+        {
+          "day": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.2691
+        }
+      ],
+      "stats_used": {
+        "total_tokens_launched_daily": 30000,
+        "tokens_fail_day1_pct": 69.0,
+        "tokens_rug_pct": 15.0,
+        "tokens_graduate_pct": 1.5,
+        "tokens_pump_then_dump_pct": 12.0,
+        "tokens_moonshot_pct": 0.5,
+        "wallets_profit_over_10k_pct": 0.41,
+        "avg_token_lifetime_minutes": 45,
+        "bonding_curve_fee_pct": 0.95,
+        "pumportal_lightning_fee_pct": 1.0,
+        "slippage_pct": 0.5,
+        "sol_price_usd": 200.0
+      }
+    },
+    {
+      "initial_capital": 20.0,
+      "ending_capital": 0.6368080619053396,
+      "net_pnl": -19.363191938094662,
+      "roi_pct": -96.8159596904733,
+      "total_trades": 27,
+      "wins": 1,
+      "losses": 26,
+      "win_rate": 3.7037037037037033,
+      "profit_factor": 0.09905127047864544,
+      "trades": [
+        {
+          "day": 1,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 42.7,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2275,
+          "pnl_usd": -0.7725,
+          "capital_after": 19.2275,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 1,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 28.3,
+          "multiplier": 0.36,
+          "entry_usd": 1.0,
+          "exit_usd": 0.329,
+          "pnl_usd": -0.671,
+          "capital_after": 18.5565,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 2,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 32.7,
+          "multiplier": 0.32,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2916,
+          "pnl_usd": -0.7084,
+          "capital_after": 17.8481,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 2,
+          "token_type": "rug",
+          "entry_progress_pct": 40.2,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 16.8181,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 3,
+          "token_type": "graduate",
+          "entry_progress_pct": 32.5,
+          "multiplier": 3.16,
+          "entry_usd": 1.0,
+          "exit_usd": 3.1288,
+          "pnl_usd": 2.1288,
+          "capital_after": 18.9469,
+          "description": "Graduated to Raydium (with sell-off)"
+        },
+        {
+          "day": 3,
+          "token_type": "rug",
+          "entry_progress_pct": 31.6,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 17.9169,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 4,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 36.5,
+          "multiplier": 0.29,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2644,
+          "pnl_usd": -0.7356,
+          "capital_after": 17.1813,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 4,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 37.9,
+          "multiplier": 0.29,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2554,
+          "pnl_usd": -0.7446,
+          "capital_after": 16.4366,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 45.9,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2113,
+          "pnl_usd": -0.7887,
+          "capital_after": 15.648,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 5,
+          "token_type": "rug",
+          "entry_progress_pct": 46.0,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 14.618,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 6,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 43.3,
+          "multiplier": 0.25,
+          "entry_usd": 1.0,
+          "exit_usd": 0.224,
+          "pnl_usd": -0.776,
+          "capital_after": 13.842,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 6,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 30.3,
+          "multiplier": 0.34,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3117,
+          "pnl_usd": -0.6883,
+          "capital_after": 13.1537,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 7,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 29.8,
+          "multiplier": 0.35,
+          "entry_usd": 1.0,
+          "exit_usd": 0.3158,
+          "pnl_usd": -0.6842,
+          "capital_after": 12.4695,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 8,
+          "token_type": "rug",
+          "entry_progress_pct": 27.5,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 11.4395,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 8,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 38.0,
+          "multiplier": 0.28,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2544,
+          "pnl_usd": -0.7456,
+          "capital_after": 10.6939,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 9,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 41.6,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2335,
+          "pnl_usd": -0.7665,
+          "capital_after": 9.9274,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 9,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 46.9,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2067,
+          "pnl_usd": -0.7933,
+          "capital_after": 9.1341,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 10,
+          "token_type": "rug",
+          "entry_progress_pct": 26.1,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 8.1041,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 10,
+          "token_type": "rug",
+          "entry_progress_pct": 32.8,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 7.0741,
+          "description": "Rug pull - liquidity removed"
+        },
+        {
+          "day": 11,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 38.4,
+          "multiplier": 0.28,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2521,
+          "pnl_usd": -0.7479,
+          "capital_after": 6.3262,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 11,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 45.6,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2129,
+          "pnl_usd": -0.7871,
+          "capital_after": 5.5391,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 46.8,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2071,
+          "pnl_usd": -0.7929,
+          "capital_after": 4.7461,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 12,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 41.5,
+          "multiplier": 0.26,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2339,
+          "pnl_usd": -0.7661,
+          "capital_after": 3.98,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 13,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 34.8,
+          "multiplier": 0.31,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2758,
+          "pnl_usd": -0.7242,
+          "capital_after": 3.2558,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 49.2,
+          "multiplier": 0.23,
+          "entry_usd": 1.0,
+          "exit_usd": 0.1966,
+          "pnl_usd": -0.8034,
+          "capital_after": 2.4524,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 14,
+          "token_type": "fail_day1",
+          "entry_progress_pct": 45.3,
+          "multiplier": 0.24,
+          "entry_usd": 1.0,
+          "exit_usd": 0.2144,
+          "pnl_usd": -0.7856,
+          "capital_after": 1.6668,
+          "description": "Token died on day 1"
+        },
+        {
+          "day": 15,
+          "token_type": "rug",
+          "entry_progress_pct": 38.1,
+          "multiplier": 0.0,
+          "entry_usd": 1.0,
+          "exit_usd": -0.03,
+          "pnl_usd": -1.03,
+          "capital_after": 0.6368,
+          "description": "Rug pull - liquidity removed"
+        }
+      ],
+      "daily_results": [
+        {
+          "day": 1,
+          "trades": 2,
+          "pnl": -1.4435,
+          "capital": 18.5565
+        },
+        {
+          "day": 2,
+          "trades": 2,
+          "pnl": -1.7384,
+          "capital": 16.8181
+        },
+        {
+          "day": 3,
+          "trades": 2,
+          "pnl": 1.0988,
+          "capital": 17.9169
+        },
+        {
+          "day": 4,
+          "trades": 2,
+          "pnl": -1.4802,
+          "capital": 16.4366
+        },
+        {
+          "day": 5,
+          "trades": 2,
+          "pnl": -1.8187,
+          "capital": 14.618
+        },
+        {
+          "day": 6,
+          "trades": 2,
+          "pnl": -1.4643,
+          "capital": 13.1537
+        },
+        {
+          "day": 7,
+          "trades": 1,
+          "pnl": -0.6842,
+          "capital": 12.4695
+        },
+        {
+          "day": 8,
+          "trades": 2,
+          "pnl": -1.7756,
+          "capital": 10.6939
+        },
+        {
+          "day": 9,
+          "trades": 2,
+          "pnl": -1.5598,
+          "capital": 9.1341
+        },
+        {
+          "day": 10,
+          "trades": 2,
+          "pnl": -2.06,
+          "capital": 7.0741
+        },
+        {
+          "day": 11,
+          "trades": 2,
+          "pnl": -1.535,
+          "capital": 5.5391
+        },
+        {
+          "day": 12,
+          "trades": 2,
+          "pnl": -1.5591,
+          "capital": 3.98
+        },
+        {
+          "day": 13,
+          "trades": 1,
+          "pnl": -0.7242,
+          "capital": 3.2558
+        },
+        {
+          "day": 14,
+          "trades": 2,
+          "pnl": -1.589,
+          "capital": 1.6668
+        },
+        {
+          "day": 15,
+          "trades": 1,
+          "pnl": -1.03,
+          "capital": 0.6368
+        },
+        {
+          "day": 16,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 17,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 18,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 19,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 20,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 21,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 22,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 23,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 24,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 25,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 26,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 27,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 28,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 29,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        },
+        {
+          "day": 30,
+          "trades": 0,
+          "pnl": 0.0,
+          "capital": 0.6368
+        }
+      ],
+      "stats_used": {
+        "total_tokens_launched_daily": 30000,
+        "tokens_fail_day1_pct": 69.0,
+        "tokens_rug_pct": 15.0,
+        "tokens_graduate_pct": 1.5,
+        "tokens_pump_then_dump_pct": 12.0,
+        "tokens_moonshot_pct": 0.5,
+        "wallets_profit_over_10k_pct": 0.41,
+        "avg_token_lifetime_minutes": 45,
+        "bonding_curve_fee_pct": 0.95,
+        "pumportal_lightning_fee_pct": 1.0,
+        "slippage_pct": 0.5,
+        "sol_price_usd": 200.0
+      }
+    }
+  ]
+}

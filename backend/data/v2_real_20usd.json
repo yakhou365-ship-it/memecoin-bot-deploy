@@ -1,0 +1,42 @@
+{
+  "test_date": "2026-11-02T11:11:01.068406",
+  "platform": "Binance (REAL 15m data)",
+  "initial_capital": 20.0,
+  "final_capital": 19.91523670247847,
+  "net_pnl": -0.08476329752152978,
+  "roi_pct": -0.4238164876076489,
+  "stats": {
+    "n": 103,
+    "win_rate": 0.5533980582524272,
+    "avg_r": 0.021858271651853525,
+    "expectancy_r": 0.021858271651853525,
+    "expectancy_ci95": [
+      -0.07282693268456922,
+      0.11047652735605572
+    ],
+    "profit_factor": 0.8885632696082989,
+    "return_pct": -0.42381648760765334,
+    "max_drawdown_pct": 1.3059419479124943,
+    "months": 3,
+    "positive_months_pct": 33.33333333333333,
+    "avg_win_r": 0.3834031992499187,
+    "avg_loss_r": -0.4261430516761838
+  },
+  "exit_reasons": {
+    "trail_stop": {
+      "n": 48,
+      "wins": 47,
+      "avg_r": 0.437
+    },
+    "time_stop": {
+      "n": 48,
+      "wins": 10,
+      "avg_r": -0.244
+    },
+    "stop": {
+      "n": 7,
+      "wins": 0,
+      "avg_r": -1.0
+    }
+  }
+}

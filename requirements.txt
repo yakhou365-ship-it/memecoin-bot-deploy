@@ -1,0 +1,56 @@
+# ============================================================
+# Memecoin AI Bot - Python dependencies (LIGHTWEIGHT)
+# Compatible with Python 3.10, 3.11, 3.12, 3.13
+# Optimized for Railway/Render free tier (512MB RAM)
+# ============================================================
+
+# --- Web framework ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# --- Database ---
+sqlalchemy[asyncio]>=2.0.25
+aiosqlite>=0.19.0
+alembic>=1.13.0
+
+# --- HTTP ---
+httpx>=0.26.0
+aiohttp>=3.9.0
+websockets>=12.0
+
+# --- Data analysis (lightweight only) ---
+pandas>=2.1.0
+numpy>=1.24.0
+ta>=0.11.0
+
+# --- Scheduling & logging ---
+apscheduler>=3.10.0
+loguru>=0.7.0
+tenacity>=8.2.0
+orjson>=3.9.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+
+# --- Telegram ---
+python-telegram-bot>=20.0
+
+# --- Utils ---
+tabulate>=0.9.0
+rich>=13.0.0
+
+# --- Testing ---
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# ============================================================
+# REMOVED (too heavy for 512MB RAM):
+# - scikit-learn (100MB+)
+# - xgboost (150MB+)
+# - lightgbm (100MB+)
+# - scipy (50MB+)
+# - joblib
+# Bot now uses Smart Rule-Based Engine (no ML needed)
+# ============================================================

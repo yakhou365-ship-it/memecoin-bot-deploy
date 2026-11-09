@@ -1,0 +1,74 @@
+{
+  "test_date": "2026-11-02T12:55:05.894382",
+  "test_type": "BRUTAL HONEST - 10,000 trades with REAL distribution",
+  "initial_capital": 20.0,
+  "final_capital": 72985.7773458493,
+  "net_pnl": 72965.7773458493,
+  "roi_pct": 364828.88672924653,
+  "total_trades": 3518,
+  "win_rate": 44.855031267765774,
+  "profit_factor": 2.4645445792566694,
+  "outcome_distribution": {
+    "fail_day1": 6900,
+    "slow_growth": 200,
+    "rug": 1500,
+    "pump_dump": 1200,
+    "moonshot": 50,
+    "graduate": 150
+  },
+  "by_type": {
+    "fail_day1": {
+      "n": 1514,
+      "wins": 0,
+      "pnl": -38984.201199999996,
+      "total_entry": 73555.0965
+    },
+    "slow_growth": {
+      "n": 200,
+      "wins": 200,
+      "pnl": 5775.041200000001,
+      "total_entry": 9720.544600000001
+    },
+    "rug": {
+      "n": 426,
+      "wins": 0,
+      "pnl": -10837.2778,
+      "total_entry": 20447.6937
+    },
+    "pump_dump": {
+      "n": 1178,
+      "wins": 1178,
+      "pnl": 72846.0218,
+      "total_entry": 56307.236300000004
+    },
+    "moonshot": {
+      "n": 50,
+      "wins": 50,
+      "pnl": 29648.524600000004,
+      "total_entry": 2408.7901
+    },
+    "graduate": {
+      "n": 150,
+      "wins": 150,
+      "pnl": 14517.668399999995,
+      "total_entry": 7297.3738
+    }
+  },
+  "by_grade": {
+    "B": {
+      "n": 1564,
+      "wins": 860,
+      "pnl": 33130.93130000002
+    },
+    "A": {
+      "n": 1727,
+      "wins": 555,
+      "pnl": 1755.7278999999994
+    },
+    "A+": {
+      "n": 227,
+      "wins": 163,
+      "pnl": 38079.117800000015
+    }
+  }
+}

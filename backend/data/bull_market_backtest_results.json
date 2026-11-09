@@ -1,0 +1,100 @@
+{
+  "backtest_date": "2026-11-01T21:00:12.584007",
+  "bull_market_period": {
+    "start": "2024-11-04",
+    "end": "2024-12-04"
+  },
+  "initial_capital_usd": 20.0,
+  "ending_capital_usd": 20.020004999999998,
+  "net_pnl_usd": 0.020004999999997608,
+  "roi_pct": 0.10002499999998804,
+  "total_trades": 2,
+  "wins": 2,
+  "losses": 0,
+  "win_rate": 100.0,
+  "profit_factor": Infinity,
+  "gross_profit": 0.020004999999998822,
+  "gross_loss": 0,
+  "trades_detail": [
+    {
+      "symbol": "LINKUSDT",
+      "date": "2024-11-14",
+      "entry_price": 13.0,
+      "exit_price": 13.064999999999998,
+      "exit_reason": "take_profit",
+      "pnl_pct": 0.19999999999998253,
+      "pnl_usd": 0.009999999999999126,
+      "capital_after": 20.009999999999998,
+      "confidence": 59.95590675755241,
+      "holding_days": 1
+    },
+    {
+      "symbol": "NEARUSDT",
+      "date": "2024-11-23",
+      "entry_price": 6.191,
+      "exit_price": 6.2219549999999995,
+      "exit_reason": "take_profit",
+      "pnl_pct": 0.19999999999999396,
+      "pnl_usd": 0.010004999999999698,
+      "capital_after": 20.020004999999998,
+      "confidence": 50.0,
+      "holding_days": 1
+    }
+  ],
+  "per_symbol": {
+    "SOLUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "BNBUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "XRPUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "DOGEUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "ADAUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "AVAXUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "LINKUSDT": {
+      "trades": 1,
+      "wins": 1,
+      "pnl": 0.009999999999999126
+    },
+    "DOTUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "ATOMUSDT": {
+      "trades": 0,
+      "wins": 0,
+      "pnl": 0.0
+    },
+    "NEARUSDT": {
+      "trades": 1,
+      "wins": 1,
+      "pnl": 0.010004999999999698
+    }
+  },
+  "daily_pnl": {
+    "2024-11-14": 0.009999999999999126,
+    "2024-11-23": 0.010004999999999698
+  }
+}
