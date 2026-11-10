@@ -1,0 +1,466 @@
+{
+  "generated_at": "2026-11-10T22:26:26.507752+00:00",
+  "bot_version": "0.7.2 (V538)",
+  "profile": "sniper (default)",
+  "initial_capital_usd": 20.0,
+  "sol_price_usd": 83.24,
+  "round_trip_drag_pct": 2.965,
+  "sniper_params": {
+    "trade_pct": 0.1,
+    "quick_tp": 0.15,
+    "moonshot_threshold": 0.5,
+    "moonshot_trail": 0.3,
+    "sudden_dump_min_gain": 0.1,
+    "sudden_dump_drop": 0.2,
+    "stop_loss": 0.08,
+    "mega_tp": 10.0,
+    "max_positions": 8,
+    "daily_cap_pct": 0.6,
+    "daily_loss_pct": 0.2,
+    "min_trade_usd": 0.42
+  },
+  "pumpfun_stats_pct": [
+    [
+      "fail_day1",
+      69.0
+    ],
+    [
+      "rug",
+      15.0
+    ],
+    [
+      "pump_dump",
+      12.0
+    ],
+    [
+      "graduate",
+      1.5
+    ],
+    [
+      "moonshot",
+      0.5
+    ]
+  ],
+  "scenarios": {
+    "baseline_1_3_candidates_max2": {
+      "stats": {
+        "final_median": 15.714788571909715,
+        "final_mean": 22.35239178541504,
+        "final_p5": 11.85750370091523,
+        "final_p25": 13.953899274494432,
+        "final_p75": 24.48306507035323,
+        "final_p95": 53.81555403629753,
+        "final_min": 8.560909367914052,
+        "final_max": 77.41644347975354,
+        "roi_median_pct": -21.426057140451427,
+        "prob_profit_pct": 40.0,
+        "prob_lose_half_pct": 5.0,
+        "prob_ruin_pct": 0.0,
+        "avg_trades": 50.35,
+        "avg_win_rate": 50.941409610571576
+      },
+      "by_token_type": {
+        "pump_dump": {
+          "n": 140,
+          "wins": 140,
+          "pnl": 112.69859999999998
+        },
+        "fail_day1": {
+          "n": 697,
+          "wins": 263,
+          "pnl": -146.64820000000003
+        },
+        "rug": {
+          "n": 160,
+          "wins": 101,
+          "pnl": -33.5591
+        },
+        "graduate": {
+          "n": 8,
+          "wins": 8,
+          "pnl": 3.1854
+        },
+        "moonshot": {
+          "n": 2,
+          "wins": 2,
+          "pnl": 111.3712
+        }
+      },
+      "exit_reasons": {
+        "quick_tp": 474,
+        "stop_loss": 358,
+        "sudden_dump": 173,
+        "mega_tp": 2
+      },
+      "runs_summary": [
+        {
+          "seed": 1,
+          "final": 8.5609,
+          "n_trades": 53,
+          "wins": 16
+        },
+        {
+          "seed": 2,
+          "final": 14.3408,
+          "n_trades": 50,
+          "wins": 23
+        },
+        {
+          "seed": 3,
+          "final": 20.1389,
+          "n_trades": 51,
+          "wins": 31
+        },
+        {
+          "seed": 4,
+          "final": 13.949,
+          "n_trades": 52,
+          "wins": 25
+        },
+        {
+          "seed": 5,
+          "final": 12.031,
+          "n_trades": 50,
+          "wins": 19
+        },
+        {
+          "seed": 6,
+          "final": 15.5735,
+          "n_trades": 54,
+          "wins": 29
+        },
+        {
+          "seed": 7,
+          "final": 13.9555,
+          "n_trades": 48,
+          "wins": 23
+        },
+        {
+          "seed": 8,
+          "final": 14.3333,
+          "n_trades": 49,
+          "wins": 23
+        },
+        {
+          "seed": 9,
+          "final": 77.4164,
+          "n_trades": 52,
+          "wins": 27
+        },
+        {
+          "seed": 10,
+          "final": 19.0634,
+          "n_trades": 54,
+          "wins": 33
+        },
+        {
+          "seed": 11,
+          "final": 52.5734,
+          "n_trades": 47,
+          "wins": 16
+        },
+        {
+          "seed": 12,
+          "final": 27.5122,
+          "n_trades": 52,
+          "wins": 32
+        },
+        {
+          "seed": 13,
+          "final": 29.0113,
+          "n_trades": 48,
+          "wins": 30
+        },
+        {
+          "seed": 14,
+          "final": 23.8299,
+          "n_trades": 48,
+          "wins": 32
+        },
+        {
+          "seed": 15,
+          "final": 15.8561,
+          "n_trades": 52,
+          "wins": 26
+        },
+        {
+          "seed": 16,
+          "final": 13.4499,
+          "n_trades": 44,
+          "wins": 19
+        },
+        {
+          "seed": 17,
+          "final": 20.4748,
+          "n_trades": 49,
+          "wins": 29
+        },
+        {
+          "seed": 18,
+          "final": 15.4291,
+          "n_trades": 53,
+          "wins": 29
+        },
+        {
+          "seed": 19,
+          "final": 26.4426,
+          "n_trades": 52,
+          "wins": 32
+        },
+        {
+          "seed": 20,
+          "final": 13.1058,
+          "n_trades": 49,
+          "wins": 20
+        }
+      ]
+    },
+    "bot_config_limits_max6": {
+      "stats": {
+        "final_median": 13.021252237598116,
+        "final_mean": 34.530569274249814,
+        "final_p5": 9.47660627317966,
+        "final_p25": 11.147492256292214,
+        "final_p75": 41.75942383947181,
+        "final_p95": 117.55218783163285,
+        "final_min": 9.27352127673557,
+        "final_max": 155.0939128032024,
+        "roi_median_pct": -34.893738812009424,
+        "prob_profit_pct": 45.0,
+        "prob_lose_half_pct": 10.0,
+        "prob_ruin_pct": 0.0,
+        "avg_trades": 117.65,
+        "avg_win_rate": 51.144117716331145
+      },
+      "by_token_type": {
+        "pump_dump": {
+          "n": 282,
+          "wins": 282,
+          "pnl": 338.89300000000003
+        },
+        "fail_day1": {
+          "n": 1696,
+          "wins": 663,
+          "pnl": -427.01379999999983
+        },
+        "rug": {
+          "n": 325,
+          "wins": 207,
+          "pnl": -51.27230000000005
+        },
+        "graduate": {
+          "n": 40,
+          "wins": 40,
+          "pnl": 25.150800000000004
+        },
+        "moonshot": {
+          "n": 10,
+          "wins": 10,
+          "pnl": 404.85310000000004
+        }
+      },
+      "exit_reasons": {
+        "quick_tp": 1121,
+        "stop_loss": 819,
+        "sudden_dump": 404,
+        "mega_tp": 9
+      },
+      "runs_summary": [
+        {
+          "seed": 1,
+          "final": 9.4873,
+          "n_trades": 118,
+          "wins": 57
+        },
+        {
+          "seed": 2,
+          "final": 63.663,
+          "n_trades": 121,
+          "wins": 68
+        },
+        {
+          "seed": 3,
+          "final": 155.0939,
+          "n_trades": 105,
+          "wins": 59
+        },
+        {
+          "seed": 4,
+          "final": 10.917,
+          "n_trades": 120,
+          "wins": 57
+        },
+        {
+          "seed": 5,
+          "final": 10.9117,
+          "n_trades": 114,
+          "wins": 55
+        },
+        {
+          "seed": 6,
+          "final": 21.7666,
+          "n_trades": 124,
+          "wins": 54
+        },
+        {
+          "seed": 7,
+          "final": 9.2735,
+          "n_trades": 119,
+          "wins": 61
+        },
+        {
+          "seed": 8,
+          "final": 36.0638,
+          "n_trades": 121,
+          "wins": 60
+        },
+        {
+          "seed": 9,
+          "final": 11.2243,
+          "n_trades": 128,
+          "wins": 53
+        },
+        {
+          "seed": 10,
+          "final": 115.5763,
+          "n_trades": 114,
+          "wins": 67
+        },
+        {
+          "seed": 11,
+          "final": 10.8507,
+          "n_trades": 115,
+          "wins": 54
+        },
+        {
+          "seed": 12,
+          "final": 58.8462,
+          "n_trades": 123,
+          "wins": 73
+        },
+        {
+          "seed": 13,
+          "final": 20.9166,
+          "n_trades": 105,
+          "wins": 51
+        },
+        {
+          "seed": 14,
+          "final": 12.9167,
+          "n_trades": 119,
+          "wins": 68
+        },
+        {
+          "seed": 15,
+          "final": 29.9839,
+          "n_trades": 116,
+          "wins": 56
+        },
+        {
+          "seed": 16,
+          "final": 13.1258,
+          "n_trades": 115,
+          "wins": 64
+        },
+        {
+          "seed": 17,
+          "final": 12.8378,
+          "n_trades": 119,
+          "wins": 58
+        },
+        {
+          "seed": 18,
+          "final": 12.6923,
+          "n_trades": 113,
+          "wins": 56
+        },
+        {
+          "seed": 19,
+          "final": 11.2491,
+          "n_trades": 125,
+          "wins": 61
+        },
+        {
+          "seed": 20,
+          "final": 63.2148,
+          "n_trades": 119,
+          "wins": 70
+        }
+      ]
+    }
+  },
+  "part_b_binance_v2": {
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "DOGEUSDT",
+      "PEPEUSDT",
+      "SHIBUSDT",
+      "BONKUSDT",
+      "WIFUSDT"
+    ],
+    "candles": {
+      "BTCUSDT": 2879,
+      "ETHUSDT": 2879,
+      "SOLUSDT": 2879,
+      "DOGEUSDT": 2879,
+      "PEPEUSDT": 2879,
+      "SHIBUSDT": 2879,
+      "BONKUSDT": 2879,
+      "WIFUSDT": 2879
+    },
+    "realistic_min_notional_5usd": {
+      "initial": 20.0,
+      "final": 20.0,
+      "roi_pct": 0.0,
+      "n_trades": 0,
+      "win_rate": 0,
+      "profit_factor": null,
+      "max_drawdown_pct": 0,
+      "skipped": {
+        "max_positions": 0,
+        "daily_limit": 0,
+        "weekly_limit": 0,
+        "cooldown": 0,
+        "min_notional": 8,
+        "drawdown_halt": 0
+      },
+      "exit_reasons": {}
+    },
+    "theoretical_min_notional_0_5usd": {
+      "initial": 20.0,
+      "final": 19.8669,
+      "roi_pct": -0.666,
+      "n_trades": 7,
+      "win_rate": 28.57,
+      "profit_factor": 0.243,
+      "max_drawdown_pct": 0.77,
+      "skipped": {
+        "max_positions": 0,
+        "daily_limit": 0,
+        "weekly_limit": 0,
+        "cooldown": 1,
+        "min_notional": 0,
+        "drawdown_halt": 0
+      },
+      "exit_reasons": {
+        "time_stop": {
+          "n": 3,
+          "wins": 0,
+          "avg_r": -0.348
+        },
+        "trail_stop": {
+          "n": 2,
+          "wins": 2,
+          "avg_r": 0.465
+        },
+        "stop": {
+          "n": 2,
+          "wins": 0,
+          "avg_r": -1.0
+        }
+      }
+    }
+  }
+}
