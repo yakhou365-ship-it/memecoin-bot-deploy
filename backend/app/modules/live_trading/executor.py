@@ -371,7 +371,8 @@ class LiveTradingExecutor:
                 slippage_total_usd=entry_slippage_usd,  # V400 P1-3
                 entry_reasons_json=reasons,
                 status="open",
-                max_unrealized_profit_usd=fill_price,  # V400 P0-1: init peak = entry
+                peak_price=fill_price,  # V539: قمة trailing في العمود المخصص
+                max_unrealized_profit_usd=0.0,  # V539: بقي PnL حقيقي (لم يعد مخزناً للقمة)
             )
             # V400 P0-4 FIX: DB save with retry + compensation logic.
             # If DB save fails after on-chain buy, we log the tx_signature
@@ -486,12 +487,15 @@ class LiveTradingExecutor:
             exit_fee_usd = proceeds_usd * PUMPPORTAL_FEE_PCT
             exit_slippage_usd = trade.entry_quantity * exit_price * estimated_exit_slippage_pct / 100
             gross_pnl = (actual_exit_price - float(trade.entry_price)) * float(trade.entry_quantity)
-            # V400 P1-2: Include exit slippage in net PnL (was missing!)
+            # V539 FIX: إصلاح الاحتساب المزدوج للانزلاق (double-counted slippage).
+            # الانزلاق مضمّن أصلاً في الأسعار المعدّلة (entry_price = السوق×1.03 و
+            # actual_exit_price = السوق×0.95) أي أن gross_pnl يحمله كاملاً. طرحه
+            # مرة أخرى هنا كان يقتطع ~8% إضافية من كل صفقة → كل رابحة تُسجَّل
+            # خاسرة، مما يفسد إحصاءات التعلم وقرارات المخاطرة ولوحة الأرباح.
+            # الرسوم (1%/جانب) ليست مضمّنة في الأسعار، لذا تبقى مطروحة.
             net_pnl = (gross_pnl
                       - float(trade.entry_fee_usd or 0)
-                      - exit_fee_usd
-                      - float(trade.entry_slippage_usd or 0)  # V400 P1-3
-                      - exit_slippage_usd)  # V400 P1-2: NEW!
+                      - exit_fee_usd)
             pnl_pct = (net_pnl / float(trade.entry_size_usd) * 100) if trade.entry_size_usd else 0.0
 
             # V400 P1-11 FIX: DB save with retry to prevent double-sell
@@ -603,26 +607,19 @@ class LiveTradingExecutor:
                     continue
 
                 # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
-                # Use max_unrealized_profit_usd as a proxy to store peak_price:
-                # we encode peak_price in this field (it's normally a PnL value,
-                # but for open trades it's the best available DB column).
-                # If None, initialize to max(entry, current).
-                if trade.max_unrealized_profit_usd is None:
-                    trade.max_unrealized_profit_usd = max(trade.entry_price, price)
-                # Update peak if current price is higher
-                if price > trade.max_unrealized_profit_usd:
-                    trade.max_unrealized_profit_usd = price
-                    # Persist the updated peak to DB
-                    try:
-                        async with get_session() as s2:
-                            db_trade = await s2.get(Trade, trade.id)
-                            if db_trade and db_trade.status == "open":
-                                db_trade.max_unrealized_profit_usd = price
-                                await s2.commit()
-                    except Exception:
-                        pass  # non-critical, will retry next cycle
-
-                peak_price = trade.max_unrealized_profit_usd
+                # V539 FIX: استخدم عمود peak_price المخصص بدلاً من إعادة استخدام
+                # max_unrealized_profit_usd (عمود PnL) — تضارب دلالي كان يهدد دقة
+                # الـ trailing في الوضع المباشر أيضاً.
+                if trade.peak_price is None or float(trade.peak_price) <= 0 or float(trade.peak_price) < trade.entry_price:
+                    peak_price = max(trade.entry_price, price)
+                    trade.peak_price = peak_price
+                    await self._persist_peak(trade.id, peak_price)
+                else:
+                    peak_price = float(trade.peak_price)
+                if price > peak_price:
+                    peak_price = price
+                    trade.peak_price = peak_price
+                    await self._persist_peak(trade.id, peak_price)
                 # V500/V513/V515/V518/V519/V527: Smart Exit Strategy
                 #
                 # V527 SURVIVOR (الأحرص — يحمي رأس المال أولاً):
@@ -637,79 +634,92 @@ class LiveTradingExecutor:
 
                 # V530: quick_exit profiles (rugsurfer, survivor, flash, micro, balanced, adaptive, sniper_v2)
                 if settings.is_quick_exit_mode or settings.is_adaptive_pro_mode:
-                    # V535: ADAPTIVE-PRO exit logic محسّن
+                    # V539: ADAPTIVE-PRO RATCHET — أقفل الأرباح تدريجياً واترك الفائزين يركضون
+                    # المشكلة القديمة: خروج كامل فوري بمجرد بلوغ +8% → البوت يفوّت كل
+                    # الـ pumps الكبيرة (+25% / +80% / x2) وهي مصدر الربح الحقيقي.
+                    # النظام الجديد (طبقات مركّبة مع sudden_dump):
+                    #   ذروة ≥ +80% → trailing 20% من القمة (دع الـ moonshot يكتمل)
+                    #   ذروة ≥ +25% → أقفل +15% (اخرج فقط إذا هبط السعر تحت entry×1.15)
+                    #   ذروة ≥ +8%  → أقفل +3%  (لا نحوّل الفائز إلى خاسر أبداً)
+                    #   + sudden_dump (gain≥3%، drop≥8%) يبقى كحماية فورية
+                    #   + SL صارم -4% + خروج زمني بعد ساعتين
                     if settings.is_adaptive_pro_mode:
-                        # خروج تدريجي محسّن:
-                        # +10% → بِع 30% (ربح سريع، احتفظ بـ 70%)
-                        # +30% → بِع 30% أخرى (تأمين)
-                        # +100%+ → احتفظ بـ 40% مع trailing 25%
-                        quick_tp = settings.adaptive_pro_quick_tp  # 0.10
-                        partial_tp = settings.adaptive_pro_partial_tp  # 0.30
-                        moonshot_thresh = settings.adaptive_pro_moonshot_threshold  # 1.00
-                        moonshot_trail = settings.adaptive_pro_moonshot_trail  # 0.25
+                        quick_tp = settings.adaptive_pro_quick_tp                   # 0.08
+                        partial_tp = settings.adaptive_pro_partial_tp               # 0.25
+                        moonshot_thresh = settings.adaptive_pro_moonshot_threshold  # 0.80
+                        moonshot_trail = settings.adaptive_pro_moonshot_trail       # 0.20
                         max_hold_sec = 7200  # 2h
 
                         if peak_gain_pct >= moonshot_thresh:
-                            # moonshot: احتفظ بـ 40% مع trailing 25%
+                            # moonshot: trailing 20% من القمة
                             trail_pct = moonshot_trail
                             trailing_hit = drop_from_peak >= trail_pct
                         elif peak_gain_pct >= partial_tp:
-                            # +30%: خروج جزئي — نبيع 60% ونحتفظ بـ 40%
-                            trailing_hit = True
-                            trail_pct = partial_tp
+                            # أقفل +15%: اخرج فقط إذا رجع السعر تحت entry×1.15
+                            trail_pct = partial_tp * 0.6
+                            lock_price = trade.entry_price * (1.0 + trail_pct)
+                            trailing_hit = price <= lock_price
                         elif peak_gain_pct >= quick_tp:
-                            # +10%: خروج جزئي — نبيع 30% ونحتفظ بـ 70%
+                            # أقفل +3%: اخرج فقط إذا رجع السعر تحت entry×1.03
+                            trail_pct = quick_tp * 0.375
+                            lock_price = trade.entry_price * (1.0 + trail_pct)
+                            trailing_hit = price <= lock_price
+                        else:
+                            trailing_hit = False
+                            trail_pct = None
+
+                        # خروج زمني بعد ساعتين إذا لم يتحقق أي شرط خروج
+                        if not trailing_hit and trade.entry_timestamp:
+                            elapsed_sec = (_utcnow() - trade.entry_timestamp).total_seconds()
+                            if elapsed_sec >= max_hold_sec:
+                                trailing_hit = True
+                                trail_pct = None  # time exit
+                    else:
+                        if settings.is_rugsurfer_mode:
+                            quick_tp = settings.rugsurfer_quick_take_profit_pct
+                            max_hold_sec = settings.rugsurfer_max_holding_seconds
+                        elif settings.is_survivor_mode:
+                            quick_tp = settings.survivor_quick_take_profit_pct
+                            max_hold_sec = 1800  # 30min
+                        elif settings.is_flash_mode:
+                            quick_tp = settings.flash_quick_take_profit_pct
+                            max_hold_sec = settings.flash_max_holding_seconds
+                        elif settings.is_micro_mode:
+                            quick_tp = settings.micro_quick_take_profit_pct
+                            max_hold_sec = settings.micro_max_holding_seconds
+                        elif settings.is_balanced_mode:
+                            quick_tp = settings.balanced_quick_take_profit_pct
+                            max_hold_sec = settings.balanced_max_holding_seconds
+                        elif settings.is_adaptive_mode:
+                            quick_tp = settings.adaptive_quick_take_profit_pct
+                            max_hold_sec = settings.adaptive_max_holding_seconds
+                            # ADAPTIVE: يكيف TP حسب قوة الـ pump
+                            if peak_gain_pct >= 0.25: quick_tp = 0.25
+                            elif peak_gain_pct >= 0.10: quick_tp = 0.10
+                        elif settings.is_sniper_v2_mode:
+                            quick_tp = settings.sniper_v2_quick_take_profit_pct
+                            max_hold_sec = settings.sniper_v2_max_holding_seconds
+                            # SNIPER_V2: خروج مزدوج (+12% أو +50%)
+                            if peak_gain_pct >= settings.sniper_v2_moonshot_threshold:
+                                quick_tp = settings.sniper_v2_moonshot_threshold
+                        else:
+                            quick_tp = 0.05  # default
+                            max_hold_sec = 60
+
+                        if peak_gain_pct >= quick_tp:
                             trailing_hit = True
                             trail_pct = quick_tp
+                        elif trade.entry_timestamp:
+                            elapsed_sec = (_utcnow() - trade.entry_timestamp).total_seconds()
+                            if elapsed_sec >= max_hold_sec:
+                                trailing_hit = True
+                                trail_pct = None  # time exit
+                            else:
+                                trailing_hit = False
+                                trail_pct = None
                         else:
                             trailing_hit = False
                             trail_pct = None
-
-                    elif settings.is_rugsurfer_mode:
-                        quick_tp = settings.rugsurfer_quick_take_profit_pct
-                        max_hold_sec = settings.rugsurfer_max_holding_seconds
-                    elif settings.is_survivor_mode:
-                        quick_tp = settings.survivor_quick_take_profit_pct
-                        max_hold_sec = 1800  # 30min
-                    elif settings.is_flash_mode:
-                        quick_tp = settings.flash_quick_take_profit_pct
-                        max_hold_sec = settings.flash_max_holding_seconds
-                    elif settings.is_micro_mode:
-                        quick_tp = settings.micro_quick_take_profit_pct
-                        max_hold_sec = settings.micro_max_holding_seconds
-                    elif settings.is_balanced_mode:
-                        quick_tp = settings.balanced_quick_take_profit_pct
-                        max_hold_sec = settings.balanced_max_holding_seconds
-                    elif settings.is_adaptive_mode:
-                        quick_tp = settings.adaptive_quick_take_profit_pct
-                        max_hold_sec = settings.adaptive_max_holding_seconds
-                        # ADAPTIVE: يكيف TP حسب قوة الـ pump
-                        if peak_gain_pct >= 0.25: quick_tp = 0.25
-                        elif peak_gain_pct >= 0.10: quick_tp = 0.10
-                    elif settings.is_sniper_v2_mode:
-                        quick_tp = settings.sniper_v2_quick_take_profit_pct
-                        max_hold_sec = settings.sniper_v2_max_holding_seconds
-                        # SNIPER_V2: خروج مزدوج (+12% أو +50%)
-                        if peak_gain_pct >= settings.sniper_v2_moonshot_threshold:
-                            quick_tp = settings.sniper_v2_moonshot_threshold
-                    else:
-                        quick_tp = 0.05  # default
-                        max_hold_sec = 60
-
-                    if peak_gain_pct >= quick_tp:
-                        trailing_hit = True
-                        trail_pct = quick_tp
-                    elif trade.entry_timestamp:
-                        elapsed_sec = (_utcnow() - trade.entry_timestamp).total_seconds()
-                        if elapsed_sec >= max_hold_sec:
-                            trailing_hit = True
-                            trail_pct = None  # time exit
-                        else:
-                            trailing_hit = False
-                            trail_pct = None
-                    else:
-                        trailing_hit = False
-                        trail_pct = None
 
                     sudden_dump = (
                         not trailing_hit
@@ -854,6 +864,19 @@ class LiveTradingExecutor:
                 logger.exception(f"Live position management failed for {trade.id}: {exc}")
 
         return closed
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    async def _persist_peak(trade_id: str, peak_price: float) -> None:
+        """V539: احفظ سعر القمة في عمود peak_price المخصص ليبقى عبر الدورات."""
+        try:
+            async with get_session() as s2:
+                db_trade = await s2.get(Trade, trade_id)
+                if db_trade and db_trade.status == "open":
+                    db_trade.peak_price = float(peak_price)
+                    await s2.commit()
+        except Exception:
+            pass  # غير حرج — يُعاد اكتشافها في الدورة التالية
 
     # ------------------------------------------------------------------
     @staticmethod

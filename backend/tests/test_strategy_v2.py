@@ -41,10 +41,13 @@ def test_stop_wins_when_bar_touches_both():
 
 def test_partial_tp_then_breakeven_stop_not_a_loss():
     p = Position(side=1, entry=100.0, atr=1.0, cfg=CFG)
-    p.on_bar(100, 101.6, 99.9, 101.4)                        # TP1 hit, 50% closed
+    p.on_bar(100, 101.6, 99.9, 101.4)                        # TP1 hit, 40% closed
     assert p.tp1_done and abs(p.remaining - (1 - CFG.partial_fraction)) < 1e-9  # Ultimate-bot: was hardcoded 0.5, but partial_fraction=0.40 → remaining=0.60
     assert p.stop >= 100 * (1 + CFG.costs.round_trip)         # stop at >= breakeven + costs
-    p.on_bar(101.2, 101.3, 99.0, 99.5)                        # stopped on runner
+    # V539: الشمعة تفتح فوق وقف التعادل الجديد (entry×(1+(RT−frac×g₁)/remaining)
+    # = 100×1.0408 = 104.08) ثم تلمسه — الوقف يُنفذ عند مستواه وليس بفجوة تحته.
+    # الفجوة تحت الوقف تغطيها حالة test_gap_through_stop_fills_at_open.
+    p.on_bar(104.5, 105.0, 99.0, 99.5)                        # stopped on runner
     assert p.done
     gross = sum(f.fraction * (f.price - 100) / 100 for f in p.fills)
     assert gross - CFG.costs.round_trip > -0.0006             # ~breakeven after costs

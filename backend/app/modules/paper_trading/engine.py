@@ -216,6 +216,19 @@ class PaperTradingEngine:
                 return float(token.price_usd)
         return None
 
+    @staticmethod
+    async def _persist_peak(trade_id: str, peak_price: float) -> None:
+        """V539: احفظ سعر القمة في عمود peak_price المخصص ليبقى عبر الدورات
+        وإعادة التشغيل (القديم كان يضيع لأن التهيئة لم تكن تُحفَظ)."""
+        try:
+            async with get_session() as s2:
+                db_trade = await s2.get(Trade, trade_id)
+                if db_trade and db_trade.status == "open":
+                    db_trade.peak_price = float(peak_price)
+                    await s2.commit()
+        except Exception:
+            pass  # غير حرج — يُعاد اكتشافها في الدورة التالية
+
     # =====================================================================
     # Open position
     # =====================================================================
@@ -305,6 +318,7 @@ class PaperTradingEngine:
             slippage_total_usd=slippage_cost_usd,
             entry_reasons_json=entry_reasons or [],
             status="open",
+            peak_price=actual_entry_price,  # V539: قمة trailing تبدأ من سعر الدخول
         )
 
         # Persist
@@ -462,37 +476,67 @@ class PaperTradingEngine:
                 continue
 
             # V400: Trailing stop with PERSISTED peak price (P0-1 fix).
-            # Use max_unrealized_profit_usd to store peak_price in DB
-            # (this field is normally for PnL, but for open trades we
-            # repurpose it to track the highest price seen since entry).
-            # This survives restarts and is visible across cycles.
-            if trade.max_unrealized_profit_usd is None or trade.max_unrealized_profit_usd == 0:
-                trade.max_unrealized_profit_usd = max(trade.entry_price, current_price)
-            # Treat max_unrealized_profit_usd as peak_price (only if it's >= entry_price)
-            peak_price = trade.max_unrealized_profit_usd
-            if peak_price < trade.entry_price:
-                # Field was used for something else, reinitialize
+            # V539 CRITICAL FIX: استخدم عمود peak_price المخصص في المخطط بدلاً من
+            # max_unrealized_profit_usd. الكود القديم كان يعيد استخدام عمود PnL
+            # لتخزين سعر القمة، مع مشكلتين قاتلتين:
+            #   1) update_account() تعيد الكتابة في نفس العمود بقيم PnL ($) — تضارب
+            #      دلالي كامل (سعر مقابل ربح).
+            #   2) القيمة المهيّأة (init) لم تُحفَظ أبداً في القاعدة، وقيمة القاعدة
+            #      كانت دائماً None → كل دورة تعيد اكتشاف القمة من الصفر →
+            #      peak_gain_pct = 0 دائماً → الـ trailing وsudden_dump وquick_tp
+            #      لم يشتغلوا أبداً في التداول الورقي عبر الدورات!
+            if trade.peak_price is None or float(trade.peak_price) <= 0 or float(trade.peak_price) < trade.entry_price:
                 peak_price = max(trade.entry_price, current_price)
-                trade.max_unrealized_profit_usd = peak_price
+                trade.peak_price = peak_price
+                await self._persist_peak(trade.id, peak_price)
+            else:
+                peak_price = float(trade.peak_price)
             if current_price > peak_price:
                 peak_price = current_price
-                trade.max_unrealized_profit_usd = peak_price
-                # Persist peak to DB (so it survives cycles/restarts)
-                try:
-                    async with get_session() as s2:
-                        db_trade = await s2.get(Trade, trade.id)
-                        if db_trade and db_trade.status == "open":
-                            db_trade.max_unrealized_profit_usd = peak_price
-                            await s2.commit()
-                except Exception:
-                    pass  # non-critical
+                trade.peak_price = peak_price
+                await self._persist_peak(trade.id, peak_price)
             # V500/V513/V515/V518/V519/V527/V528: Smart Exit Strategy based on profile
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
             drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
 
+            # V539 ADAPTIVE-PRO RATCHET (متطابق مع المنفذ المباشر):
+            #   ذروة ≥ +80% → trailing 20% من القمة (دع الـ moonshot يكتمل)
+            #   ذروة ≥ +25% → أقفل +15% (اخرج فقط إذا هبط السعر تحت entry×1.15)
+            #   ذروة ≥ +8%  → أقفل +3%  (لا نحوّل الفائز إلى خاسر أبداً)
+            #   + sudden_dump (gain≥3%، drop≥8%) كحماية فورية + SL -4%
+            # قبل V539: adaptive_pro كان يسقط في فرع tiers العام (trailing فقط
+            # بعد +100% بـ 30%) — تباين كامل مع المنفذ المباشر.
+            if settings.is_adaptive_pro_mode:
+                quick_tp = settings.adaptive_pro_quick_tp                   # 0.08
+                partial_tp = settings.adaptive_pro_partial_tp               # 0.25
+                moonshot_thresh = settings.adaptive_pro_moonshot_threshold  # 0.80
+                moonshot_trail = settings.adaptive_pro_moonshot_trail       # 0.20
+
+                if peak_gain_pct >= moonshot_thresh:
+                    trail_pct = moonshot_trail
+                    trailing_level = peak_price * (1 - moonshot_trail)
+                    trailing_hit = current_price <= trailing_level
+                elif peak_gain_pct >= partial_tp:
+                    trail_pct = partial_tp * 0.6
+                    trailing_level = trade.entry_price * (1.0 + trail_pct)
+                    trailing_hit = current_price <= trailing_level
+                elif peak_gain_pct >= quick_tp:
+                    trail_pct = quick_tp * 0.375
+                    trailing_level = trade.entry_price * (1.0 + trail_pct)
+                    trailing_hit = current_price <= trailing_level
+                else:
+                    trailing_hit = False
+                    trail_pct = None
+
+                sudden_dump = False
+                if not trailing_hit:
+                    if peak_gain_pct >= settings.sudden_dump_min_gain:
+                        if drop_from_peak >= settings.sudden_dump_drop_threshold:
+                            sudden_dump = True
+
             # V528 RUG-SURFER: يدخل rugs ويخرج قبل الـ dump (+20% أو 20s)
-            if settings.is_rugsurfer_mode:
+            elif settings.is_rugsurfer_mode:
                 quick_tp = settings.rugsurfer_quick_take_profit_pct  # 0.20
                 max_hold_sec = settings.rugsurfer_max_holding_seconds  # 20
                 if peak_gain_pct >= quick_tp:

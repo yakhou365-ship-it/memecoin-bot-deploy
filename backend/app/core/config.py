@@ -623,6 +623,7 @@ class Settings(BaseSettings):
         if p == "ultimate":    return self.ultimate_max_chg_5m_pct
         if p == "survivor":    return self.survivor_max_chg_5m_pct
         if p == "rugsurfer":   return self.rugsurfer_max_chg_5m_pct
+        if p == "adaptive_pro": return self.adaptive_pro_max_chg_5m_pct
         return self.rugsurfer_max_chg_5m_pct
 
     @property

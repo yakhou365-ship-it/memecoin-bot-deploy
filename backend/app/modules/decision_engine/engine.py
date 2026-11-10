@@ -605,6 +605,44 @@ class DecisionEngine:
                         return
             except Exception as exc:
                 logger.debug(f"Token age check failed for {token.symbol}: {exc}")
+        elif settings.is_adaptive_pro_mode:
+            # V539 FIX: بوابات ADAPTIVE-PRO كانت معرّفة في الإعدادات لكن لا تُطبَّق
+            # أبداً (سقطت في else العام). تفعيلها = دخولات أفضل جودة = ربح أعلى:
+            #   chg_5m بين 3% و 150% (pump بدأ ولم يتأخر) + عمر التوكن < 5 دقائق
+            min_chg_5m = settings.adaptive_pro_min_chg_5m_pct    # 3%
+            max_chg_5m = settings.adaptive_pro_max_chg_5m_pct    # 150%
+            max_age_min = settings.adaptive_pro_max_age_minutes  # 5.0
+            profile_name = "ADAPTIVE-PRO"
+            # min gate فقط إذا كانت البيانات متوفرة (None = بيانات ناقصة، لا نحظر ظلماً)
+            if token.price_change_5m_pct is not None and (chg_5m < min_chg_5m or chg_5m > max_chg_5m):
+                result.qualified = False
+                result.recommendation = "monitor"
+                result.rejection_reason = (
+                    f"{profile_name}: chg_5m={chg_5m:.1f}% خارج النطاق [{min_chg_5m}-{max_chg_5m}%] — "
+                    f"الـ pump راكد أو تجاوز ذروته"
+                )
+                result.reasons.append(f"⚠️ {result.rejection_reason}")
+                return
+            # اشترط عمر التوكن < max_age دقيقة (الزخم المبكر فقط)
+            try:
+                from datetime import datetime
+                first_seen = getattr(token, "first_seen_at", None)
+                if first_seen:
+                    if isinstance(first_seen, str):
+                        first_seen = datetime.fromisoformat(first_seen.replace("Z", "+00:00"))
+                    age_sec = (datetime.utcnow() - first_seen.replace(tzinfo=None)).total_seconds()
+                    age_min = age_sec / 60
+                    if age_min > max_age_min:
+                        result.qualified = False
+                        result.recommendation = "monitor"
+                        result.rejection_reason = (
+                            f"{profile_name}: عمر التوكن {age_min:.1f}دقيقة > {max_age_min}دقيقة — "
+                            f"الزخم المبكر انتهى"
+                        )
+                        result.reasons.append(f"⚠️ {result.rejection_reason}")
+                        return
+            except Exception as exc:
+                logger.debug(f"Token age check failed for {token.symbol}: {exc}")
         elif settings.is_sniper_mode:
             min_chg_5m = settings.sniper_min_chg_5m_pct  # 5%
             max_chg_5m = settings.sniper_max_chg_5m_pct   # 80%
@@ -721,7 +759,11 @@ class DecisionEngine:
 
         # V530: TP من الـ profile النشط (دائماً يُضبط)
         if settings.is_adaptive_pro_mode:
-            tp_mult = 1.0 + settings.adaptive_pro_quick_tp  # +10% baseline
+            # V539 PROFIT FIX: TP القديم كان +8% → خروج كامل فوري عند أول pump صغير،
+            # فلا يلتقط البوت أبداً الـ pumps الكبيرة (+25%/+80%/x2). الآن TP = سقف
+            # صعب عند +100% فقط، والخروج الفعلي يديره نظام Ratchet المتدرج في
+            # manage_open_positions (قفل +3% ثم +15% ثم trailing 20%).
+            tp_mult = 1.0 + settings.adaptive_pro_moonshot_threshold + settings.adaptive_pro_moonshot_trail  # x2.0
         elif settings.is_flash_mode:
             tp_mult = 1.0 + settings.flash_quick_take_profit_pct
         elif settings.is_micro_mode:

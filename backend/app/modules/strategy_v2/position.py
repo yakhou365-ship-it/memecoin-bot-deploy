@@ -97,7 +97,19 @@ class Position:
                 if frac > 0:
                     self._close(frac, self.tp1, "tp1")
                 self.tp1_done = True
-                be = self.entry * (1 + s * (cfg.costs.round_trip + cfg.breakeven_buffer))
+                # V539 FIX: وقف التعادل يجب أن يغطي تكلفة الذهاب والإياب للصفقة
+                # الكاملة، لا للمركز المتبقي فقط. المعادلة القديمة entry×(1+RT)
+                # أهملت أن التكلفة تُدفع على كامل المبلغ بينما المتبقي `remaining`
+                # فقط، وأن ربح TP1 الجزئي سدّد جزءاً من التكلفة. التعادل الحقيقي:
+                #   remaining×x = RT − frac×tp1_gain  →  x = (RT − frac×g₁)/remaining
+                # (مثال: RT=3%، frac=40%، g₁=1.5% → x = (3%−0.6%)/60% = +4%)
+                tp1_gain = abs(self.tp1 - self.entry) / self.entry if self.entry else 0.0
+                remaining = self.remaining if self.remaining > 1e-9 else 1.0
+                be_gain = max(
+                    0.0,
+                    (cfg.costs.round_trip + cfg.breakeven_buffer - frac * tp1_gain) / remaining,
+                )
+                be = self.entry * (1 + s * be_gain)
                 self.stop = max(self.stop, be) if s > 0 else min(self.stop, be)
 
         # IMPROVEMENT 4.1: TP2 at 2.5R
