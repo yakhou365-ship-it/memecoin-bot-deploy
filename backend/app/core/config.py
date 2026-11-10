@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     app_secret_key: str = "change-me"
 
     # --- Security ---
-    # When empty, authentication is disabled (local development only).
-    # In production set a strong random value; the dashboard receives it
-    # automatically through window.__API_KEY__ injection.
-    api_auth_key: str = ""
+    # V537: كود الوصول للبوت والـ dashboard
+    # يجب إدخال "052307" للوصول إلى أي /api/* endpoint
+    # يمكن تغييره عبر env var: API_AUTH_KEY
+    api_auth_key: str = "052307"
     cors_allowed_origins: str = "*"
 
     # --- Database ---
