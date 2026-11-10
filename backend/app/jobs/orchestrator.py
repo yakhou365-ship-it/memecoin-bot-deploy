@@ -34,6 +34,10 @@ from ..modules.market_scanner.scanner import MarketScanner
 from ..modules.market_scanner.ohlcv_fetcher import OHLCVFetcher
 from ..modules.ml.trainer import MLModelLoader, MLTrainer
 from ..modules.paper_trading.engine import PaperTradingEngine
+from ..modules.trading_strategy.unified import (
+    unified_defense_snapshot,
+    register_unified_buy,
+)
 
 
 class MainOrchestrator:
@@ -173,6 +177,23 @@ class MainOrchestrator:
                 {"regime": regime.to_dict()},
             )
             self._last_market_regime = regime.regime
+
+        # === 3.5 V541 UNIFIED DEFENSE — لقطة الدفاع الموحد لهذه الدورة ===
+        # مناطق التراجع (≥92% من القمة = حجم كامل، 80-92% = نصف حجم،
+        # <80% = إيقاف 3 أيام) + إيقاف سلسلة خاسرة (≤2/6 نجحت و PnL ≤ -10%)
+        # + سقف 3 صفقات/يوم. يعمل على المسارين الورقي والمباشر معاً.
+        _defense = {"state": "full", "scale": 1.0, "reason": "",
+                    "buys_today": 0, "max_buys": 99}
+        if settings.unified_strategy_enabled:
+            try:
+                _defense = await unified_defense_snapshot()
+                if _defense["state"] != "full":
+                    logger.info(
+                        f"🛡️ UNIFIED DEFENSE [{_defense['state'].upper()}] "
+                        f"scale={_defense['scale']} — {_defense['reason']}"
+                    )
+            except Exception as exc:
+                logger.warning(f"UNIFIED defense snapshot failed (trading continues): {exc}")
 
         # === 4. Analyze each token ===
         for token in watch_list[:10]:  # limit to top 10 to keep cycle fast
@@ -324,8 +345,8 @@ class MainOrchestrator:
                             if not decision.suggested_entry or decision.suggested_entry <= 0:
                                 decision.suggested_entry = token_price
                             if not decision.suggested_stop_loss or decision.suggested_stop_loss <= 0:
-                                # V57: -8% SL (ATR fallback)
-                                decision.suggested_stop_loss = token_price * 0.92
+                                # V541: SL الموحد -6%
+                                decision.suggested_stop_loss = token_price * 0.94
                             if not decision.suggested_take_profit or decision.suggested_take_profit <= 0:
                                 # V57: +50% TP (ATR fallback)
                                 decision.suggested_take_profit = token_price * 1.50
@@ -386,6 +407,13 @@ class MainOrchestrator:
                 # Decision
                 if decision.qualified and not anti_check["blocked"]:
                     summary["qualified"] += 1
+                    # V541 UNIFIED DEFENSE — إيقاف دفاعي = لا صفقات جديدة اليوم
+                    if settings.unified_strategy_enabled and _defense["state"] == "pause":
+                        summary["defense_skipped"] = summary.get("defense_skipped", 0) + 1
+                        logger.info(
+                            f"🛡️ UNIFIED DEFENSE: تخطي {token.symbol} — {_defense['reason']}"
+                        )
+                        continue
                     if not trading_active:
                         logger.info(f"⏸️ Trading stopped - not opening {token.symbol}")
                     elif settings.is_live_trading:
@@ -456,6 +484,9 @@ class MainOrchestrator:
                         # V519: position_pct من الـ profile النشط (م统一 لكل الأحجام)
                         # هذا يضمن أن نفس الاستراتيجية تعمل على $20 و $1000
                         position_pct = float(decision.suggested_position_size_pct or 0)
+                        # V541: الدفاع الموحد — وضع half = نصف الحجم
+                        if settings.unified_strategy_enabled and _defense["state"] == "half":
+                            position_pct *= 0.5
 
                         if is_small_cap:
                             # V519: استخدم نفس position_pct من القرار (مستمد من ultimate_trade_pct=10%)
@@ -517,6 +548,11 @@ class MainOrchestrator:
                         if result.get("success"):
                             summary["trades_opened"] += 1
                             summary["live_trades_opened"] += 1
+                            if settings.unified_strategy_enabled:
+                                try:
+                                    await register_unified_buy()
+                                except Exception:
+                                    pass
                             await self.alerts.send(
                                 "live_trade_opened",
                                 f"🟢 صفقة حقيقية: {token.symbol}",
@@ -537,10 +573,14 @@ class MainOrchestrator:
                             )
                     else:
                         # === PAPER PATH ===
+                        # V541: الدفاع الموحد — وضع half = نصف الحجم
+                        _size_pct = float(decision.suggested_position_size_pct or 0)
+                        if settings.unified_strategy_enabled and _defense["state"] == "half":
+                            _size_pct *= 0.5
                         trade = await self.engine.open_position(
                             token_id=token.id,
                             entry_price=decision.suggested_entry or token.price_usd or 0,
-                            position_size_usd=settings.paper_capital_usd * decision.suggested_position_size_pct / 100,
+                            position_size_usd=settings.paper_capital_usd * _size_pct / 100,
                             stop_loss=decision.suggested_stop_loss,
                             take_profit=decision.suggested_take_profit,
                             holding_period_minutes=decision.suggested_holding_period_minutes,
@@ -551,6 +591,11 @@ class MainOrchestrator:
                         )
                         if trade:
                             summary["trades_opened"] += 1
+                            if settings.unified_strategy_enabled:
+                                try:
+                                    await register_unified_buy()
+                                except Exception:
+                                    pass
                             await self.alerts.send(
                                 "trade_opened",
                                 f"صفقة افتراضية: {token.symbol}",

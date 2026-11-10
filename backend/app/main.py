@@ -169,7 +169,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AntiTrade — Five Leaf Clover Bot 🍀",
         description="🍀 Autonomous AI-powered memecoin trading on Pump.fun (Solana) — never gives up!",
-        version="0.7.3",
+        version="0.7.4",
         lifespan=lifespan,
     )
 
@@ -218,7 +218,7 @@ def create_app() -> FastAPI:
     async def health():
         return {
             "status": "ok",
-            "version": "0.7.3",
+            "version": "0.7.4",
             "trading_mode": settings.trading_mode,
             "live_trading": settings.is_live_trading,
         }

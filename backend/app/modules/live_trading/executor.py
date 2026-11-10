@@ -31,6 +31,7 @@ from ...core.database import get_session
 from ...core.logger import logger
 from ...core.models import SystemState, Token, Trade
 from ..market_scanner.pumpfun_client import PumpPortalClient
+from ..trading_strategy.unified import unified_exit_reason
 
 LIVE_STRATEGY_ID = "live_pumpfun"
 DAILY_STATE_KEY = "live_daily_state"
@@ -620,7 +621,14 @@ class LiveTradingExecutor:
                     peak_price = price
                     trade.peak_price = peak_price
                     await self._persist_peak(trade.id, peak_price)
-                # V500/V513/V515/V518/V519/V527: Smart Exit Strategy
+                # V500/V513/V515/V518/V519/V527/V539/V541: Smart Exit Strategy
+                #
+                # V541 UNIFIED LADDER — نفس سُلّم الخروج الموحد المستخدم في
+                # التداول الورقي (single source of truth). الأولوية:
+                #   sudden_dump > stop_loss(-6%) > mega_tp(x10) >
+                #   نطاق الخروج [+15%,+35%) خروج كامل > runner trail 15%
+                #   (يتشدد إلى 11.25% بعد +50% وإلى 9% بعد +100%) >
+                #   ركود 4 ساعات > 5 أيام.
                 #
                 # V527 SURVIVOR (الأحرص — يحمي رأس المال أولاً):
                 #   - خروج فوري عند +5% (لا طمع)
@@ -632,8 +640,23 @@ class LiveTradingExecutor:
                 peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
                 drop_from_peak = (peak_price - price) / peak_price if peak_price > 0 else 0
 
+                _unified_reason = None
+                if settings.unified_strategy_enabled:
+                    elapsed_min_v541 = (
+                        (_utcnow() - trade.entry_timestamp).total_seconds() / 60
+                        if trade.entry_timestamp else 0.0
+                    )
+                    _unified_reason = unified_exit_reason(
+                        entry_price=float(trade.entry_price),
+                        peak_price=float(peak_price),
+                        current_price=float(price),
+                        elapsed_minutes=elapsed_min_v541,
+                    )
+                    trailing_hit = False
+                    sudden_dump = False
+                    trail_pct = None
                 # V530: quick_exit profiles (rugsurfer, survivor, flash, micro, balanced, adaptive, sniper_v2)
-                if settings.is_quick_exit_mode or settings.is_adaptive_pro_mode:
+                elif settings.is_quick_exit_mode or settings.is_adaptive_pro_mode:
                     # V539: ADAPTIVE-PRO RATCHET — أقفل الأرباح تدريجياً واترك الفائزين يركضون
                     # المشكلة القديمة: خروج كامل فوري بمجرد بلوغ +8% → البوت يفوّت كل
                     # الـ pumps الكبيرة (+25% / +80% / x2) وهي مصدر الربح الحقيقي.
@@ -840,21 +863,28 @@ class LiveTradingExecutor:
                     logger.warning(f"Could not read circuit breaker state: {exc}")
 
                 reason = None
-                if circuit_breaker_on: reason = "circuit_breaker"
-                elif sudden_dump: reason = "sudden_dump"
-                elif trade.stop_loss_price and price <= trade.stop_loss_price: reason = "stop_loss"
-                elif trade.take_profit_price and price >= trade.take_profit_price: reason = "mega_tp"
-                elif trailing_hit:
-                    # V528: RUG-SURFER time exit (20s) — خروج قبل الـ dump
-                    if settings.is_rugsurfer_mode and trail_pct is None:
-                        reason = "time_exit_20s"
-                    else:
-                        reason = "smart_trailing"
-                elif stagnation_hit: reason = "stagnation"
-                elif trade.planned_holding_period_minutes and trade.entry_timestamp:
-                    age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
-                    if age_min >= trade.planned_holding_period_minutes:
-                        reason = "time_exit"
+                if settings.unified_strategy_enabled:
+                    # V541: قرار السُلّم الموحد هو النهائي — لكن قاطع الدائرة
+                    # (circuit breaker) يبقى صمام أمان أعلى منه.
+                    reason = _unified_reason
+                    if circuit_breaker_on:
+                        reason = "circuit_breaker"
+                else:
+                    if circuit_breaker_on: reason = "circuit_breaker"
+                    elif sudden_dump: reason = "sudden_dump"
+                    elif trade.stop_loss_price and price <= trade.stop_loss_price: reason = "stop_loss"
+                    elif trade.take_profit_price and price >= trade.take_profit_price: reason = "mega_tp"
+                    elif trailing_hit:
+                        # V528: RUG-SURFER time exit (20s) — خروج قبل الـ dump
+                        if settings.is_rugsurfer_mode and trail_pct is None:
+                            reason = "time_exit_20s"
+                        else:
+                            reason = "smart_trailing"
+                    elif stagnation_hit: reason = "stagnation"
+                    elif trade.planned_holding_period_minutes and trade.entry_timestamp:
+                        age_min = (_utcnow() - trade.entry_timestamp).total_seconds() / 60
+                        if age_min >= trade.planned_holding_period_minutes:
+                            reason = "time_exit"
 
                 if reason:
                     result = await self.close_position(trade.id, reason)

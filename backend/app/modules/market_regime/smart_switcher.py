@@ -152,8 +152,12 @@ class SmartProfileSwitcher:
                 pass
 
             # V529: حدّث SL/TP للصفقات المفتوحة
-            updated = await self._update_open_positions_for_new_profile(recommended)
-            result["open_positions_updated"] = updated
+            # V541: تحت الاستراتيجية الموحدة، الخروج يُدار بسُلّم موحد من سعر
+            # الدخول مباشرة — لا معنى لإعادة كتابة SL/TP المخزّنة (البروفايل
+            # أصبح مجرد قرص مخاطرة للحجم فقط).
+            if not settings.unified_strategy_enabled:
+                updated = await self._update_open_positions_for_new_profile(recommended)
+                result["open_positions_updated"] = updated
 
         return result
 

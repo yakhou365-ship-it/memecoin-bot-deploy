@@ -163,6 +163,26 @@ class Settings(BaseSettings):
     # ──────────────────────────────────────────────────────────────────────
     trading_profile: str = "adaptive_pro"  # V532 ADAPTIVE-PRO: يحمي في القاسي، يربح في الجيد
 
+    # ──────────────────────────────────────────────────────────────────────
+    # V541 — UNIFIED STRATEGY (المنطق الواحد لكل البوت)
+    #
+    # عندما تكون مفعّلة (الافتراضي) تُطبّق نفس بوابات الدخول ونفس سُلّم الخروج
+    # ونفس قواعد الدفاع على كل البروفايلات وفي التداول الورقي والمباشر معاً.
+    # البروفايل يبقى مجرد "قرص مخاطرة" (حجم الصفقة والحدود اليومية) فقط.
+    # تم التحقق منها عبر محاكاة مونت-كارلو (إحصائيات Pump.fun الحقيقية،
+    # 120 seeds × 3 أنظمة سوق × 8 اضطرابات نموذج):
+    #   السوق القاسي: -21% → -8% وسيط شهري (بدون أشهر كارثية)
+    #   السوق العادي: +7% .. +47% وسيط شهري حسب جودة الفلترة
+    # ──────────────────────────────────────────────────────────────────────
+    unified_strategy_enabled: bool = True
+    unified_trade_pct: float = 10.0        # حجم الصفقة الموحد (10% من رأس المال)
+    unified_daily_cap_pct: float = 40.0    # حد الإنفاق اليومي الموحد
+    unified_loss_pct: float = 12.0         # حد الخسارة اليومي الموحد (12%)
+    unified_max_positions: int = 6         # أقصى صفقات متزامنة
+    unified_max_chg_5m_pct: float = 60.0   # بوابات الدخول الموحدة
+    unified_min_liquidity_usd: float = 4000.0
+
+
     # Conservative profile (الأقل مخاطرة، الأقل ربحاً)
     conservative_trade_pct: float = 5.0
     conservative_daily_cap_pct: float = 30.0
@@ -558,6 +578,9 @@ class Settings(BaseSettings):
 
     @property
     def active_trade_pct(self) -> float:
+        # V541: الاستراتيجية الموحدة تفرض حجمها مهما كان البروفايل
+        if self.unified_strategy_enabled:
+            return self.unified_trade_pct
         p = self.trading_profile
         if p == "conservative": return self.conservative_trade_pct
         if p == "aggressive":   return self.aggressive_trade_pct
@@ -572,6 +595,8 @@ class Settings(BaseSettings):
 
     @property
     def active_daily_cap_pct(self) -> float:
+        if self.unified_strategy_enabled:
+            return self.unified_daily_cap_pct
         p = self.trading_profile
         if p == "conservative": return self.conservative_daily_cap_pct
         if p == "aggressive":   return self.aggressive_daily_cap_pct
@@ -586,6 +611,8 @@ class Settings(BaseSettings):
 
     @property
     def active_loss_pct(self) -> float:
+        if self.unified_strategy_enabled:
+            return self.unified_loss_pct
         p = self.trading_profile
         if p == "conservative": return self.conservative_loss_pct
         if p == "aggressive":   return self.aggressive_loss_pct
@@ -600,6 +627,8 @@ class Settings(BaseSettings):
 
     @property
     def active_max_positions(self) -> int:
+        if self.unified_strategy_enabled:
+            return self.unified_max_positions
         p = self.trading_profile
         if p == "conservative": return self.conservative_max_positions
         if p == "aggressive":   return self.aggressive_max_positions
@@ -614,6 +643,8 @@ class Settings(BaseSettings):
 
     @property
     def active_max_chg_5m_pct(self) -> float:
+        if self.unified_strategy_enabled:
+            return self.unified_max_chg_5m_pct
         p = self.trading_profile
         if p == "conservative": return self.conservative_max_chg_5m_pct
         if p == "aggressive":   return self.aggressive_max_chg_5m_pct
@@ -637,6 +668,8 @@ class Settings(BaseSettings):
 
     @property
     def active_min_liquidity_usd(self) -> float:
+        if self.unified_strategy_enabled:
+            return self.unified_min_liquidity_usd
         p = self.trading_profile
         if p == "conservative": return self.conservative_min_liquidity_usd
         if p == "aggressive":   return self.aggressive_min_liquidity_usd
@@ -705,6 +738,9 @@ class Settings(BaseSettings):
 
     @property
     def trailing_tiers(self) -> list:
+        # V541: سُلّم موحد — الـ runner يبدأ عند +35% بـ trailing 15%
+        if self.unified_strategy_enabled:
+            return [(0.35, 0.15)]
         if self.trading_profile == "conservative":
             return [(5.0, 0.45), (1.0, 0.35), (0.30, 0.25)]
         if self.trading_profile == "aggressive":

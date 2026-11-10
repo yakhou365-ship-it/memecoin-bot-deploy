@@ -29,6 +29,13 @@ from ..onchain.analyzer import OnChainAnalyzer, OnChainResult
 from ..security.scanner import SecurityResult, SecurityScanner
 from ..sentiment.analyzer import SentimentAnalyzer, SentimentResult
 from ..technical_analysis.analyzer import TechnicalAnalyzer, TechnicalAnalysisResult
+from ..trading_strategy.unified import (
+    UNIFIED_PARAMS,
+    UNIFIED_SL_MULT,
+    UNIFIED_TP_MULT,
+    UNIFIED_HOLD_MINUTES,
+    unified_entry_check,
+)
 
 
 @dataclass
@@ -474,12 +481,19 @@ class DecisionEngine:
             return
 
         # GATE 5c: Ultimate-bot — لا تدخل توكن تغير 5 دقائق > حد معين
-        # V528 RUG-SURFER: يدخل الـ rugs لكن في الـ pump phase المبكر (5-30s)
-        # V519 ULTIMATE: نفس بوابات BRUTAL (chg_5m 8-60%، age < 3 دقيقة)
-        # V515 SNIPER: chg_5m بين 5% و 80% فقط
-        # V518 BRUTAL: chg_5m بين 8% و 60% فقط
-        # V527 SURVIVOR: chg_5m بين 10% و 40% (أنضف نطاق)
-        if settings.is_rugsurfer_mode:
+        # V541 UNIFIED GATES — بوابات دخول واحدة لكل البوت (لا تتكرر لكل
+        # بروفايل): نافذة زخم صحي [8%, 60%] + عمر ≤ 3 دقائق + ضغط شراء
+        # (buys/sells ≥ 1.3) + تركز محافظ ≤ 25%. البيانات الناقصة لا تحظر.
+        if settings.unified_strategy_enabled:
+            ok_v541, why_v541 = unified_entry_check(token)
+            if not ok_v541:
+                result.qualified = False
+                result.recommendation = "monitor"
+                result.rejection_reason = why_v541
+                result.reasons.append(f"⚠️ {why_v541}")
+                return
+        # (المنطق القديم التالي يُستخدم فقط عند إيقاف الاستراتيجية الموحدة)
+        elif settings.is_rugsurfer_mode:
             min_chg_5m = settings.rugsurfer_min_chg_5m_pct  # 20%
             max_chg_5m = settings.rugsurfer_max_chg_5m_pct   # 200%
             min_age_sec = settings.rugsurfer_min_age_seconds  # 5
@@ -731,7 +745,10 @@ class DecisionEngine:
         result.suggested_position_size_pct = settings.active_trade_pct
 
         # V530: SL من الـ profile النشط (دائماً يُضبط لتجاوز أي قيمة سابقة)
-        if settings.is_adaptive_pro_mode:
+        if settings.unified_strategy_enabled:
+            # V541: SL موحد -6% من سعر الدخول
+            sl_pct = UNIFIED_PARAMS["stop_loss"]
+        elif settings.is_adaptive_pro_mode:
             sl_pct = settings.adaptive_pro_stop_loss
         elif settings.is_flash_mode:
             sl_pct = settings.flash_stop_loss_pct
@@ -758,7 +775,10 @@ class DecisionEngine:
         result.suggested_stop_loss = token_price * (1.0 - sl_pct)
 
         # V530: TP من الـ profile النشط (دائماً يُضبط)
-        if settings.is_adaptive_pro_mode:
+        if settings.unified_strategy_enabled:
+            # V541: TP موحد = سقف الـ mega (x10) — الخروج الفعلي يديره السُلّم
+            tp_mult = UNIFIED_TP_MULT
+        elif settings.is_adaptive_pro_mode:
             # V539 PROFIT FIX: TP القديم كان +8% → خروج كامل فوري عند أول pump صغير،
             # فلا يلتقط البوت أبداً الـ pumps الكبيرة (+25%/+80%/x2). الآن TP = سقف
             # صعب عند +100% فقط، والخروج الفعلي يديره نظام Ratchet المتدرج في
@@ -789,7 +809,10 @@ class DecisionEngine:
         result.suggested_take_profit = token_price * tp_mult
 
         # V530: holding period من الـ profile النشط (دائماً يُضبط)
-        if settings.is_adaptive_pro_mode:
+        if settings.unified_strategy_enabled:
+            # V541: 5 أيام كحد أقصى — الخروج الفعلي يديره السُلّم الموحد
+            result.suggested_holding_period_minutes = UNIFIED_HOLD_MINUTES
+        elif settings.is_adaptive_pro_mode:
             result.suggested_holding_period_minutes = 120  # 2h — أعطي وقت للنمو
         elif settings.is_flash_mode:
             result.suggested_holding_period_minutes = 0.25

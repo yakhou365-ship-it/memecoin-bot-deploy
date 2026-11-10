@@ -141,11 +141,8 @@ async def test_imports():
     except Exception as e:
         check("PaperTradingEngine", False, str(e))
 
-    try:
-        from app.modules.binance.client import BinanceClient
-        check("BinanceClient", True)
-    except Exception as e:
-        check("BinanceClient", False, str(e))
+    # V541: أزلنا فحص BinanceClient — البوت يعمل على Pump.fun فقط
+    # ولا توجد وحدة Binance في المشروع (الفحص كان يفشل دائماً).
 
     try:
         from app.modules.budget.budget_manager import BudgetManager
@@ -165,15 +162,15 @@ async def test_endpoints():
         ("GET /api/system/status", None, []),
         ("GET /api/agents/list", None, []),
         ("GET /api/agents/status", None, []),
-        ("GET /api/binance/status", None, []),
         ("GET /api/budget/settings", None, []),
         ("GET /api/health-monitor", None, []),
         ("GET /api/audit", None, []),
         ("GET /api/strategy-lab/experiments", None, []),
         ("GET /api/regime-memory/summary", None, []),
         ("GET /api/counterfactual/report", None, []),
-        ("GET /api/chat/history", None, []),
     ]
+    # V541: أزلنا /api/binance/status و /api/chat/history — المساران غير
+    # موجودين في routes.py (فحوصات قديمة كانت تفشل دائماً).
 
     for endpoint_desc, _, _ in endpoints_to_test:
         try:
@@ -187,14 +184,12 @@ async def test_endpoints():
                 "system/status": "system_status",
                 "agents/list": "list_agents",
                 "agents/status": "agents_status",
-                "binance/status": "binance_status",
                 "budget/settings": "get_budget_settings",
                 "health-monitor": "get_health",
                 "audit": "run_audit",
                 "strategy-lab/experiments": "get_experiments",
                 "regime-memory/summary": "get_regime_summary",
                 "counterfactual/report": "get_counterfactual_report",
-                "chat/history": "chat_history",
             }
 
             # Special case for /health (in main.py, not routes.py)
@@ -216,6 +211,7 @@ async def test_endpoints():
 
             # Call the handler (with default args for handlers that take Query params)
             import inspect
+            from fastapi.params import Query as _FQuery
             sig = inspect.signature(handler)
             kwargs = {}
             for pname, p in sig.parameters.items():
@@ -223,8 +219,13 @@ async def test_endpoints():
                     # No default - skip (can't call without args)
                     kwargs = None
                     break
-                # Use default value
-                kwargs[pname] = p.default
+                # Use default value. V541 FIX: FastAPI Query defaults are
+                # Query OBJECTS — unwrap them to the actual scalar default,
+                # otherwise timedelta(days=Query(7)) crashes with TypeError.
+                val = p.default
+                if isinstance(val, _FQuery):
+                    val = val.default
+                kwargs[pname] = val
 
             if kwargs is None:
                 # Handler requires args, skip

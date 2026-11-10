@@ -31,7 +31,8 @@ from ...core.config import settings
 from ...core.database import get_session
 from ...core.logger import logger
 from ...core.models import Token, Trade
-from ..risk_management.manager import RiskManager, RiskState
+from ..risk_management.manager import RiskManager
+from ..trading_strategy.unified import unified_exit_reason
 from ..market_scanner.ohlcv_fetcher import OHLCVFetcher
 
 
@@ -495,11 +496,30 @@ class PaperTradingEngine:
                 peak_price = current_price
                 trade.peak_price = peak_price
                 await self._persist_peak(trade.id, peak_price)
-            # V500/V513/V515/V518/V519/V527/V528: Smart Exit Strategy based on profile
+            # V500/V513/V515/V518/V519/V527/V528/V539/V541: Smart Exit Strategy
             peak_gain_pct = (peak_price / trade.entry_price - 1) if trade.entry_price > 0 else 0
             current_gain = (current_price / trade.entry_price - 1) * 100 if trade.entry_price > 0 else 0
             drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0
 
+            # V541 UNIFIED LADDER — سُلّم خروج واحد لكل البوت (نفس دالة المنفذ المباشر).
+            # الأولوية: sudden_dump > stop_loss(-6%) > mega_tp(x10) >
+            # نطاق الخروج [+15%, +35%) خروج كامل > runner trail 15% (يتشدد
+            # إلى 11.25% بعد +50% وإلى 9% بعد +100%) > ركود 4 ساعات > 5 أيام.
+            _unified_reason = None
+            if settings.unified_strategy_enabled:
+                elapsed_min_v541 = (
+                    (datetime.utcnow() - trade.entry_timestamp).total_seconds() / 60
+                    if trade.entry_timestamp else 0.0
+                )
+                _unified_reason = unified_exit_reason(
+                    entry_price=float(trade.entry_price),
+                    peak_price=float(peak_price),
+                    current_price=float(current_price),
+                    elapsed_minutes=elapsed_min_v541,
+                )
+                sudden_dump = False
+                trailing_hit = False
+                trail_pct = None
             # V539 ADAPTIVE-PRO RATCHET (متطابق مع المنفذ المباشر):
             #   ذروة ≥ +80% → trailing 20% من القمة (دع الـ moonshot يكتمل)
             #   ذروة ≥ +25% → أقفل +15% (اخرج فقط إذا هبط السعر تحت entry×1.15)
@@ -507,7 +527,9 @@ class PaperTradingEngine:
             #   + sudden_dump (gain≥3%، drop≥8%) كحماية فورية + SL -4%
             # قبل V539: adaptive_pro كان يسقط في فرع tiers العام (trailing فقط
             # بعد +100% بـ 30%) — تباين كامل مع المنفذ المباشر.
-            if settings.is_adaptive_pro_mode:
+            # V541: هذا الفرع وفروع elif التالية = المنطق القديم (يُستخدم فقط
+            # عند إيقاف الاستراتيجية الموحدة).
+            elif settings.is_adaptive_pro_mode:
                 quick_tp = settings.adaptive_pro_quick_tp                   # 0.08
                 partial_tp = settings.adaptive_pro_partial_tp               # 0.25
                 moonshot_thresh = settings.adaptive_pro_moonshot_threshold  # 0.80
@@ -688,30 +710,34 @@ class PaperTradingEngine:
                         stagnation_hit = True
 
             # Determine exit reason (V500 priority order)
+            # V541: في الوضع الموحد القرار النهائي من السُلّم الموحد فقط
             exit_reason = None
-            # 1. Sudden dump (emergency)
-            if sudden_dump:
-                exit_reason = "sudden_dump"
-            # 2. Hard SL
-            elif trade.stop_loss_price and current_price <= trade.stop_loss_price:
-                exit_reason = "stop_loss"
-            # 3. Mega TP cap (1000% = 10x)
-            elif trade.take_profit_price and current_price >= trade.take_profit_price:
-                exit_reason = "mega_tp"
-            # 4. Smart trailing (variable)
-            elif trailing_hit:
-                exit_reason = "smart_trailing"
-            # 5. Stagnation exit
-            elif stagnation_hit:
-                exit_reason = "stagnation"
-            # 6. Time exit (5 days = 7200 min)
-            elif (
-                trade.planned_holding_period_minutes
-                and trade.entry_timestamp
-            ):
-                elapsed = (datetime.utcnow() - trade.entry_timestamp).total_seconds() / 60
-                if elapsed >= trade.planned_holding_period_minutes:
-                    exit_reason = "time_exit"
+            if settings.unified_strategy_enabled:
+                exit_reason = _unified_reason
+            else:
+                # 1. Sudden dump (emergency)
+                if sudden_dump:
+                    exit_reason = "sudden_dump"
+                # 2. Hard SL
+                elif trade.stop_loss_price and current_price <= trade.stop_loss_price:
+                    exit_reason = "stop_loss"
+                # 3. Mega TP cap (1000% = 10x)
+                elif trade.take_profit_price and current_price >= trade.take_profit_price:
+                    exit_reason = "mega_tp"
+                # 4. Smart trailing (variable)
+                elif trailing_hit:
+                    exit_reason = "smart_trailing"
+                # 5. Stagnation exit
+                elif stagnation_hit:
+                    exit_reason = "stagnation"
+                # 6. Time exit (5 days = 7200 min)
+                elif (
+                    trade.planned_holding_period_minutes
+                    and trade.entry_timestamp
+                ):
+                    elapsed = (datetime.utcnow() - trade.entry_timestamp).total_seconds() / 60
+                    if elapsed >= trade.planned_holding_period_minutes:
+                        exit_reason = "time_exit"
 
             # Risk circuit breaker (max drawdown hit)
             risk_state = await self.risk_manager.get_state()
