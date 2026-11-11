@@ -1,0 +1,1086 @@
+{
+  "generated_at": "2026-11-11T13:14:06.974789Z",
+  "bot_version": "0.7.2 (V541 unified strategy)",
+  "simulator": "v542_real_pumpfun_montecarlo",
+  "initial_capital_usd": 20.0,
+  "days": 30,
+  "n_seeds_per_regime": 30,
+  "round_trip_drag_pct": 3.0,
+  "entry_latency_penalty_pct": 1.5,
+  "pumpfun_stats_pct": [
+    [
+      "fail_day1",
+      69.0
+    ],
+    [
+      "rug",
+      15.0
+    ],
+    [
+      "pump_dump",
+      12.0
+    ],
+    [
+      "graduate",
+      1.5
+    ],
+    [
+      "moonshot",
+      0.5
+    ]
+  ],
+  "regimes": [
+    "harsh",
+    "base",
+    "normal"
+  ],
+  "strategy_params": {
+    "quick_tp": 0.15,
+    "runner_threshold": 0.35,
+    "trail_width": 0.15,
+    "trail_tighten_50": 0.75,
+    "trail_tighten_100": 0.6,
+    "sudden_dump_gain": 0.1,
+    "sudden_dump_drop": 0.2,
+    "stop_loss": 0.06,
+    "mega_tp": 10.0,
+    "stagnation_minutes": 240,
+    "stagnation_max_gain": 0.05,
+    "max_hold_minutes": 7200,
+    "min_liquidity_usd": 4000.0,
+    "min_chg_5m_pct": 8.0,
+    "max_chg_5m_pct": 60.0,
+    "max_age_seconds": 180.0,
+    "min_txns_buys": 20,
+    "min_buy_sell_ratio": 1.3,
+    "max_top10_concentration_pct": 25.0,
+    "max_buys_per_day": 3,
+    "daily_loss_stop_pct": 12.0,
+    "dd_full_pct": 0.92,
+    "dd_half_pct": 0.8,
+    "streak_window": 6,
+    "streak_wr_max": 0.3333333333333333,
+    "streak_pnl_min": -0.1,
+    "pause_days_streak": 2,
+    "pause_days_dd": 3
+  },
+  "summary_by_regime": {
+    "harsh": {
+      "label": "harsh",
+      "n_seeds": 30,
+      "final_median": 16.76,
+      "final_mean": 17.37,
+      "final_p5": 15.63,
+      "final_p25": 15.78,
+      "final_p75": 18.16,
+      "final_p95": 20.0,
+      "final_min": 15.21,
+      "final_max": 25.73,
+      "roi_median_pct": -16.2,
+      "roi_mean_pct": -13.16,
+      "prob_profit_pct": 3.3,
+      "prob_double_pct": 0.0,
+      "prob_lose_half_pct": 0.0,
+      "prob_ruin_pct": 0.0,
+      "avg_trades": 2.5,
+      "avg_win_rate_pct": 5.1,
+      "avg_max_drawdown_pct": 14.37,
+      "max_drawdown_pct_median": 13.94
+    },
+    "base": {
+      "label": "base",
+      "n_seeds": 30,
+      "final_median": 15.89,
+      "final_mean": 16.16,
+      "final_p5": 15.25,
+      "final_p25": 15.69,
+      "final_p75": 16.1,
+      "final_p95": 17.05,
+      "final_min": 15.08,
+      "final_max": 23.18,
+      "roi_median_pct": -20.55,
+      "roi_mean_pct": -19.18,
+      "prob_profit_pct": 3.3,
+      "prob_double_pct": 0.0,
+      "prob_lose_half_pct": 0.0,
+      "prob_ruin_pct": 0.0,
+      "avg_trades": 3.8,
+      "avg_win_rate_pct": 2.9,
+      "avg_max_drawdown_pct": 19.95,
+      "max_drawdown_pct_median": 20.55
+    },
+    "normal": {
+      "label": "normal",
+      "n_seeds": 30,
+      "final_median": 15.69,
+      "final_mean": 16.04,
+      "final_p5": 14.9,
+      "final_p25": 15.27,
+      "final_p75": 15.92,
+      "final_p95": 18.69,
+      "final_min": 14.78,
+      "final_max": 20.18,
+      "roi_median_pct": -21.53,
+      "roi_mean_pct": -19.82,
+      "prob_profit_pct": 3.3,
+      "prob_double_pct": 0.0,
+      "prob_lose_half_pct": 0.0,
+      "prob_ruin_pct": 0.0,
+      "avg_trades": 5.0,
+      "avg_win_rate_pct": 4.3,
+      "avg_max_drawdown_pct": 21.75,
+      "max_drawdown_pct_median": 21.53
+    }
+  },
+  "exit_reasons_by_regime": {
+    "harsh": {
+      "stop_loss": 69,
+      "quick_tp": 2,
+      "end_of_sim": 3,
+      "time_exit": 2
+    },
+    "base": {
+      "stop_loss": 111,
+      "end_of_sim": 1,
+      "quick_tp": 2
+    },
+    "normal": {
+      "stop_loss": 140,
+      "mega_tp": 1,
+      "smart_trailing": 2,
+      "time_exit": 7
+    }
+  },
+  "skip_reasons_by_regime": {
+    "harsh": {
+      "chg5m_high": 310,
+      "too_old": 636,
+      "chg5m_low": 22,
+      "dd_deep": 28,
+      "streak_or_dd_pause": 117,
+      "low_buys_sells_ratio": 56,
+      "concentrated_holders": 58,
+      "low_buys": 30,
+      "low_liq": 4
+    },
+    "base": {
+      "chg5m_high": 527,
+      "too_old": 1013,
+      "concentrated_holders": 79,
+      "low_buys_sells_ratio": 84,
+      "low_buys": 40,
+      "chg5m_low": 29,
+      "dd_deep": 73,
+      "streak_or_dd_pause": 681,
+      "low_liq": 5
+    },
+    "normal": {
+      "too_old": 1095,
+      "low_buys_sells_ratio": 106,
+      "chg5m_high": 708,
+      "chg5m_low": 41,
+      "dd_deep": 138,
+      "streak_or_dd_pause": 3007,
+      "concentrated_holders": 96,
+      "low_buys": 47,
+      "daily_cap": 1,
+      "low_liq": 5
+    }
+  },
+  "by_token_type_by_regime": {
+    "harsh": {
+      "rug": {
+        "n": 7,
+        "wins": 0,
+        "pnl": -10.212562931423056
+      },
+      "fail_day1": {
+        "n": 66,
+        "wins": 2,
+        "pnl": -77.27741839934895
+      },
+      "graduate": {
+        "n": 2,
+        "wins": 2,
+        "pnl": 9.371807301230994
+      },
+      "pump_dump": {
+        "n": 1,
+        "wins": 0,
+        "pnl": -0.8476459103372678
+      }
+    },
+    "base": {
+      "fail_day1": {
+        "n": 94,
+        "wins": 1,
+        "pnl": -100.6063922144021
+      },
+      "pump_dump": {
+        "n": 12,
+        "wins": 0,
+        "pnl": -12.068590151938764
+      },
+      "rug": {
+        "n": 6,
+        "wins": 0,
+        "pnl": -7.10287087512034
+      },
+      "graduate": {
+        "n": 1,
+        "wins": 1,
+        "pnl": 4.591827776163903
+      },
+      "moonshot": {
+        "n": 1,
+        "wins": 1,
+        "pnl": 0.10975162657990704
+      }
+    },
+    "normal": {
+      "fail_day1": {
+        "n": 121,
+        "wins": 2,
+        "pnl": -133.49962490395131
+      },
+      "pump_dump": {
+        "n": 10,
+        "wins": 0,
+        "pnl": -8.675717988672567
+      },
+      "rug": {
+        "n": 11,
+        "wins": 0,
+        "pnl": -14.181762927541627
+      },
+      "moonshot": {
+        "n": 1,
+        "wins": 1,
+        "pnl": 9.217611869944221
+      },
+      "graduate": {
+        "n": 7,
+        "wins": 7,
+        "pnl": 28.21651563769734
+      }
+    }
+  },
+  "individual_runs": {
+    "harsh": [
+      {
+        "seed": 1,
+        "final": 15.65971918724577,
+        "roi_pct": -21.7,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.7
+      },
+      {
+        "seed": 2,
+        "final": 18.364650711751935,
+        "roi_pct": -8.18,
+        "n_trades": 1,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 8.18
+      },
+      {
+        "seed": 3,
+        "final": 18.01081829233584,
+        "roi_pct": -9.95,
+        "n_trades": 1,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 9.95
+      },
+      {
+        "seed": 4,
+        "final": 18.26467113168225,
+        "roi_pct": -8.68,
+        "n_trades": 2,
+        "wins": 1,
+        "win_rate_pct": 50.0,
+        "max_drawdown_pct": 9.75
+      },
+      {
+        "seed": 5,
+        "final": 15.77855108561109,
+        "roi_pct": -21.11,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.11
+      },
+      {
+        "seed": 6,
+        "final": 20.0,
+        "roi_pct": 0.0,
+        "n_trades": 0,
+        "wins": 0,
+        "win_rate_pct": 0,
+        "max_drawdown_pct": 0.0
+      },
+      {
+        "seed": 7,
+        "final": 18.512438222565365,
+        "roi_pct": -7.44,
+        "n_trades": 1,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 7.44
+      },
+      {
+        "seed": 8,
+        "final": 15.624356731713933,
+        "roi_pct": -21.88,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.88
+      },
+      {
+        "seed": 9,
+        "final": 16.67804487034341,
+        "roi_pct": -16.61,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 16.61
+      },
+      {
+        "seed": 10,
+        "final": 16.839118461716843,
+        "roi_pct": -15.8,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 15.8
+      },
+      {
+        "seed": 11,
+        "final": 18.00609402718868,
+        "roi_pct": -9.97,
+        "n_trades": 1,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 9.97
+      },
+      {
+        "seed": 12,
+        "final": 15.213183303701221,
+        "roi_pct": -23.93,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 23.93
+      },
+      {
+        "seed": 13,
+        "final": 18.076516738695936,
+        "roi_pct": -9.62,
+        "n_trades": 1,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 9.62
+      },
+      {
+        "seed": 14,
+        "final": 15.719955178789922,
+        "roi_pct": -21.4,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.4
+      },
+      {
+        "seed": 15,
+        "final": 16.56652225326565,
+        "roi_pct": -17.17,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 17.17
+      },
+      {
+        "seed": 16,
+        "final": 16.354712722787383,
+        "roi_pct": -18.23,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 13.86
+      },
+      {
+        "seed": 17,
+        "final": 15.790898190952877,
+        "roi_pct": -21.05,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.05
+      },
+      {
+        "seed": 18,
+        "final": 15.965084673111805,
+        "roi_pct": -20.17,
+        "n_trades": 5,
+        "wins": 1,
+        "win_rate_pct": 20.0,
+        "max_drawdown_pct": 12.98
+      },
+      {
+        "seed": 19,
+        "final": 25.73104216786919,
+        "roi_pct": 28.66,
+        "n_trades": 2,
+        "wins": 1,
+        "win_rate_pct": 50.0,
+        "max_drawdown_pct": 5.72
+      },
+      {
+        "seed": 20,
+        "final": 15.699246001022582,
+        "roi_pct": -21.5,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.5
+      },
+      {
+        "seed": 21,
+        "final": 15.654438433995619,
+        "roi_pct": -21.73,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.73
+      },
+      {
+        "seed": 22,
+        "final": 16.665825388845658,
+        "roi_pct": -16.67,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 16.67
+      },
+      {
+        "seed": 23,
+        "final": 16.415666485673473,
+        "roi_pct": -17.92,
+        "n_trades": 2,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 17.92
+      },
+      {
+        "seed": 24,
+        "final": 17.351128779536555,
+        "roi_pct": -13.24,
+        "n_trades": 2,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 13.24
+      },
+      {
+        "seed": 25,
+        "final": 19.729634699308047,
+        "roi_pct": -1.35,
+        "n_trades": 3,
+        "wins": 1,
+        "win_rate_pct": 33.3,
+        "max_drawdown_pct": 13.84
+      },
+      {
+        "seed": 26,
+        "final": 17.195028648118317,
+        "roi_pct": -14.02,
+        "n_trades": 2,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 14.02
+      },
+      {
+        "seed": 27,
+        "final": 17.339284053353165,
+        "roi_pct": -13.3,
+        "n_trades": 2,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 13.3
+      },
+      {
+        "seed": 28,
+        "final": 18.18506231236561,
+        "roi_pct": -9.07,
+        "n_trades": 1,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 9.07
+      },
+      {
+        "seed": 29,
+        "final": 20.0,
+        "roi_pct": 0.0,
+        "n_trades": 0,
+        "wins": 0,
+        "win_rate_pct": 0,
+        "max_drawdown_pct": 0.0
+      },
+      {
+        "seed": 30,
+        "final": 15.642487306573583,
+        "roi_pct": -21.79,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.79
+      }
+    ],
+    "base": [
+      {
+        "seed": 1,
+        "final": 16.051136795516754,
+        "roi_pct": -19.74,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 19.74
+      },
+      {
+        "seed": 2,
+        "final": 16.428288760346096,
+        "roi_pct": -17.86,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 17.86
+      },
+      {
+        "seed": 3,
+        "final": 15.741848574388966,
+        "roi_pct": -21.29,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.29
+      },
+      {
+        "seed": 4,
+        "final": 15.816404754607191,
+        "roi_pct": -20.92,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.92
+      },
+      {
+        "seed": 5,
+        "final": 15.937348241108278,
+        "roi_pct": -20.31,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.31
+      },
+      {
+        "seed": 6,
+        "final": 15.997554857249938,
+        "roi_pct": -20.01,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.01
+      },
+      {
+        "seed": 7,
+        "final": 23.182720574297072,
+        "roi_pct": 15.91,
+        "n_trades": 2,
+        "wins": 1,
+        "win_rate_pct": 50.0,
+        "max_drawdown_pct": 7.05
+      },
+      {
+        "seed": 8,
+        "final": 16.028420652510032,
+        "roi_pct": -19.86,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 19.86
+      },
+      {
+        "seed": 9,
+        "final": 15.162606128341935,
+        "roi_pct": -24.19,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 24.19
+      },
+      {
+        "seed": 10,
+        "final": 16.770950043506915,
+        "roi_pct": -16.15,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 16.15
+      },
+      {
+        "seed": 11,
+        "final": 15.076856751074958,
+        "roi_pct": -24.62,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 24.62
+      },
+      {
+        "seed": 12,
+        "final": 15.842201933622334,
+        "roi_pct": -20.79,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.79
+      },
+      {
+        "seed": 13,
+        "final": 15.839633218872637,
+        "roi_pct": -20.8,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.8
+      },
+      {
+        "seed": 14,
+        "final": 15.618236739631142,
+        "roi_pct": -21.91,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.91
+      },
+      {
+        "seed": 15,
+        "final": 15.54309219947954,
+        "roi_pct": -22.28,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 22.28
+      },
+      {
+        "seed": 16,
+        "final": 15.800145352139953,
+        "roi_pct": -21.0,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.0
+      },
+      {
+        "seed": 17,
+        "final": 15.355744140956915,
+        "roi_pct": -23.22,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 23.22
+      },
+      {
+        "seed": 18,
+        "final": 15.918155228988331,
+        "roi_pct": -20.41,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.41
+      },
+      {
+        "seed": 19,
+        "final": 16.40117887018459,
+        "roi_pct": -17.99,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 17.99
+      },
+      {
+        "seed": 20,
+        "final": 15.984625728428046,
+        "roi_pct": -20.08,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.08
+      },
+      {
+        "seed": 21,
+        "final": 15.580721489932575,
+        "roi_pct": -22.1,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 22.1
+      },
+      {
+        "seed": 22,
+        "final": 16.284313617603704,
+        "roi_pct": -18.58,
+        "n_trades": 2,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 18.58
+      },
+      {
+        "seed": 23,
+        "final": 15.498208483734413,
+        "roi_pct": -22.51,
+        "n_trades": 6,
+        "wins": 1,
+        "win_rate_pct": 16.7,
+        "max_drawdown_pct": 22.51
+      },
+      {
+        "seed": 24,
+        "final": 15.890144462445752,
+        "roi_pct": -20.55,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.55
+      },
+      {
+        "seed": 25,
+        "final": 15.889539433222625,
+        "roi_pct": -20.55,
+        "n_trades": 5,
+        "wins": 1,
+        "win_rate_pct": 20.0,
+        "max_drawdown_pct": 20.55
+      },
+      {
+        "seed": 26,
+        "final": 16.465458764939772,
+        "roi_pct": -17.67,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 17.67
+      },
+      {
+        "seed": 27,
+        "final": 15.748908901990053,
+        "roi_pct": -21.26,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.26
+      },
+      {
+        "seed": 28,
+        "final": 16.119286669723586,
+        "roi_pct": -19.4,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 19.4
+      },
+      {
+        "seed": 29,
+        "final": 15.678158175312177,
+        "roi_pct": -21.61,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.61
+      },
+      {
+        "seed": 30,
+        "final": 17.27183661712634,
+        "roi_pct": -13.64,
+        "n_trades": 2,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 13.64
+      }
+    ],
+    "normal": [
+      {
+        "seed": 1,
+        "final": 15.77226193732836,
+        "roi_pct": -21.14,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.14
+      },
+      {
+        "seed": 2,
+        "final": 15.883724328809874,
+        "roi_pct": -20.58,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.58
+      },
+      {
+        "seed": 3,
+        "final": 15.125812744483557,
+        "roi_pct": -24.37,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 24.37
+      },
+      {
+        "seed": 4,
+        "final": 15.588523926855675,
+        "roi_pct": -22.06,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 22.06
+      },
+      {
+        "seed": 5,
+        "final": 14.925830476181664,
+        "roi_pct": -25.37,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 25.37
+      },
+      {
+        "seed": 6,
+        "final": 20.17517054779397,
+        "roi_pct": 0.88,
+        "n_trades": 8,
+        "wins": 1,
+        "win_rate_pct": 12.5,
+        "max_drawdown_pct": 21.16
+      },
+      {
+        "seed": 7,
+        "final": 15.652536691457577,
+        "roi_pct": -21.74,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.74
+      },
+      {
+        "seed": 8,
+        "final": 17.844975711266592,
+        "roi_pct": -10.78,
+        "n_trades": 10,
+        "wins": 3,
+        "win_rate_pct": 30.0,
+        "max_drawdown_pct": 13.88
+      },
+      {
+        "seed": 9,
+        "final": 15.811211047450659,
+        "roi_pct": -20.94,
+        "n_trades": 3,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.94
+      },
+      {
+        "seed": 10,
+        "final": 18.905669335075984,
+        "roi_pct": -5.47,
+        "n_trades": 6,
+        "wins": 1,
+        "win_rate_pct": 16.7,
+        "max_drawdown_pct": 17.07
+      },
+      {
+        "seed": 11,
+        "final": 15.733516303445628,
+        "roi_pct": -21.33,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.33
+      },
+      {
+        "seed": 12,
+        "final": 15.596730922166094,
+        "roi_pct": -22.02,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 22.02
+      },
+      {
+        "seed": 13,
+        "final": 15.24909193037484,
+        "roi_pct": -23.75,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 23.75
+      },
+      {
+        "seed": 14,
+        "final": 18.415943201629062,
+        "roi_pct": -7.92,
+        "n_trades": 7,
+        "wins": 1,
+        "win_rate_pct": 14.3,
+        "max_drawdown_pct": 16.73
+      },
+      {
+        "seed": 15,
+        "final": 15.857338339000338,
+        "roi_pct": -20.71,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.71
+      },
+      {
+        "seed": 16,
+        "final": 15.080304446873022,
+        "roi_pct": -24.6,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 24.6
+      },
+      {
+        "seed": 17,
+        "final": 16.118661645083467,
+        "roi_pct": -19.41,
+        "n_trades": 7,
+        "wins": 1,
+        "win_rate_pct": 14.3,
+        "max_drawdown_pct": 19.41
+      },
+      {
+        "seed": 18,
+        "final": 14.876850192934322,
+        "roi_pct": -25.62,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 25.62
+      },
+      {
+        "seed": 19,
+        "final": 15.559450517966937,
+        "roi_pct": -22.2,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 22.2
+      },
+      {
+        "seed": 20,
+        "final": 15.359589241923468,
+        "roi_pct": -23.2,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 23.2
+      },
+      {
+        "seed": 21,
+        "final": 17.596390568385697,
+        "roi_pct": -12.02,
+        "n_trades": 5,
+        "wins": 1,
+        "win_rate_pct": 20.0,
+        "max_drawdown_pct": 20.48
+      },
+      {
+        "seed": 22,
+        "final": 15.001044493368251,
+        "roi_pct": -24.99,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 24.99
+      },
+      {
+        "seed": 23,
+        "final": 15.74279840905977,
+        "roi_pct": -21.29,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.29
+      },
+      {
+        "seed": 24,
+        "final": 15.337869740342267,
+        "roi_pct": -23.31,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 23.31
+      },
+      {
+        "seed": 25,
+        "final": 16.51453082015876,
+        "roi_pct": -17.43,
+        "n_trades": 10,
+        "wins": 2,
+        "win_rate_pct": 20.0,
+        "max_drawdown_pct": 21.27
+      },
+      {
+        "seed": 26,
+        "final": 14.778863833623806,
+        "roi_pct": -26.11,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 26.11
+      },
+      {
+        "seed": 27,
+        "final": 15.776397770825952,
+        "roi_pct": -21.12,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.12
+      },
+      {
+        "seed": 28,
+        "final": 15.22351403250168,
+        "roi_pct": -23.88,
+        "n_trades": 5,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 23.88
+      },
+      {
+        "seed": 29,
+        "final": 15.63445951565439,
+        "roi_pct": -21.83,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 21.83
+      },
+      {
+        "seed": 30,
+        "final": 15.937959015454332,
+        "roi_pct": -20.31,
+        "n_trades": 4,
+        "wins": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 20.31
+      }
+    ]
+  }
+}
