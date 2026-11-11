@@ -175,12 +175,12 @@ class Settings(BaseSettings):
     #   السوق العادي: +7% .. +47% وسيط شهري حسب جودة الفلترة
     # ──────────────────────────────────────────────────────────────────────
     unified_strategy_enabled: bool = True
-    unified_trade_pct: float = 2.0         # V544: 2% حجم الصفقة (كان 10%)
-    unified_daily_cap_pct: float = 4.0     # V544: 4% حد إنفاق يومي (2 صفقات × 2%)
-    unified_loss_pct: float = 2.0           # V544: 2% حد خسارة يومي (كان 12%)
-    unified_max_positions: int = 2         # V544: حد أقصى صفقات متزامنة (كان 6)
-    unified_max_chg_5m_pct: float = 30.0   # V544: لا تدخل بعد ذروة +30%
-    unified_min_liquidity_usd: float = 30000.0   # V544: سيولة عميقة فقط (كانت 4k)
+    unified_trade_pct: float = 100.0       # V549: ALL IN على كل صفقة مؤهلة
+    unified_daily_cap_pct: float = 500.0   # V549: بلا حد عملي (10 صفقات × 100%)
+    unified_loss_pct: float = 50.0          # V549: حد خسارة يومي = 50% (شبه معطل)
+    unified_max_positions: int = 6          # V549: 6 صفقات متزامنة (لتعدد moonshots)
+    unified_max_chg_5m_pct: float = 60.0    # V549: دخول حتى +60% (التقاط moonshots المتأخرة)
+    unified_min_liquidity_usd: float = 5000.0  # V549: سيولة معتدلة
 
 
     # Conservative profile (الأقل مخاطرة، الأقل ربحاً)

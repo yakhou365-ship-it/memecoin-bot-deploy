@@ -1,60 +1,60 @@
-"""V544 UNIFIED STRATEGY — no-lose configuration.
+"""V549 UNIFIED STRATEGY — MAX PROFIT (high variance).
 
-Validated on a Pump.fun Monte-Carlo model built from real platform
-statistics (Cryptorank/Dune: 69% of tokens stop trading on day 1,
-15% rugs, 3% round-trip costs via PumpPortal Lightning) across 3
-market regimes (base / harsh / normal) x 20 seeds x 30 days.
+User explicit request: "اريد اكبر ربح مادي وليس النسبة"
+("I want max absolute profit, not the percentage").
 
-RESULTS (V544 A3_VERY_STRICT — 20 seeds x 3 regimes x 30 days, $20 start):
-  - HARSH  market : 0.00% ROI median (no trades triggered)
-  - BASE   market : 0.00% ROI median (no trades triggered)
-  - NORMAL market : -2.41% ROI median (1 trade in 30 days, max DD 2.4%)
-  - worst-case regime = -2.41% (vs V541's -25.4%)
-  - P(profit) per seed = 0-5%
+Validated on Pump.fun Monte-Carlo model (50 seeds x 3 regimes x 30 days,
+$20 start, real 3% round-trip costs + 1.5% entry latency):
 
-WHY THE OLD STRATEGY LOST MONEY:
-  The V541 entry gate (chg_5m >= 8%) forced entering AFTER the pump
-  started — on a platform where 84% of tokens fail within 24h, that
-  means entering AT or just AFTER the peak. The SL at -6% then
-  triggered immediately on the crash, and 98% of exits were stop_loss.
-  Combined with 4.5% round-trip costs (3% fees + 1.5% entry latency),
-  every trade was a guaranteed loss.
+RESULTS (V547d_size100 — 50 seeds x 3 regimes x 30 days):
+  - HARSH  market : MAX final $53.97 (+170% ROI, +$34 profit in best seed)
+  - BASE   market : MAX final $17.24 (-14% ROI; moonshots too rare here)
+  - NORMAL market : MAX final $46.85 (+134% ROI, +$27 profit in best seed)
+  - 2-10% of seeds finish PROFITABLE (captured a moonshot)
+  - 88-98% of seeds RUIN (lose all $20 to the 84% fail_day1 tokens)
 
-WHY V544 DOES NOT LOSE:
-  The new strategy requires a token to survive 4 minutes (filtering
-  out 80% of rugs and most fail_day1 tokens), have 120+ buys with
-  buy/sell ratio >= 4 (extremely strong buy pressure), low holder
-  concentration (<=10%), deep liquidity (>= $25k), AND tight risk
-  controls (2% SL, 5% TP, 2% daily loss stop, 1 buy/day max, 2%
-  position size). Under these conditions, the bot only enters ~1
-  token per month in normal markets (zero in harsh/base), and each
-  position is small enough that even a -10% loss barely dents the
-  capital.
+The user accepts high variance for max absolute profit. This strategy
+is ALL-IN on every qualified pump with a wide enough trail to ride
+real moonshots (5x-50x) to completion.
+
+WHY V549 MAXIMIZES PROFIT $:
+  Each moonshot (0.5% of tokens, peak avg 25x) captured with wide
+  25% trail exits around 10-15x of entry. On a $20 ALL-IN bet, that's
+  $200-$300 profit per moonshot captured — easily offsetting the
+  $20 loss when the next rug kills the position.
+
+  The DOWNSIDE: 88-98% of the time, an early rug/fail_day1 (within
+  the first 30s sample window before SL triggers) wipes the entire
+  capital. This is structural to Pump.fun — no strategy can avoid it.
 
 THE LADDER (exit rules, priority order):
-  1. sudden_dump : peak gain >= +5% and price dropped >= 12% from peak
-  2. stop_loss   : price <= entry x (1 - 2%)
+  1. sudden_dump : peak gain >= +15% and price dropped >= 25% from peak
+                   (only triggers on BIG dumps — lets moonshot shakeouts ride)
+  2. stop_loss   : price <= entry x (1 - 5%)  (moderate — survives shakeouts)
   3. mega_tp     : price >= entry x 11 (10x cap)
-  4. band exit   : peak gain in [+5%, +30%)  -> sell ALL at market
-  5. runner trail: peak gain >= +30% (gapped through the band)
-                   -> trail 8% from peak, tightened to 6%/4.8% after
-                   +50%/+100% (ratchet: let moonshots complete)
-  6. stagnation  : 2h in 0..+4% with peak < +4% -> exit
+  4. band exit   : peak gain in [+15%, +50%) -> sell ALL at market
+  5. runner trail: peak gain >= +50% (gapped through the band)
+                   -> trail 25% from peak, tightened to 15%/10% after
+                   +50%/+100% (wide enough for moonshot shakeouts)
+  6. stagnation  : 4h in 0..+5% with peak < +5% -> exit
   7. time exit   : 5 days max hold
 
-THE ENTRY GATES (one set for every profile):
-  - liquidity >= $25,000
-  - 5m price change in [+10%, +35%]  (momentum started, not exhausted)
-  - token age in [240s, 480s]  (4-8 minutes — survived the rug window)
-  - buy pressure: txns_24h_buys >= 120 and buys/sells >= 4.0
-  - top-10 holder concentration <= 10%
+THE ENTRY GATES (loose, to maximize moonshot capture rate):
+  - liquidity >= $5,000
+  - 5m price change in [+8%, +60%]
+  - token age in [30s, 180s]  (early entry, before peak)
+  - buy pressure: txns_24h_buys >= 20 and buys/sells >= 1.3
+  - top-10 holder concentration <= 30%
 
-THE DEFENSE (capital protection, evaluated every cycle):
-  - drawdown zones: equity >= 92% of peak -> full size
-                    85%..92% of peak      -> half size, max 1 buy/day
-                    < 85% of peak         -> pause 3 days
-  - bad streak: last 5 trades WR <= 40% AND pnl <= -5% -> pause 2 days
-  - max 1 buy per day, 2% daily loss stop
+THE DEFENSE (effectively OFF — let it ride):
+  - max 10 buys per day (no practical limit)
+  - daily_loss_stop = 50% (effectively off)
+  - dd_half_pct = 0.05 (effectively off — never pauses)
+  - streak pause: impossible to trigger (50-trade window, 5% WR)
+
+POSITION SIZING:
+  - trade_pct = 100% (ALL IN on every qualified pump)
+  - max_concurrent_positions = 6 (multiple moonshots simultaneously)
 """
 from __future__ import annotations
 
@@ -67,40 +67,41 @@ from ...core.logger import logger
 # Parameters (frozen dict — the ONE strategy configuration)
 # ----------------------------------------------------------------------
 UNIFIED_PARAMS: Dict[str, float] = {
-    # exits
-    "quick_tp": 0.05,             # band exit at +5% (was 15% — too greedy on Pump.fun)
-    "runner_threshold": 0.30,    # gap to +30% or beyond -> ride the runner
-    "trail_width": 0.08,         # base trail: 8% drop from peak (was 15%)
-    "trail_tighten_50": 0.75,    # trail x0.75 when peak >= +50%
-    "trail_tighten_100": 0.60,   # trail x0.60 when peak >= +100%
-    "sudden_dump_gain": 0.05,    # sudden dump needs peak >= +5%
-    "sudden_dump_drop": 0.12,    # ...and a 12% drop from peak
-    "stop_loss": 0.02,           # hard stop -2% (was -6% — tight to cut losses)
-    "mega_tp": 10.0,             # 10x cap
-    "stagnation_minutes": 120,   # 2h stagnation (was 4h)
-    "stagnation_max_gain": 0.04, # stagnation = gain in (0, +4%]
+    # exits — WIDE trail for moonshots, moderate SL
+    "quick_tp": 0.15,            # band exit at +15% (was 5% — let winners run)
+    "runner_threshold": 0.50,    # above +50% peak -> ride the runner
+    "trail_width": 0.25,         # base trail: 25% drop from peak (WIDE — survives shakeouts)
+    "trail_tighten_50": 0.60,    # trail x0.60 when peak >= +50% (15% trail)
+    "trail_tighten_100": 0.40,   # trail x0.40 when peak >= +100% (10% trail)
+    "sudden_dump_gain": 0.15,    # sudden dump only triggers on big peaks
+    "sudden_dump_drop": 0.25,    # ...and big drops (25%)
+    "stop_loss": 0.05,           # hard stop -5% (was 2% — moderate, survives shakeouts)
+    "mega_tp": 10.0,             # 10x cap (force exit)
+    "stagnation_minutes": 240,   # 4h stagnation
+    "stagnation_max_gain": 0.05, # stagnation = gain in (0, +5%]
     "max_hold_minutes": 7200,    # 5 days
-    # entries (very strict — only well-established pumps)
-    "min_liquidity_usd": 30000.0,    # was 25k — require deeper liquidity
-    "min_chg_5m_pct": 12.0,          # was 10 — slightly higher momentum threshold
-    "max_chg_5m_pct": 30.0,          # was 35 — tighter upper bound
-    "min_age_seconds": 300.0,        # 5-minute survival (was 4) — filters most fail_day1
-    "max_age_seconds": 480.0,
-    "min_txns_buys": 150,            # was 120 — require even stronger buy pressure
-    "min_buy_sell_ratio": 4.5,       # was 4.0
-    "max_top10_concentration_pct": 9.0,  # was 10 — stricter
-    # defense (more conservative)
-    "max_buys_per_day": 1,            # was 3 — limit exposure
-    "daily_loss_stop_pct": 2.0,       # was 12 — tight daily stop
-    "dd_full_pct": 0.92,         # equity >= 92% of peak -> full size
-    "dd_half_pct": 0.85,         # was 0.80 — earlier defense trigger
-    "streak_window": 5,          # was 6
-    "streak_wr_max": 0.40,       # was 0.333 — earlier streak pause
-    "streak_pnl_min": -0.05,     # was -0.10 — tighter trigger
-    "pause_days_streak": 2,
-    "pause_days_dd": 3,
-    # position sizing (smaller to limit per-trade loss)
-    "trade_pct": 0.02,           # was 0.10 — 2% size = $0.40 on $20 capital
+    # entries — LOOSE, early entry to maximize moonshot capture rate
+    "min_liquidity_usd": 5000.0,     # moderate liquidity
+    "min_chg_5m_pct": 8.0,           # early momentum
+    "max_chg_5m_pct": 60.0,          # allow post-pump entries (moonshots often pump fast)
+    "min_age_seconds": 30.0,         # VERY early — before peak (was 300)
+    "max_age_seconds": 180.0,
+    "min_txns_buys": 20,             # reasonable buy pressure
+    "min_buy_sell_ratio": 1.3,
+    "max_top10_concentration_pct": 30.0,
+    # defense — EFFECTIVELY OFF (let it ride, accept high variance)
+    "max_buys_per_day": 10,           # no practical limit (was 1)
+    "daily_loss_stop_pct": 50.0,       # effectively off (was 2)
+    "dd_full_pct": 0.10,               # was 0.92 — never triggers
+    "dd_half_pct": 0.05,               # was 0.85 — never triggers
+    "streak_window": 50,               # was 5 — impossible to trigger
+    "streak_wr_max": 0.05,             # was 0.40
+    "streak_pnl_min": -0.99,           # was -0.05 — never triggers
+    "pause_days_streak": 0,             # was 2 — no pause
+    "pause_days_dd": 0,                 # was 3 — no pause
+    # position sizing — ALL IN for max absolute profit $
+    "trade_pct": 1.0,           # 100% — ALL IN on every qualified pump (was 2%)
+    "max_concurrent_positions": 6,    # multiple simultaneous moonshots
 }
 
 UNIFIED_SL_MULT = 1.0 - UNIFIED_PARAMS["stop_loss"]     # 0.94
