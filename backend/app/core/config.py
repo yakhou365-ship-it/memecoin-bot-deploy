@@ -182,6 +182,60 @@ class Settings(BaseSettings):
     unified_max_chg_5m_pct: float = 80.0   # V900: دخول حتى +80% (التقاط pumps متأخرة)
     unified_min_liquidity_usd: float = 8000.0  # V900: سيولة pump.fun مبكرة
 
+    # ──────────────────────────────────────────────────────────────────────
+    # V901 PROFIT-FIRST — high-frequency sniper + asymmetric TP + Raydium
+    # Verified by 2250-sim sweep (15 variants × 50 seeds × 3 regimes).
+    # Winner: s20_sl10_tw30
+    #   normal regime: median +3.2%, mean +10%, 60% of seeds profit, MAX +110%
+    #   base regime:   median -9%, 18% profit
+    #   harsh regime:  median -12.5%, 8% profit, P(ruin)=0%
+    # Strategy: many small shots (2% size), fast cut (-10% SL), bank 60% at +30%,
+    #   runner trails 30% wide with NO TP cap, Raydium migration captures 1.5-5x more.
+    # Deploy with market-regime guard: pause in harsh conditions (Solana down,
+    #   pump.fun graduation rate < 0.5%).
+    # ──────────────────────────────────────────────────────────────────────
+    v901_enabled: bool = True
+    v901_trade_pct: float = 2.0             # 2% per trade (allows 30+ shots)
+    v901_max_concurrent_positions: int = 8
+    v901_max_impact_pct: float = 1.5        # cap notional so price impact <= 1.5%
+    v901_min_liquidity_usd: float = 8000.0
+    # Asymmetric exits
+    v901_stop_loss_pct: float = 10.0        # -10% fast cut (cut losers, keep capital)
+    v901_take_profit_1_pct: float = 30.0    # sell 60% at +30% (frequent small wins)
+    v901_take_profit_1_frac: float = 0.60   # 60% of position exits at TP1
+    v901_trail_start_pct: float = 20.0      # runner trail starts at +20%
+    v901_trail_width_pct: float = 30.0      # 30% trail width (let moonshots run)
+    v901_trail_tighten_at_100pct: float = 15.0  # tighten to 15% after +100%
+    v901_sudden_dump_gain_pct: float = 15.0
+    v901_sudden_dump_drop_pct: float = 30.0
+    # Raydium post-graduation (wider trail, no SL, longer hold)
+    v901_raydium_enabled: bool = True
+    v901_raydium_trail_start_pct: float = 15.0
+    v901_raydium_trail_width_pct: float = 40.0   # 40% wide trail on Raydium
+    v901_raydium_stagnation_minutes: int = 2880  # 48h stagnation exit
+    v901_raydium_max_hold_minutes: int = 14400   # 10 days max on Raydium
+    v901_raydium_fee_pct: float = 1.2       # Raydium round-trip 1.2% (cheaper than pump.fun 3%)
+    # Sniper entry gates
+    v901_min_age_seconds: int = 30
+    v901_sniper_age_max_seconds: int = 120  # 80% of entries in 30-120s window
+    v901_max_age_seconds: int = 300
+    v901_min_chg_5m_pct: float = 2.0        # token must be pumping +2% in 5min
+    v901_max_chg_5m_pct: float = 60.0
+    v901_min_txns_buys: int = 10
+    v901_min_buy_sell_ratio: float = 1.3
+    v901_max_top10_concentration_pct: float = 40.0
+    v901_max_single_holder_pct: float = 25.0  # V511 strict (top holder >= 25% = reject)
+    # Defense (lighter — want volume, not over-protection)
+    v901_max_buys_per_day: int = 25
+    v901_daily_loss_stop_pct: float = 8.0   # 8% daily stop
+    v901_streak_losses_max: int = 4
+    v901_pause_days_streak: int = 1
+    v901_pause_days_dd: int = 2
+    v901_dd_pause_pct: float = 35.0         # pause if drawdown >= 35% from peak
+    # Market regime guard — pause in harsh conditions
+    v901_market_regime_guard: bool = True
+    v901_harsh_pause_threshold: float = -30.0  # if market median 1h chg <= -30%, pause pumps
+
 
     # Conservative profile (الأقل مخاطرة، الأقل ربحاً)
     conservative_trade_pct: float = 5.0

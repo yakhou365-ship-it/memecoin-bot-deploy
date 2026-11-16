@@ -239,6 +239,193 @@ def partial_take_profit_level(current_gain: float) -> Optional[float]:
 
 
 # ======================================================================
+# V901 PROFIT-FIRST — asymmetric TP + Raydium post-graduation
+# Verified by 2250-sim sweep (winner: s20_sl10_tw30).
+#   normal regime: median +3.2%, 60% of seeds profit, MAX +110%, P(ruin)=0%
+#   base regime:   median -9%, 18% profit
+#   harsh regime:  median -12.5%, 8% profit, P(ruin)=0%
+# Deploy with market-regime guard: pause in harsh conditions.
+# ======================================================================
+V901_PARAMS: Dict[str, float] = {
+    # Position sizing — 2% allows 30+ shots before death spiral
+    "trade_pct": 0.02,
+    "max_concurrent_positions": 8,
+    "max_impact_pct": 0.015,
+    "min_liquidity_usd": 8000.0,
+    # Asymmetric exits — fast cut, bank small wins, let runner ride wide
+    "stop_loss": 0.10,                 # -10% fast cut (cut losers, keep capital)
+    "take_profit_1": 0.30,             # sell 60% at +30% (frequent small wins)
+    "take_profit_1_frac": 0.60,
+    "trail_start": 0.20,               # runner trail starts at +20%
+    "trail_width": 0.30,               # 30% trail width (let moonshots run)
+    "trail_tighten_100": 0.15,         # tighten to 15% after +100%
+    "sudden_dump_gain": 0.15,
+    "sudden_dump_drop": 0.30,
+    # Raydium post-graduation (wider trail, no SL, longer hold)
+    "raydium_trail_start": 0.15,
+    "raydium_trail_width": 0.40,       # 40% wide trail on Raydium
+    "raydium_stagnation_minutes": 2880, # 48h
+    "raydium_max_hold_minutes": 14400,  # 10 days
+    # Time exits (pump.fun phase)
+    "max_hold_minutes": 7200,          # 5 days on pump.fun
+    "stagnation_minutes": 360,
+    "stagnation_max_gain": 0.05,
+    # Sniper entry gates
+    "min_age_seconds": 30.0,
+    "sniper_age_max_seconds": 120.0,   # 80% of entries in 30-120s
+    "max_age_seconds": 300.0,
+    "min_chg_5m_pct": 2.0,
+    "max_chg_5m_pct": 60.0,
+    "min_txns_buys": 10,
+    "min_buy_sell_ratio": 1.3,
+    "max_top10_concentration_pct": 40.0,
+    "max_single_holder_pct": 25.0,     # V511 strict
+    # Defense (lighter — want volume)
+    "max_buys_per_day": 25,
+    "daily_loss_stop_pct": 8.0,
+    "streak_losses_max": 4,
+    "pause_days_streak": 1,
+    "pause_days_dd": 2,
+    "dd_pause_pct": 0.65,
+    # Market regime guard
+    "market_regime_guard": 1,
+    "harsh_pause_threshold": -30.0,
+}
+
+
+def v901_exit_reason(
+    entry_price: float,
+    peak_price: float,
+    current_price: float,
+    elapsed_minutes: float,
+    on_raydium: bool = False,
+    partial_done: bool = False,
+) -> Tuple[Optional[str], float]:
+    """V901 asymmetric exit ladder.
+
+    Returns (reason, sell_frac) where sell_frac is the fraction of the
+    REMAINING position to sell (1.0 = full exit, 0.6 = partial TP).
+
+    Pump.fun phase:
+      - Fast stop loss at -10% (cut losers).
+      - Partial TP: sell 60% at +30% (bank frequent small wins).
+      - Runner trails 30% wide (tightens to 15% after +100%).
+      - No TP2 cap — let the runner ride to moonshot territory.
+
+    Raydium phase (after graduation):
+      - No hard stop loss (price action steadier with real LP).
+      - 40% trail width (let moonshots run further than on pump.fun).
+      - 48h stagnation exit, 10-day max hold.
+    """
+    if entry_price <= 0 or peak_price <= 0 or current_price <= 0:
+        return None, 0.0
+
+    peak_gain = peak_price / entry_price - 1.0
+    current_gain = current_price / entry_price - 1.0
+    drop_from_peak = (peak_price - current_price) / peak_price if peak_price > 0 else 0.0
+
+    if on_raydium:
+        # === Raydium exit ladder (wider, no SL) ===
+        if peak_gain >= V901_PARAMS["raydium_trail_start"]:
+            width = V901_PARAMS["raydium_trail_width"]
+            if current_price <= peak_price * (1.0 - width):
+                return "raydium_trail", 1.0
+        if peak_gain >= V901_PARAMS["sudden_dump_gain"] and drop_from_peak >= V901_PARAMS["sudden_dump_drop"]:
+            return "raydium_sudden_dump", 1.0
+        if elapsed_minutes >= V901_PARAMS["raydium_stagnation_minutes"]:
+            if peak_gain < V901_PARAMS["stagnation_max_gain"]:
+                return "raydium_stagnation", 1.0
+        if elapsed_minutes >= V901_PARAMS["raydium_max_hold_minutes"]:
+            return "raydium_time_exit", 1.0
+        return None, 0.0
+
+    # === Pump.fun exit ladder ===
+    # 1. Hard stop loss — fast cut at -10%
+    if current_price <= entry_price * (1.0 - V901_PARAMS["stop_loss"]):
+        return "stop_loss", 1.0
+
+    # 2. Sudden dump emergency
+    if peak_gain >= V901_PARAMS["sudden_dump_gain"] and drop_from_peak >= V901_PARAMS["sudden_dump_drop"]:
+        return "sudden_dump", 1.0
+
+    # 3. Partial TP — sell 60% at +30% (only once)
+    if (not partial_done) and current_gain >= V901_PARAMS["take_profit_1"]:
+        return "partial_tp", V901_PARAMS["take_profit_1_frac"]
+
+    # 4. Smart trailing — 30% wide, tightens to 15% after +100%
+    if peak_gain >= V901_PARAMS["trail_start"]:
+        width = V901_PARAMS["trail_width"]
+        if peak_gain >= 1.0:
+            width = V901_PARAMS["trail_tighten_100"]
+        if current_price <= peak_price * (1.0 - width):
+            return "smart_trailing", 1.0
+
+    # 5. Stagnation exit
+    if elapsed_minutes >= V901_PARAMS["stagnation_minutes"]:
+        if peak_gain < V901_PARAMS["stagnation_max_gain"]:
+            return "stagnation", 1.0
+
+    # 6. Time exit
+    if elapsed_minutes >= V901_PARAMS["max_hold_minutes"]:
+        return "time_exit", 1.0
+
+    return None, 0.0
+
+
+def v901_position_size(equity_usd: float, liquidity_usd: Optional[float]) -> float:
+    """V901 position sizing — 2% per trade with liquidity + stressed-stop caps."""
+    if equity_usd <= 0:
+        return 0.0
+    size_pct = equity_usd * V901_PARAMS["trade_pct"]
+    stressed_cap = equity_usd * 0.005 / max(0.01, V901_PARAMS["stop_loss"])
+    size = min(size_pct, stressed_cap)
+    if liquidity_usd is not None and float(liquidity_usd) > 0:
+        cap = float(liquidity_usd) * 0.5 * V901_PARAMS["max_impact_pct"]
+        size = min(size, cap)
+    return max(0.0, size)
+
+
+def v901_sniper_entry_check(token: Any) -> Tuple[bool, str]:
+    """V901 sniper entry gate — young age + early pump + V511 holder check.
+
+    Returns (ok, reason). reason is "pass" if ok, else the rejection cause.
+    """
+    age_sec = float(getattr(token, "age_seconds", 0) or 0)
+    if age_sec < V901_PARAMS["min_age_seconds"]:
+        return False, "too_young"
+    if age_sec > V901_PARAMS["max_age_seconds"]:
+        return False, "too_old"
+
+    liquidity = float(getattr(token, "liquidity_usd", 0) or 0)
+    if liquidity < V901_PARAMS["min_liquidity_usd"]:
+        return False, "low_liq"
+
+    # V511 single-holder hard block
+    top_holder = getattr(token, "top_holder_pct", None)
+    if top_holder is not None and float(top_holder) > V901_PARAMS["max_single_holder_pct"]:
+        return False, "v511_single_holder"
+
+    top10 = getattr(token, "top10_concentration_pct", None)
+    if top10 is not None and float(top10) > V901_PARAMS["max_top10_concentration_pct"]:
+        return False, "concentrated_holders"
+
+    buys = int(getattr(token, "buys_5m", 0) or 0)
+    sells = int(getattr(token, "sells_5m", 0) or 0)
+    if buys < V901_PARAMS["min_txns_buys"]:
+        return False, "low_buys"
+    if sells > 0 and buys / sells < V901_PARAMS["min_buy_sell_ratio"]:
+        return False, "low_buys_sells_ratio"
+
+    chg_5m = float(getattr(token, "price_change_5m_pct", 0) or 0)
+    if chg_5m < V901_PARAMS["min_chg_5m_pct"]:
+        return False, "no_pump_signal"
+    if chg_5m > V901_PARAMS["max_chg_5m_pct"]:
+        return False, "too_hot"
+
+    return True, "pass"
+
+
+# ======================================================================
 # 2) MARKET-TREND SWITCH -- pump.fun lenient (median 1h > -30%)
 # ======================================================================
 _REGIME_CACHE: Dict[str, Any] = {"ts": 0.0, "median": None, "n": 0}

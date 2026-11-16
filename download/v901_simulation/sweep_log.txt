@@ -1,0 +1,76 @@
+============================================================================================
+V901 PROFIT-FIRST — high-freq sniper + asymmetric TP + Raydium
+50 seeds × 30 days × 3 regimes = 150 sims per variant × 15 variants = 2250 sims
+============================================================================================
+Initial capital: $20.00, 30 days
+Token dist (harsh): 73% fail, 17% rug, 7.5% pump_dump, 1.2% grad, 0.3% moon
+Raydium: graduate 100% migrate (+0-200%), moonshot 60% migrate (+50-400%)
+
+>>> V901_s15_sl10_tw25 (size=1.5%, SL=-10%, trail=25%)
+  harsh  : med $   18.04  mean $   18.24  p95 $  20.09  MAX $   22.94  P(profit)=  8%  P(ruin)=  0%  trades= 80.1  WR= 4.3%  ray_mig= 1.1  ray_pnl=$  0.84
+  base   : med $   18.65  mean $   19.27  p95 $  22.87  MAX $   34.01  P(profit)= 18%  P(ruin)=  0%  trades= 78.7  WR= 6.3%  ray_mig= 1.8  ray_pnl=$  1.53
+  normal : med $   20.27  mean $   21.20  p95 $  24.58  MAX $   36.72  P(profit)= 60%  P(ruin)=  0%  trades= 78.7  WR=10.5%  ray_mig= 3.1  ray_pnl=$  2.91
+>>> V901_s15_sl12_tw30 (size=1.5%, SL=-12%, trail=30%)
+  harsh  : med $   17.68  mean $   17.85  p95 $  19.88  MAX $   22.47  P(profit)=  6%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  0.83
+  base   : med $   18.26  mean $   18.84  p95 $  22.19  MAX $   33.39  P(profit)= 16%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  1.49
+  normal : med $   20.11  mean $   21.15  p95 $  24.72  MAX $   36.09  P(profit)= 50%  P(ruin)=  0%  trades= 78.0  WR=10.4%  ray_mig= 3.1  ray_pnl=$  3.20
+>>> V901_s15_sl14_tw35 (size=1.5%, SL=-14%, trail=35%)
+  harsh  : med $   17.28  mean $   17.46  p95 $  19.50  MAX $   22.01  P(profit)=  4%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  0.82
+  base   : med $   17.86  mean $   18.44  p95 $  21.75  MAX $   32.78  P(profit)= 12%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  1.48
+  normal : med $   19.72  mean $   20.74  p95 $  24.28  MAX $   35.46  P(profit)= 48%  P(ruin)=  0%  trades= 78.0  WR=10.4%  ray_mig= 3.1  ray_pnl=$  3.17
+>>> V901_s20_sl10_tw30 (size=2.0%, SL=-10%, trail=30%)
+  harsh  : med $   17.49  mean $   17.72  p95 $  20.33  MAX $   23.90  P(profit)=  8%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.09
+  base   : med $   18.21  mean $   19.02  p95 $  23.49  MAX $   38.70  P(profit)= 18%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  1.99
+  normal : med $   20.64  mean $   22.07  p95 $  26.74  MAX $   41.94  P(profit)= 60%  P(ruin)=  0%  trades= 78.0  WR=10.4%  ray_mig= 3.1  ray_pnl=$  4.27
+>>> V901_s20_sl12_tw25 (size=2.0%, SL=-12%, trail=25%)
+  harsh  : med $   16.90  mean $   17.17  p95 $  19.56  MAX $   23.28  P(profit)=  4%  P(ruin)=  0%  trades= 80.1  WR= 4.3%  ray_mig= 1.1  ray_pnl=$  1.08
+  base   : med $   17.69  mean $   18.51  p95 $  23.20  MAX $   37.77  P(profit)= 16%  P(ruin)=  0%  trades= 78.7  WR= 6.3%  ray_mig= 1.8  ray_pnl=$  2.00
+  normal : med $   19.83  mean $   21.02  p95 $  25.52  MAX $   41.00  P(profit)= 48%  P(ruin)=  0%  trades= 78.7  WR=10.5%  ray_mig= 3.1  ray_pnl=$  3.81
+>>> V901_s20_sl12_tw30 (size=2.0%, SL=-12%, trail=30%)
+  harsh  : med $   16.96  mean $   17.20  p95 $  19.82  MAX $   23.27  P(profit)=  6%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.08
+  base   : med $   17.69  mean $   18.48  p95 $  22.88  MAX $   37.77  P(profit)= 16%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  1.97
+  normal : med $   20.12  mean $   21.50  p95 $  26.12  MAX $   41.00  P(profit)= 50%  P(ruin)=  0%  trades= 78.0  WR=10.4%  ray_mig= 3.1  ray_pnl=$  4.22
+>>> V901_s20_sl12_tw35 (size=2.0%, SL=-12%, trail=35%)
+  harsh  : med $   16.96  mean $   17.20  p95 $  19.82  MAX $   23.27  P(profit)=  6%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.08
+  base   : med $   17.69  mean $   18.48  p95 $  22.88  MAX $   37.77  P(profit)= 16%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  1.97
+  normal : med $   20.12  mean $   21.50  p95 $  26.12  MAX $   41.00  P(profit)= 50%  P(ruin)=  0%  trades= 78.0  WR=10.4%  ray_mig= 3.1  ray_pnl=$  4.22
+>>> V901_s20_sl14_tw30 (size=2.0%, SL=-14%, trail=30%)
+  harsh  : med $   16.46  mean $   16.69  p95 $  19.32  MAX $   22.64  P(profit)=  4%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.07
+  base   : med $   17.19  mean $   17.97  p95 $  22.28  MAX $   36.87  P(profit)= 12%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  1.94
+  normal : med $   19.61  mean $   20.95  p95 $  25.51  MAX $   40.08  P(profit)= 48%  P(ruin)=  0%  trades= 78.0  WR=10.4%  ray_mig= 3.1  ray_pnl=$  4.16
+>>> V901_s25_sl10_tw30 (size=2.5%, SL=-10%, trail=30%)
+  harsh  : med $   16.90  mean $   17.20  p95 $  20.38  MAX $   24.87  P(profit)=  8%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.35
+  base   : med $   17.78  mean $   18.79  p95 $  24.32  MAX $   43.37  P(profit)= 18%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  2.47
+  normal : med $   20.76  mean $   22.63  p95 $  30.52  MAX $   46.99  P(profit)= 58%  P(ruin)=  0%  trades= 77.2  WR=10.5%  ray_mig= 3.1  ray_pnl=$  5.30
+>>> V901_s25_sl12_tw25 (size=2.5%, SL=-12%, trail=25%)
+  harsh  : med $   16.19  mean $   16.53  p95 $  19.43  MAX $   24.06  P(profit)=  4%  P(ruin)=  0%  trades= 80.1  WR= 4.3%  ray_mig= 1.1  ray_pnl=$  1.33
+  base   : med $   17.14  mean $   18.18  p95 $  23.96  MAX $   42.11  P(profit)= 14%  P(ruin)=  0%  trades= 78.7  WR= 6.3%  ray_mig= 1.8  ray_pnl=$  2.47
+  normal : med $   19.77  mean $   21.33  p95 $  26.86  MAX $   45.70  P(profit)= 48%  P(ruin)=  0%  trades= 77.9  WR=10.6%  ray_mig= 3.1  ray_pnl=$  4.71
+>>> V901_s25_sl12_tw30 (size=2.5%, SL=-12%, trail=30%)
+  harsh  : med $   16.27  mean $   16.57  p95 $  19.75  MAX $   24.05  P(profit)=  6%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.33
+  base   : med $   17.14  mean $   18.14  p95 $  23.53  MAX $   42.11  P(profit)= 14%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  2.43
+  normal : med $   20.11  mean $   21.92  p95 $  29.99  MAX $   45.70  P(profit)= 50%  P(ruin)=  0%  trades= 77.2  WR=10.5%  ray_mig= 3.1  ray_pnl=$  5.22
+>>> V901_s25_sl12_tw35 (size=2.5%, SL=-12%, trail=35%)
+  harsh  : med $   16.27  mean $   16.57  p95 $  19.75  MAX $   24.05  P(profit)=  6%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.33
+  base   : med $   17.14  mean $   18.14  p95 $  23.53  MAX $   42.11  P(profit)= 14%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  2.43
+  normal : med $   20.11  mean $   21.92  p95 $  29.99  MAX $   45.70  P(profit)= 50%  P(ruin)=  0%  trades= 77.2  WR=10.5%  ray_mig= 3.1  ray_pnl=$  5.22
+>>> V901_s25_sl14_tw30 (size=2.5%, SL=-14%, trail=30%)
+  harsh  : med $   15.67  mean $   15.96  p95 $  19.13  MAX $   23.25  P(profit)=  4%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.31
+  base   : med $   16.54  mean $   17.51  p95 $  22.78  MAX $   40.88  P(profit)= 12%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  2.40
+  normal : med $   19.48  mean $   21.24  p95 $  29.47  MAX $   44.45  P(profit)= 48%  P(ruin)=  0%  trades= 77.2  WR=10.5%  ray_mig= 3.1  ray_pnl=$  5.13
+>>> V901_s30_sl12_tw30 (size=3.0%, SL=-12%, trail=30%)
+  harsh  : med $   15.61  mean $   15.97  p95 $  19.67  MAX $   24.81  P(profit)=  6%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.56
+  base   : med $   16.61  mean $   17.81  p95 $  24.17  MAX $   46.39  P(profit)= 14%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  2.89
+  normal : med $   20.08  mean $   22.26  p95 $  31.92  MAX $   50.19  P(profit)= 50%  P(ruin)=  0%  trades= 77.2  WR=10.5%  ray_mig= 3.1  ray_pnl=$  6.19
+>>> V901_s30_sl15_tw35 (size=3.0%, SL=-15%, trail=35%)
+  harsh  : med $   14.59  mean $   14.93  p95 $  18.58  MAX $   23.37  P(profit)=  4%  P(ruin)=  0%  trades= 79.5  WR= 4.0%  ray_mig= 1.1  ray_pnl=$  1.52
+  base   : med $   15.59  mean $   16.72  p95 $  22.82  MAX $   44.02  P(profit)= 10%  P(ruin)=  0%  trades= 78.5  WR= 6.1%  ray_mig= 1.7  ray_pnl=$  2.81
+  normal : med $   18.97  mean $   21.05  p95 $  30.97  MAX $   47.77  P(profit)= 48%  P(ruin)=  0%  trades= 77.2  WR=10.5%  ray_mig= 3.1  ray_pnl=$  6.01/home/z/my-project/scripts/v901_simulation.py:802: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "generated_at": datetime.utcnow().isoformat() + "Z",
+
+
+============================================================================================
+WINNER: V901_s20_sl10_tw30  score=-0.40  mean_profit=$-0.40  max_ruin=0%  worst_median_roi=-12.55%
+============================================================================================
+
+Saved: /home/z/my-project/download/v901_simulation/winner_results.json
